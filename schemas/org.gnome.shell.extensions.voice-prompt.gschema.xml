@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.voice-prompt"
+          path="/org/gnome/shell/extensions/voice-prompt/">
+    <key name="push-to-talk" type="as">
+      <default>['&lt;Ctrl&gt;&lt;Shift&gt;space']</default>
+      <summary>Push-to-talk shortcut</summary>
+    </key>
+
+    <key name="asr-endpoint" type="s">
+      <default>'wss://dashscope.aliyuncs.com/api-ws/v1/inference'</default>
+      <summary>Fun-ASR WebSocket endpoint</summary>
+    </key>
+
+    <key name="asr-api-key" type="s">
+      <default>''</default>
+      <summary>Fun-ASR API key</summary>
+    </key>
+
+    <key name="asr-model" type="s">
+      <default>'fun-asr-realtime'</default>
+      <summary>Fun-ASR model</summary>
+    </key>
+
+    <key name="prompt-builder-enabled" type="b">
+      <default>true</default>
+      <summary>Enable Prompt Builder</summary>
+    </key>
+
+    <key name="prompt-builder-endpoint" type="s">
+      <default>''</default>
+      <summary>OpenAI-compatible chat completions endpoint</summary>
+    </key>
+
+    <key name="prompt-builder-api-key" type="s">
+      <default>''</default>
+      <summary>Prompt Builder API key</summary>
+    </key>
+
+    <key name="prompt-builder-model" type="s">
+      <default>''</default>
+      <summary>Prompt Builder model</summary>
+    </key>
+
+    <key name="prompt-builder-system-prompt" type="s">
+      <default>'Transform spoken language into a concise prompt. Preserve technical terminology, identifiers, filenames, commands, code symbols, and explicit constraints. Remove filler words, repetitions, false starts, and speech artifacts. Do not invent requirements. Do not add implementation details that were not expressed. Return only the resulting prompt.'</default>
+      <summary>Prompt Builder system prompt</summary>
+    </key>
+
+    <key name="restore-clipboard" type="b">
+      <default>true</default>
+      <summary>Restore previous clipboard text after paste</summary>
+    </key>
+  </schema>
+</schemalist>
