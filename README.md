@@ -128,6 +128,7 @@ those chunks for the live waveform and wraps the completed recording in a
 standard WAV container before transcription.
 
 Audio is never sent while recording. It is uploaded only after the user stops.
+Recordings shorter than one second are discarded without transcription.
 Recordings are capped at 24 MB (about 13 minutes at this format) so an
 accidental open session cannot exhaust GNOME Shell memory during upload.
 
