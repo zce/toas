@@ -48,10 +48,10 @@ Default Push-to-Talk shortcut:
 Ctrl + Shift + Space
 ```
 
-The top-bar microphone menu shows the current state and provides Start/Stop,
-Cancel, and Settings actions. While recording, a compact bottom overlay shows
-only the microphone level and current phase; it stays hidden while idle and
-hides immediately after insertion.
+The top-bar microphone menu provides Start/Stop, Cancel, and Settings actions.
+The compact bottom overlay shows a live waveform
+while recording, a spinner while processing, and text only when an error occurs.
+It stays hidden while idle and hides immediately after insertion.
 
 GNOME Shell keybindings expose the shortcut press but not a matching release callback. This prototype follows the minimal extension-only approach: while recording it polls the modifier mask every 40 ms and stops when the held modifiers are released. Release the whole chord together.
 
