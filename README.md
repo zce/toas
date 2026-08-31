@@ -151,7 +151,7 @@ stage timings, recording duration, and a relative recording path. Refine
 fallbacks are recorded as warnings. Failed transcriptions retain their audio so
 later history UI can support retry without recording again.
 
-The retention limit is configurable in Preferences and defaults to 10
+The retention limit is configurable in Preferences and defaults to 20
 sessions. Text entries and their corresponding recordings are pruned together.
 Recordings left unreferenced by a crash are removed the next time the extension
 starts. The top-bar menu's `Clear History` item removes all stored sessions and
