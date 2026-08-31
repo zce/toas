@@ -136,11 +136,13 @@ export default class ToasPreferences extends ExtensionPreferences {
             'API key',
             'Fallback: TOAS_REFINE_API_KEY, then OPENAI_API_KEY.'
         ));
-        refineGroup.add(textArea(
+        const refinePromptGroup = new Adw.PreferencesGroup({
+            title: 'Refine Instructions',
+            description: 'Tell the model how to edit the transcript. Formatting such as paragraphs, lists, and code is preserved when pasted.',
+        });
+        refinePromptGroup.add(textArea(
             settings,
-            'refine-system-prompt',
-            'System prompt',
-            'Refine the transcript without answering or inventing content.'
+            'refine-system-prompt'
         ));
 
         const securityGroup = new Adw.PreferencesGroup({
@@ -153,38 +155,21 @@ export default class ToasPreferences extends ExtensionPreferences {
         page.add(historyGroup);
         page.add(transcriptionGroup);
         page.add(refineGroup);
+        page.add(refinePromptGroup);
         page.add(securityGroup);
         window.add(page);
     }
 }
 
-function textArea(settings, key, title, subtitle = '') {
+function textArea(settings, key) {
     const row = new Adw.PreferencesRow();
     const box = new Gtk.Box({
         orientation: Gtk.Orientation.VERTICAL,
-        spacing: 8,
-        margin_top: 12,
-        margin_bottom: 12,
+        margin_top: 6,
+        margin_bottom: 6,
         margin_start: 12,
         margin_end: 12,
     });
-    const titleLabel = new Gtk.Label({
-        label: title,
-        xalign: 0,
-    });
-    titleLabel.add_css_class('heading');
-    box.append(titleLabel);
-
-    if (subtitle) {
-        const subtitleLabel = new Gtk.Label({
-            label: subtitle,
-            xalign: 0,
-            wrap: true,
-        });
-        subtitleLabel.add_css_class('dim-label');
-        box.append(subtitleLabel);
-    }
-
     const textView = new Gtk.TextView({
         wrap_mode: Gtk.WrapMode.WORD_CHAR,
         top_margin: 8,
@@ -199,11 +184,11 @@ function textArea(settings, key, title, subtitle = '') {
     });
 
     const scroller = new Gtk.ScrolledWindow({
-        min_content_height: 160,
+        min_content_height: 220,
         hscrollbar_policy: Gtk.PolicyType.NEVER,
+        has_frame: true,
         child: textView,
     });
-    scroller.add_css_class('card');
     box.append(scroller);
     row.set_child(box);
     return row;
