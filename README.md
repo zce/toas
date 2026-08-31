@@ -8,9 +8,9 @@
 record -> transcribe -> refine -> focused application
 ```
 
-The pipeline is intentionally provider-neutral. Transcription uses the
-OpenAI-compatible audio transcriptions protocol, while the optional Refine
-stage uses OpenAI-compatible Chat Completions.
+The pipeline separates recording, transcription, Refine, and output.
+Transcription currently targets MiMo's JSON multimodal Chat Completions
+protocol, while the optional Refine stage uses Chat Completions for text.
 
 ## Target
 
@@ -18,7 +18,7 @@ stage uses OpenAI-compatible Chat Completions.
 - GNOME Shell 49 / 50
 - Wayland
 - `pw-record` from PipeWire
-- An OpenAI-compatible audio transcription endpoint
+- A MiMo-compatible multimodal Chat Completions endpoint
 - An optional OpenAI-compatible Chat Completions endpoint
 
 There is no daemon, database, local model runtime, context capture, or dynamic
@@ -54,26 +54,35 @@ action menu.
 
 ## Transcription
 
-The extension sends a WAV file as `multipart/form-data` to an
-OpenAI-compatible `/v1/audio/transcriptions` endpoint. The standard fields are:
+The extension embeds the WAV recording as a Base64 Data URL in a JSON
+multimodal Chat Completions request:
 
-```text
-file
-model
-response_format=json
-language (optional)
+```json
+{
+  "model": "mimo-v2.5-asr",
+  "messages": [{
+    "role": "user",
+    "content": [{
+      "type": "input_audio",
+      "input_audio": {"data": "data:audio/wav;base64,..."}
+    }]
+  }],
+  "asr_options": {"language": "auto"},
+  "stream": true
+}
 ```
+
+Authentication uses the `api-key` request header. The streamed response is
+collected from `choices[0].delta.content` SSE events.
 
 Defaults:
 
 ```text
-endpoint = https://api.openai.com/v1/audio/transcriptions
-model    = whisper-1
+endpoint = https://token-plan-cn.xiaomimimo.com/v1/chat/completions
+model    = mimo-v2.5-asr
 ```
 
-Configure another compatible provider by changing the full endpoint, model,
-and API key in Preferences. Provider-specific request formats are intentionally
-not part of the pipeline interface.
+Configure the endpoint, model, language, and API key in Preferences.
 
 Settings can be left empty and supplied to the GNOME session environment:
 
@@ -83,7 +92,7 @@ TOAS_TRANSCRIPTION_MODEL=...
 TOAS_TRANSCRIPTION_API_KEY=...
 ```
 
-`OPENAI_API_KEY` is the final transcription key fallback.
+The transcription key can be supplied through `TOAS_TRANSCRIPTION_API_KEY`.
 
 ## Refine
 
@@ -112,8 +121,7 @@ incomplete, or fails, the raw transcript is inserted instead.
 ## Recording
 
 The recording format is exposed as a constrained setting. WAV is currently the
-only supported choice because it works across OpenAI-compatible transcription
-providers without adding an encoder dependency.
+only supported choice for the MiMo transcription request.
 
 `pw-record` emits 16 kHz, mono, signed 16-bit PCM in 100 ms chunks. `toas` uses
 those chunks for the live waveform and wraps the completed recording in a

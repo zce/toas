@@ -49,7 +49,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
         const recordingGroup = new Adw.PreferencesGroup({
             title: 'Recording',
-            description: 'Talk Once, Act Smart. Recordings currently use standard WAV for broad transcription compatibility.',
+            description: 'Talk Once, Act Smart. MiMo transcription currently uses standard WAV recordings.',
         });
         const recordingFormat = new Adw.ComboRow({
             title: 'Recording format',
@@ -85,12 +85,12 @@ export default class ToasPreferences extends ExtensionPreferences {
 
         const transcriptionGroup = new Adw.PreferencesGroup({
             title: 'Transcription',
-            description: 'Uses the OpenAI-compatible audio transcriptions multipart protocol.',
+            description: 'Sends WAV as a Data URL through JSON multimodal Chat Completions and reads the SSE response.',
         });
         transcriptionGroup.add(entry(
             settings,
             'transcription-endpoint',
-            'Audio transcriptions endpoint'
+            'Chat completions endpoint'
         ));
         transcriptionGroup.add(entry(settings, 'transcription-model', 'Model'));
         transcriptionGroup.add(entry(
@@ -103,7 +103,7 @@ export default class ToasPreferences extends ExtensionPreferences {
             settings,
             'transcription-api-key',
             'API key',
-            'Fallback: TOAS_TRANSCRIPTION_API_KEY, then OPENAI_API_KEY.'
+            'Fallback: TOAS_TRANSCRIPTION_API_KEY.'
         ));
 
         const refineGroup = new Adw.PreferencesGroup({

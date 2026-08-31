@@ -21,8 +21,8 @@
     </key>
 
     <key name="transcription-endpoint" type="s">
-      <default>'https://api.openai.com/v1/audio/transcriptions'</default>
-      <summary>OpenAI-compatible audio transcription endpoint</summary>
+      <default>'https://token-plan-cn.xiaomimimo.com/v1/chat/completions'</default>
+      <summary>Multimodal Chat Completions endpoint</summary>
     </key>
 
     <key name="transcription-api-key" type="s">
@@ -31,7 +31,7 @@
     </key>
 
     <key name="transcription-model" type="s">
-      <default>'whisper-1'</default>
+      <default>'mimo-v2.5-asr'</default>
       <summary>Transcription model</summary>
     </key>
 
