@@ -6,6 +6,7 @@ import Shell from 'gi://Shell';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {VoicePromptIndicator} from './lib/indicator.js';
 import {VoicePromptOrchestrator} from './lib/orchestrator.js';
 
 const PTT_MOD_MASK =
@@ -19,13 +20,23 @@ const PTT_POLL_INTERVAL_MS = 40;
 export default class VoicePromptExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
-        this._orchestrator = new VoicePromptOrchestrator(this._settings);
+        this._indicator = new VoicePromptIndicator({
+            onToggle: () => this._orchestrator?.toggle(),
+            onCancel: () => this._orchestrator?.cancel(),
+            onOpenPreferences: () => this.openPreferences(),
+        });
+        Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
+
+        this._orchestrator = new VoicePromptOrchestrator(
+            this._settings,
+            (state, message) => this._indicator?.render(state, message)
+        );
 
         Main.wm.addKeybinding(
             'push-to-talk',
             this._settings,
             Meta.KeyBindingFlags.NONE,
-            Shell.ActionMode.ALL,
+            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             () => this._onPushToTalk()
         );
     }
@@ -40,6 +51,9 @@ export default class VoicePromptExtension extends Extension {
 
         this._orchestrator?.destroy();
         this._orchestrator = null;
+
+        this._indicator?.destroy();
+        this._indicator = null;
         this._settings = null;
     }
 
