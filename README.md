@@ -155,10 +155,11 @@ The top-bar menu intentionally does not list history yet.
 
 ## Input behavior
 
-The final output is flattened to one line, copied to the GNOME clipboard, and
-pasted through a compositor-side Clutter virtual keyboard. Known terminals use
-`Ctrl+Shift+V`; other applications use `Ctrl+V`. The extension never
-synthesizes Enter.
+The final output is copied to the GNOME clipboard without changing whitespace,
+line breaks, Markdown, lists, or code indentation, then pasted through a
+compositor-side Clutter virtual keyboard. Known terminals use `Ctrl+Shift+V`;
+other applications use `Ctrl+V`. The extension never synthesizes Enter, though
+embedded line breaks remain part of the pasted text.
 
 When `Restore text clipboard` is enabled, the previous text clipboard value is
 restored after pasting. Rich or image clipboard content cannot be restored
