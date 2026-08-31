@@ -1,4 +1,5 @@
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
@@ -23,7 +24,7 @@ export default class VoicePromptExtension extends Extension {
         this._indicator = new VoicePromptIndicator({
             onToggle: () => this._orchestrator?.toggle(),
             onCancel: () => this._orchestrator?.cancel(),
-            onOpenPreferences: () => this.openPreferences(),
+            onOpenPreferences: () => this._openPreferences(),
         });
         Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
 
@@ -84,6 +85,31 @@ export default class VoicePromptExtension extends Extension {
                 this._pttPollId = 0;
                 this._orchestrator?.end();
                 return GLib.SOURCE_REMOVE;
+            }
+        );
+    }
+
+    _openPreferences() {
+        // GNOME 50's Extension.openPreferences() does not consume this async
+        // result, producing an unhandled rejection when the process fails.
+        Gio.DBus.session.call(
+            'org.gnome.Shell.Extensions',
+            '/org/gnome/Shell/Extensions',
+            'org.gnome.Shell.Extensions',
+            'OpenExtensionPrefs',
+            new GLib.Variant('(ssa{sv})', [this.uuid, '', {}]),
+            null,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null,
+            (_connection, result) => {
+                try {
+                    Gio.DBus.session.call_finish(result);
+                } catch (error) {
+                    console.error(
+                        `[Voice Prompt] Failed to open preferences: ${error.message}`
+                    );
+                }
             }
         );
     }
