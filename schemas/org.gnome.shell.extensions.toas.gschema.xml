@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.voice-prompt" path="/org/gnome/shell/extensions/voice-prompt/">
+  <schema id="org.gnome.shell.extensions.toas" path="/org/gnome/shell/extensions/toas/">
     <key name="push-to-talk" type="as">
       <default>['&lt;Ctrl&gt;&lt;Shift&gt;space']</default>
       <summary>Push-to-talk shortcut</summary>
@@ -10,6 +10,14 @@
       <range min="1" max="1000"/>
       <default>10</default>
       <summary>Number of voice sessions to retain</summary>
+    </key>
+
+    <key name="recording-format" type="s">
+      <choices>
+        <choice value="wav"/>
+      </choices>
+      <default>'wav'</default>
+      <summary>Recording file format</summary>
     </key>
 
     <key name="transcription-endpoint" type="s">

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-UUID="voice-prompt@local"
+UUID="toas@local"
 SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$UUID"
 
@@ -29,7 +29,7 @@ cp "$SOURCE_DIR/stylesheet.css" "$TARGET_DIR/"
 cp -R "$SOURCE_DIR/lib" "$TARGET_DIR/"
 cp -R "$SOURCE_DIR/schemas" "$TARGET_DIR/"
 
-glib-compile-schemas "$TARGET_DIR/schemas"
+glib-compile-schemas --strict "$TARGET_DIR/schemas"
 
 if gnome-extensions enable "$UUID" 2>/dev/null; then
   echo "Installed and enabled: $UUID"

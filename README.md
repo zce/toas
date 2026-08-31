@@ -1,6 +1,8 @@
-# Voice Prompt - GNOME Shell extension
+# toas - Talk Once, Act Smart
 
-Push-to-talk voice input for Fedora, GNOME, and Wayland:
+**Talk Once, Act Smart.**
+
+`toas` is push-to-talk voice input for Fedora, GNOME, and Wayland:
 
 ```text
 record -> transcribe -> refine -> focused application
@@ -33,13 +35,13 @@ If GNOME does not immediately discover the extension, log out and back in,
 then run:
 
 ```bash
-gnome-extensions enable voice-prompt@local
+gnome-extensions enable toas@local
 ```
 
 Open settings with:
 
 ```bash
-gnome-extensions prefs voice-prompt@local
+gnome-extensions prefs toas@local
 ```
 
 The default shortcut is `Ctrl+Shift+Space`. Hold it while speaking, then
@@ -76,9 +78,9 @@ not part of the pipeline interface.
 Settings can be left empty and supplied to the GNOME session environment:
 
 ```text
-VOICE_TRANSCRIPTION_ENDPOINT=...
-VOICE_TRANSCRIPTION_MODEL=...
-VOICE_TRANSCRIPTION_API_KEY=...
+TOAS_TRANSCRIPTION_ENDPOINT=...
+TOAS_TRANSCRIPTION_MODEL=...
+TOAS_TRANSCRIPTION_API_KEY=...
 ```
 
 `OPENAI_API_KEY` is the final transcription key fallback.
@@ -99,9 +101,9 @@ model    = empty (Refine is skipped until configured)
 Environment variables:
 
 ```text
-VOICE_REFINE_ENDPOINT=...
-VOICE_REFINE_MODEL=...
-VOICE_REFINE_API_KEY=...
+TOAS_REFINE_ENDPOINT=...
+TOAS_REFINE_MODEL=...
+TOAS_REFINE_API_KEY=...
 ```
 
 `OPENAI_API_KEY` is the final Refine key fallback. If Refine is disabled,
@@ -109,9 +111,13 @@ incomplete, or fails, the raw transcript is inserted instead.
 
 ## Recording
 
-`pw-record` emits 16 kHz, mono, signed 16-bit PCM in 100 ms chunks. The
-extension uses those chunks for the live waveform and wraps the completed
-recording in a standard WAV container before transcription.
+The recording format is exposed as a constrained setting. WAV is currently the
+only supported choice because it works across OpenAI-compatible transcription
+providers without adding an encoder dependency.
+
+`pw-record` emits 16 kHz, mono, signed 16-bit PCM in 100 ms chunks. `toas` uses
+those chunks for the live waveform and wraps the completed recording in a
+standard WAV container before transcription.
 
 Audio is never sent while recording. It is uploaded only after the user stops.
 Recordings are capped at 24 MB (about 13 minutes at this format) so an
@@ -122,7 +128,7 @@ accidental open session cannot exhaust GNOME Shell memory during upload.
 Successful sessions and processing failures are stored under:
 
 ```text
-${XDG_STATE_HOME:-~/.local/state}/voice-prompt/
+${XDG_STATE_HOME:-~/.local/state}/toas/
   history.jsonl
   recordings/*.wav
 ```
@@ -168,7 +174,7 @@ journalctl --user -f -o cat /usr/bin/gnome-shell
 Check extension state:
 
 ```bash
-gnome-extensions info voice-prompt@local
+gnome-extensions info toas@local
 ```
 
 On Wayland, GNOME Shell's ES-module cache can make disable/enable insufficient

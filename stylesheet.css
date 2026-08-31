@@ -1,4 +1,4 @@
-.voice-prompt-overlay {
+.toas-overlay {
   spacing: 8px;
   padding: 6px 10px;
   border: none;
@@ -8,30 +8,30 @@
   color: white;
 }
 
-.voice-prompt-icon {
+.toas-icon {
   icon-size: 14px;
   opacity: 0.82;
 }
 
-.voice-prompt-status {
+.toas-status {
   max-width: 150px;
   font-size: 12px;
   font-weight: 600;
 }
 
-.voice-prompt-bars {
+.toas-bars {
   spacing: 2px;
   height: 18px;
 }
 
-.voice-prompt-bar {
+.toas-bar {
   width: 3px;
   min-height: 2px;
   border-radius: 999px;
   background-color: -st-accent-color;
 }
 
-.voice-prompt-menu-icon {
+.toas-menu-icon {
   icon-size: 16px;
   margin-right: 8px;
 }

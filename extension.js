@@ -7,8 +7,8 @@ import Shell from 'gi://Shell';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {VoicePromptIndicator} from './lib/indicator.js';
-import {VoicePromptOrchestrator} from './lib/orchestrator.js';
+import {ToasIndicator} from './lib/indicator.js';
+import {ToasOrchestrator} from './lib/orchestrator.js';
 
 const PTT_MOD_MASK =
     Clutter.ModifierType.CONTROL_MASK |
@@ -18,28 +18,36 @@ const PTT_MOD_MASK =
 
 const PTT_POLL_INTERVAL_MS = 40;
 
-export default class VoicePromptExtension extends Extension {
+export default class ToasExtension extends Extension {
     enable() {
-        this._settings = this.getSettings();
-        this._indicator = new VoicePromptIndicator({
-            onToggle: () => this._orchestrator?.toggle(),
-            onCancel: () => this._orchestrator?.cancel(),
-            onOpenPreferences: () => this._openPreferences(),
-        });
-        Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
+        try {
+            this._settings = this.getSettings();
+            this._indicator = new ToasIndicator({
+                onToggle: () => this._orchestrator?.toggle(),
+                onCancel: () => this._orchestrator?.cancel(),
+                onOpenPreferences: () => this._openPreferences(),
+            });
+            this._orchestrator = new ToasOrchestrator(
+                this._settings,
+                (state, message) => this._indicator?.render(state, message)
+            );
 
-        this._orchestrator = new VoicePromptOrchestrator(
-            this._settings,
-            (state, message) => this._indicator?.render(state, message)
-        );
-
-        Main.wm.addKeybinding(
-            'push-to-talk',
-            this._settings,
-            Meta.KeyBindingFlags.NONE,
-            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-            () => this._onPushToTalk()
-        );
+            Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
+            Main.wm.addKeybinding(
+                'push-to-talk',
+                this._settings,
+                Meta.KeyBindingFlags.NONE,
+                Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+                () => this._onPushToTalk()
+            );
+        } catch (error) {
+            this._orchestrator?.destroy();
+            this._orchestrator = null;
+            this._indicator?.destroy();
+            this._indicator = null;
+            this._settings = null;
+            throw error;
+        }
     }
 
     disable() {
@@ -107,7 +115,7 @@ export default class VoicePromptExtension extends Extension {
                     Gio.DBus.session.call_finish(result);
                 } catch (error) {
                     console.error(
-                        `[Voice Prompt] Failed to open preferences: ${error.message}`
+                        `[toas] Failed to open preferences: ${error.message}`
                     );
                 }
             }

@@ -1,8 +1,8 @@
 {
-  "uuid": "voice-prompt@local",
-  "name": "Voice Prompt",
-  "description": "Push-to-talk voice input: record, transcribe, refine, and insert.",
-  "version": 2,
+  "uuid": "toas@local",
+  "name": "toas",
+  "description": "Talk Once, Act Smart. Record, transcribe, refine, and insert.",
+  "version": 3,
   "shell-version": ["49", "50"],
-  "settings-schema": "org.gnome.shell.extensions.voice-prompt"
+  "settings-schema": "org.gnome.shell.extensions.toas"
 }

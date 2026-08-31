@@ -4,12 +4,12 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-export default class VoicePromptPreferences extends ExtensionPreferences {
+export default class ToasPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
         const page = new Adw.PreferencesPage({
-            title: 'Voice Prompt',
+            title: 'toas',
             icon_name: 'audio-input-microphone-symbolic',
         });
 
@@ -47,9 +47,23 @@ export default class VoicePromptPreferences extends ExtensionPreferences {
         inputGroup.add(shortcut);
         inputGroup.add(restoreClipboard);
 
+        const recordingGroup = new Adw.PreferencesGroup({
+            title: 'Recording',
+            description: 'Talk Once, Act Smart. Recordings currently use standard WAV for broad transcription compatibility.',
+        });
+        const recordingFormat = new Adw.ComboRow({
+            title: 'Recording format',
+            model: Gtk.StringList.new(['WAV']),
+            selected: 0,
+        });
+        recordingFormat.connect('notify::selected', () => {
+            settings.set_string('recording-format', 'wav');
+        });
+        recordingGroup.add(recordingFormat);
+
         const historyGroup = new Adw.PreferencesGroup({
             title: 'History',
-            description: 'Sessions are stored under XDG_STATE_HOME/voice-prompt. Old text and recordings are removed together.',
+            description: 'Sessions are stored under XDG_STATE_HOME/toas. Old text and recordings are removed together.',
         });
         const historyLimit = new Adw.SpinRow({
             title: 'Sessions to keep',
@@ -89,7 +103,7 @@ export default class VoicePromptPreferences extends ExtensionPreferences {
             settings,
             'transcription-api-key',
             'API key',
-            'Fallback: VOICE_TRANSCRIPTION_API_KEY, then OPENAI_API_KEY.'
+            'Fallback: TOAS_TRANSCRIPTION_API_KEY, then OPENAI_API_KEY.'
         ));
 
         const refineGroup = new Adw.PreferencesGroup({
@@ -120,9 +134,9 @@ export default class VoicePromptPreferences extends ExtensionPreferences {
             settings,
             'refine-api-key',
             'API key',
-            'Fallback: VOICE_REFINE_API_KEY, then OPENAI_API_KEY.'
+            'Fallback: TOAS_REFINE_API_KEY, then OPENAI_API_KEY.'
         ));
-        refineGroup.add(entry(
+        refineGroup.add(textArea(
             settings,
             'refine-system-prompt',
             'System prompt',
@@ -130,17 +144,69 @@ export default class VoicePromptPreferences extends ExtensionPreferences {
         ));
 
         const securityGroup = new Adw.PreferencesGroup({
-            title: 'Prototype notes',
+            title: 'Security',
             description: 'Keys entered here are stored in dconf as plain text. For a cleaner setup, leave key fields empty and provide environment variables before logging into GNOME.',
         });
 
         page.add(inputGroup);
+        page.add(recordingGroup);
         page.add(historyGroup);
         page.add(transcriptionGroup);
         page.add(refineGroup);
         page.add(securityGroup);
         window.add(page);
     }
+}
+
+function textArea(settings, key, title, subtitle = '') {
+    const row = new Adw.PreferencesRow();
+    const box = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 8,
+        margin_top: 12,
+        margin_bottom: 12,
+        margin_start: 12,
+        margin_end: 12,
+    });
+    const titleLabel = new Gtk.Label({
+        label: title,
+        xalign: 0,
+    });
+    titleLabel.add_css_class('heading');
+    box.append(titleLabel);
+
+    if (subtitle) {
+        const subtitleLabel = new Gtk.Label({
+            label: subtitle,
+            xalign: 0,
+            wrap: true,
+        });
+        subtitleLabel.add_css_class('dim-label');
+        box.append(subtitleLabel);
+    }
+
+    const textView = new Gtk.TextView({
+        wrap_mode: Gtk.WrapMode.WORD_CHAR,
+        top_margin: 8,
+        bottom_margin: 8,
+        left_margin: 8,
+        right_margin: 8,
+    });
+    const buffer = textView.get_buffer();
+    buffer.text = settings.get_string(key);
+    buffer.connect('changed', () => {
+        settings.set_string(key, buffer.text);
+    });
+
+    const scroller = new Gtk.ScrolledWindow({
+        min_content_height: 160,
+        hscrollbar_policy: Gtk.PolicyType.NEVER,
+        child: textView,
+    });
+    scroller.add_css_class('card');
+    box.append(scroller);
+    row.set_child(box);
+    return row;
 }
 
 function entry(settings, key, title, tooltip = '') {
