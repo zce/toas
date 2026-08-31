@@ -85,7 +85,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
         const transcriptionGroup = new Adw.PreferencesGroup({
             title: 'Transcription',
-            description: 'Sends WAV as a Data URL through JSON multimodal Chat Completions and reads the SSE response.',
+            description: 'Sends WAV as a Data URL through one non-streaming JSON multimodal Chat Completions request.',
         });
         transcriptionGroup.add(entry(
             settings,

@@ -68,12 +68,12 @@ multimodal Chat Completions request:
     }]
   }],
   "asr_options": {"language": "auto"},
-  "stream": true
+  "stream": false
 }
 ```
 
-Authentication uses the `api-key` request header. The streamed response is
-collected from `choices[0].delta.content` SSE events.
+Authentication uses the `api-key` request header. The transcript is read from
+`choices[0].message.content` in the JSON response.
 
 Defaults:
 
