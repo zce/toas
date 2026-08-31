@@ -52,7 +52,9 @@ matching shortcut-release callback, so the extension polls the held modifier
 mask every 40 ms. A shortcut without modifiers works as a start/stop toggle.
 
 Left-click the top-bar microphone to start or stop. Right-click it to open the
-action menu.
+action menu. During transcription, refine, and insertion the on-screen overlay
+shows the active stage (`Transcribing…`, `Refining…`, `Inserting…`) next to the
+spinner; recording shows a live waveform.
 
 ## Transcription
 
