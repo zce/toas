@@ -1,5 +1,7 @@
 # toas - Talk Once, Act Smart
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **Talk Once, Act Smart.**
 
 `toas` is push-to-talk voice input for Fedora, GNOME, and Wayland:
@@ -190,3 +192,7 @@ gnome-extensions info toas@zce.me
 On Wayland, GNOME Shell's ES-module cache can make disable/enable insufficient
 after JavaScript changes. Log out and back in when updated code does not appear
 to load.
+
+## License
+
+Released under the [MIT License](LICENSE).
