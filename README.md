@@ -35,13 +35,13 @@ If GNOME does not immediately discover the extension, log out and back in,
 then run:
 
 ```bash
-gnome-extensions enable toas@local
+gnome-extensions enable toas@zce.me
 ```
 
 Open settings with:
 
 ```bash
-gnome-extensions prefs toas@local
+gnome-extensions prefs toas@zce.me
 ```
 
 The default shortcut is `Ctrl+Shift+Space`. Hold it while speaking, then
@@ -174,7 +174,7 @@ journalctl --user -f -o cat /usr/bin/gnome-shell
 Check extension state:
 
 ```bash
-gnome-extensions info toas@local
+gnome-extensions info toas@zce.me
 ```
 
 On Wayland, GNOME Shell's ES-module cache can make disable/enable insufficient
