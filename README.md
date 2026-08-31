@@ -72,8 +72,8 @@ multimodal Chat Completions request:
 }
 ```
 
-Authentication uses the `api-key` request header. The transcript is read from
-`choices[0].message.content` in the JSON response.
+Authentication uses the standard `Authorization: Bearer <key>` request header.
+The transcript is read from `choices[0].message.content` in the JSON response.
 
 Defaults:
 
