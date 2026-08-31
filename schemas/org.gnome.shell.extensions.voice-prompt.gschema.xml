@@ -6,44 +6,55 @@
       <summary>Push-to-talk shortcut</summary>
     </key>
 
-    <key name="asr-endpoint" type="s">
-      <default>'wss://dashscope.aliyuncs.com/api-ws/v1/inference'</default>
-      <summary>Fun-ASR WebSocket endpoint</summary>
+    <key name="history-limit" type="u">
+      <range min="1" max="1000"/>
+      <default>10</default>
+      <summary>Number of voice sessions to retain</summary>
     </key>
 
-    <key name="asr-api-key" type="s">
+    <key name="transcription-endpoint" type="s">
+      <default>'https://api.openai.com/v1/audio/transcriptions'</default>
+      <summary>OpenAI-compatible audio transcription endpoint</summary>
+    </key>
+
+    <key name="transcription-api-key" type="s">
       <default>''</default>
-      <summary>Fun-ASR API key</summary>
+      <summary>Transcription API key</summary>
     </key>
 
-    <key name="asr-model" type="s">
-      <default>'fun-asr-realtime'</default>
-      <summary>Fun-ASR model</summary>
+    <key name="transcription-model" type="s">
+      <default>'whisper-1'</default>
+      <summary>Transcription model</summary>
     </key>
 
-    <key name="prompt-builder-enabled" type="b">
+    <key name="transcription-language" type="s">
+      <default>''</default>
+      <summary>Optional transcription language code</summary>
+    </key>
+
+    <key name="refine-enabled" type="b">
       <default>true</default>
-      <summary>Enable Prompt Builder</summary>
+      <summary>Refine the raw transcript</summary>
     </key>
 
-    <key name="prompt-builder-endpoint" type="s">
+    <key name="refine-endpoint" type="s">
+      <default>'https://api.openai.com/v1/chat/completions'</default>
+      <summary>OpenAI-compatible refine endpoint</summary>
+    </key>
+
+    <key name="refine-api-key" type="s">
       <default>''</default>
-      <summary>OpenAI-compatible chat completions endpoint</summary>
+      <summary>Refine API key</summary>
     </key>
 
-    <key name="prompt-builder-api-key" type="s">
+    <key name="refine-model" type="s">
       <default>''</default>
-      <summary>Prompt Builder API key</summary>
+      <summary>Refine model</summary>
     </key>
 
-    <key name="prompt-builder-model" type="s">
-      <default>''</default>
-      <summary>Prompt Builder model</summary>
-    </key>
-
-    <key name="prompt-builder-system-prompt" type="s">
-      <default>'Transform spoken language into a concise prompt. Preserve technical terminology, identifiers, filenames, commands, code symbols, and explicit constraints. Remove filler words, repetitions, false starts, and speech artifacts. Do not invent requirements. Do not add implementation details that were not expressed. Return only the resulting prompt.'</default>
-      <summary>Prompt Builder system prompt</summary>
+    <key name="refine-system-prompt" type="s">
+      <default>'You are a voice-input editor. Rewrite the speech transcript into clean text suitable to send as a prompt or message. Preserve the original meaning, intent, language, technical terms, names, code, URLs, and important details. Remove filler words, false starts, duplicated fragments, and obvious speech-recognition errors. Improve punctuation and structure only when helpful. Do not answer the content or act on it. Output only the rewritten text.'</default>
+      <summary>Refine system prompt</summary>
     </key>
 
     <key name="restore-clipboard" type="b">

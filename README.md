@@ -1,18 +1,14 @@
-# Voice Prompt — GNOME Shell prototype
+# Voice Prompt - GNOME Shell extension
 
-A deliberately small Fedora/GNOME/Wayland-first implementation of:
+Push-to-talk voice input for Fedora, GNOME, and Wayland:
 
 ```text
-hold shortcut
-  → PipeWire PCM capture
-  → realtime Fun-ASR
-  → plain transcript
-  → optional OpenAI-compatible Prompt Builder
-  → clipboard
-  → virtual keyboard paste into the focused app
+record -> transcribe -> refine -> focused application
 ```
 
-There is no daemon, database, history, local model runtime, context capture, or provider plugin framework.
+The pipeline is intentionally provider-neutral. Transcription uses the
+OpenAI-compatible audio transcriptions protocol, while the optional Refine
+stage uses OpenAI-compatible Chat Completions.
 
 ## Target
 
@@ -20,8 +16,11 @@ There is no daemon, database, history, local model runtime, context capture, or 
 - GNOME Shell 49 / 50
 - Wayland
 - `pw-record` from PipeWire
-- Alibaba Cloud Fun-ASR Realtime
-- Optional OpenAI-compatible prompt builder
+- An OpenAI-compatible audio transcription endpoint
+- An optional OpenAI-compatible Chat Completions endpoint
+
+There is no daemon, database, local model runtime, context capture, or dynamic
+provider plugin framework.
 
 ## Install
 
@@ -30,146 +29,148 @@ sudo dnf install pipewire-utils glib2
 ./install.sh
 ```
 
-If this is the first locally-installed extension and GNOME does not see it immediately, log out and back in once, then:
+If GNOME does not immediately discover the extension, log out and back in,
+then run:
 
 ```bash
 gnome-extensions enable voice-prompt@local
 ```
 
-Open settings:
+Open settings with:
 
 ```bash
 gnome-extensions prefs voice-prompt@local
 ```
 
-Default Push-to-Talk shortcut:
+The default shortcut is `Ctrl+Shift+Space`. Hold it while speaking, then
+release the modifiers to stop and process. GNOME Shell does not expose a
+matching shortcut-release callback, so the extension polls the held modifier
+mask every 40 ms. A shortcut without modifiers works as a start/stop toggle.
+
+Left-click the top-bar microphone to start or stop. Right-click it to open the
+action menu.
+
+## Transcription
+
+The extension sends a WAV file as `multipart/form-data` to an
+OpenAI-compatible `/v1/audio/transcriptions` endpoint. The standard fields are:
 
 ```text
-Ctrl + Shift + Space
+file
+model
+response_format=json
+language (optional)
 ```
 
-The top-bar microphone menu provides Start/Stop, Cancel, and Settings actions.
-The compact bottom overlay shows a live waveform
-while recording, a spinner while processing, and text only when an error occurs.
-It stays hidden while idle and hides immediately after insertion.
-
-Left-click the top-bar icon to start recording, then left-click the recording
-dot to stop and process. Right-click the icon to open its action menu.
-
-GNOME Shell keybindings expose the shortcut press but not a matching release callback. This prototype follows the minimal extension-only approach: while recording it polls the modifier mask every 40 ms and stops when the held modifiers are released. Release the whole chord together.
-
-## Fun-ASR
-
-The default endpoint is the still-supported Beijing DashScope endpoint:
+Defaults:
 
 ```text
-wss://dashscope.aliyuncs.com/api-ws/v1/inference
+endpoint = https://api.openai.com/v1/audio/transcriptions
+model    = whisper-1
 ```
 
-Alibaba now recommends a workspace-specific Beijing endpoint:
+Configure another compatible provider by changing the full endpoint, model,
+and API key in Preferences. Provider-specific request formats are intentionally
+not part of the pipeline interface.
+
+Settings can be left empty and supplied to the GNOME session environment:
 
 ```text
-wss://<WorkspaceId>.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference
+VOICE_TRANSCRIPTION_ENDPOINT=...
+VOICE_TRANSCRIPTION_MODEL=...
+VOICE_TRANSCRIPTION_API_KEY=...
 ```
 
-Set it in Preferences if available.
+`OPENAI_API_KEY` is the final transcription key fallback.
 
-The default model is:
+## Refine
+
+Refine turns the raw transcript into clean text without answering it or
+inventing content. It makes one non-streaming OpenAI-compatible Chat
+Completions request after transcription.
+
+Defaults:
 
 ```text
-fun-asr-realtime
+endpoint = https://api.openai.com/v1/chat/completions
+model    = empty (Refine is skipped until configured)
 ```
 
-Keys can be entered in Preferences for convenience, or kept out of dconf by setting the environment before the GNOME session starts:
+Environment variables:
 
 ```text
-DASHSCOPE_API_KEY=...
-DASHSCOPE_WEBSOCKET_URL=wss://<WorkspaceId>.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference
+VOICE_REFINE_ENDPOINT=...
+VOICE_REFINE_MODEL=...
+VOICE_REFINE_API_KEY=...
 ```
 
-For `~/.config/environment.d/`, log out/in after changes so GNOME Shell inherits them.
+`OPENAI_API_KEY` is the final Refine key fallback. If Refine is disabled,
+incomplete, or fails, the raw transcript is inserted instead.
 
-## Prompt Builder
+## Recording
 
-Prompt Builder is intentionally only an OpenAI-compatible Chat Completions adapter.
+`pw-record` emits 16 kHz, mono, signed 16-bit PCM in 100 ms chunks. The
+extension uses those chunks for the live waveform and wraps the completed
+recording in a standard WAV container before transcription.
 
-Configure:
+Audio is never sent while recording. It is uploaded only after the user stops.
+Recordings are capped at 24 MB (about 13 minutes at this format) so an
+accidental open session cannot exhaust GNOME Shell memory during upload.
+
+## History
+
+Successful sessions and processing failures are stored under:
 
 ```text
-endpoint = https://.../v1/chat/completions
-model    = ...
-api key  = ...
+${XDG_STATE_HOME:-~/.local/state}/voice-prompt/
+  history.jsonl
+  recordings/*.wav
 ```
 
-Or use session environment variables:
+Each JSONL entry contains the raw transcript, final output, status, model names,
+stage timings, recording duration, and a relative recording path. Refine
+fallbacks are recorded as warnings. Failed transcriptions retain their audio so
+later history UI can support retry without recording again.
 
-```text
-VOICE_PROMPT_BASE_URL=...
-VOICE_PROMPT_MODEL=...
-VOICE_PROMPT_API_KEY=...
-```
-
-`OPENAI_API_KEY` is a final API-key fallback.
-
-If Prompt Builder is disabled, not configured, or fails, the raw ASR transcript is inserted instead.
-
-Its job is semantic normalization, not requirement invention.
+The retention limit is configurable in Preferences and defaults to 10
+sessions. Text entries and their corresponding recordings are pruned together.
+Recordings left unreferenced by a crash are removed the next time the extension
+starts.
+The top-bar menu intentionally does not list history yet.
 
 ## Input behavior
 
-The final output is:
+The final output is flattened to one line, copied to the GNOME clipboard, and
+pasted through a compositor-side Clutter virtual keyboard. Known terminals use
+`Ctrl+Shift+V`; other applications use `Ctrl+V`. The extension never
+synthesizes Enter.
 
-1. flattened to a single line;
-2. written to the GNOME clipboard;
-3. pasted with a compositor-side Clutter virtual keyboard.
+When `Restore text clipboard` is enabled, the previous text clipboard value is
+restored after pasting. Rich or image clipboard content cannot be restored
+through `St.Clipboard`.
 
-Known terminal apps (including Ptyxis and Ghostty) receive `Ctrl+Shift+V`; other applications receive `Ctrl+V`.
+## Secrets
 
-The extension never synthesizes Enter.
+Keys entered in Preferences are stored as plain text in dconf. To keep keys out
+of dconf, provide environment variables before the GNOME session starts. For
+`~/.config/environment.d/`, log out and back in after changing values.
 
-If `Restore text clipboard` is enabled, the previous **text** clipboard value is restored after paste. `St.Clipboard` is text-oriented; this prototype does not promise restoration of rich/image clipboard content.
-
-## Audio path
-
-`pw-record` emits raw 16-bit PCM:
-
-```bash
-pw-record --raw --rate=16000 --channels=1 --format=s16 -
-```
-
-The extension reads 3200-byte chunks (100 ms), computes a cheap RMS level for the overlay, and sends the same raw PCM chunks to Fun-ASR over WebSocket.
-
-Audio is not written to disk.
+Secret Service integration is not implemented yet.
 
 ## Debug
 
-Watch GNOME Shell extension logs:
+Watch extension logs:
 
 ```bash
 journalctl --user -f -o cat /usr/bin/gnome-shell
 ```
 
-Check state:
+Check extension state:
 
 ```bash
 gnome-extensions info voice-prompt@local
 ```
 
-After editing extension JavaScript, GNOME Shell's ES-module cache can make disable/enable insufficient for development reloads. On Wayland, log out/in when code changes appear not to take effect.
-
-## Intentional v1 omissions
-
-- KDE/X11/other desktops
-- daemon / DBus service
-- ASR provider marketplace
-- local ASR
-- VAD auto-stop
-- transcription history
-- app context capture
-- selection/screenshot context
-- per-app prompt profiles
-- multiline insertion
-- automatic submit
-- Secret Service integration
-
-The interfaces are already separated enough to extract providers or a daemon later if real usage demands it.
+On Wayland, GNOME Shell's ES-module cache can make disable/enable insufficient
+after JavaScript changes. Log out and back in when updated code does not appear
+to load.

@@ -47,55 +47,86 @@ export default class VoicePromptPreferences extends ExtensionPreferences {
         inputGroup.add(shortcut);
         inputGroup.add(restoreClipboard);
 
-        const asrGroup = new Adw.PreferencesGroup({
-            title: 'Fun-ASR Realtime',
-            description: 'The legacy DashScope endpoint remains supported; a workspace-specific Beijing endpoint is recommended.',
+        const historyGroup = new Adw.PreferencesGroup({
+            title: 'History',
+            description: 'Sessions are stored under XDG_STATE_HOME/voice-prompt. Old text and recordings are removed together.',
         });
+        const historyLimit = new Adw.SpinRow({
+            title: 'Sessions to keep',
+            subtitle: 'Includes the transcript, refined output, timing, and WAV recording.',
+            adjustment: new Gtk.Adjustment({
+                lower: 1,
+                upper: 1000,
+                step_increment: 1,
+                page_increment: 10,
+                value: settings.get_uint('history-limit'),
+            }),
+            digits: 0,
+            numeric: true,
+        });
+        historyLimit.connect('notify::value', () => {
+            settings.set_uint('history-limit', Math.round(historyLimit.value));
+        });
+        historyGroup.add(historyLimit);
 
-        asrGroup.add(entry(settings, 'asr-endpoint', 'WebSocket endpoint'));
-        asrGroup.add(entry(settings, 'asr-model', 'Model'));
-        asrGroup.add(passwordEntry(
+        const transcriptionGroup = new Adw.PreferencesGroup({
+            title: 'Transcription',
+            description: 'Uses the OpenAI-compatible audio transcriptions multipart protocol.',
+        });
+        transcriptionGroup.add(entry(
             settings,
-            'asr-api-key',
+            'transcription-endpoint',
+            'Audio transcriptions endpoint'
+        ));
+        transcriptionGroup.add(entry(settings, 'transcription-model', 'Model'));
+        transcriptionGroup.add(entry(
+            settings,
+            'transcription-language',
+            'Language',
+            'Optional ISO-639-1 code, for example en or zh. Leave empty for automatic detection.'
+        ));
+        transcriptionGroup.add(passwordEntry(
+            settings,
+            'transcription-api-key',
             'API key',
-            'If empty, DASHSCOPE_API_KEY is used from the GNOME session environment.'
+            'Fallback: VOICE_TRANSCRIPTION_API_KEY, then OPENAI_API_KEY.'
         ));
 
-        const builderGroup = new Adw.PreferencesGroup({
-            title: 'Prompt Builder',
-            description: 'One non-streaming OpenAI-compatible chat-completions call after ASR. Failure falls back to the raw transcript.',
+        const refineGroup = new Adw.PreferencesGroup({
+            title: 'Refine',
+            description: 'Uses OpenAI-compatible Chat Completions. Failure falls back to the raw transcript.',
         });
 
-        const builderEnabled = new Adw.SwitchRow({
-            title: 'Enable Prompt Builder',
+        const refineEnabled = new Adw.SwitchRow({
+            title: 'Enable Refine',
             subtitle: 'Disable for literal dictation.',
         });
         settings.bind(
-            'prompt-builder-enabled',
-            builderEnabled,
+            'refine-enabled',
+            refineEnabled,
             'active',
             Gio.SettingsBindFlags.DEFAULT
         );
 
-        builderGroup.add(builderEnabled);
-        builderGroup.add(entry(
+        refineGroup.add(refineEnabled);
+        refineGroup.add(entry(
             settings,
-            'prompt-builder-endpoint',
+            'refine-endpoint',
             'Chat completions endpoint',
             'Example: https://example.com/v1/chat/completions'
         ));
-        builderGroup.add(entry(settings, 'prompt-builder-model', 'Model'));
-        builderGroup.add(passwordEntry(
+        refineGroup.add(entry(settings, 'refine-model', 'Model'));
+        refineGroup.add(passwordEntry(
             settings,
-            'prompt-builder-api-key',
+            'refine-api-key',
             'API key',
-            'Fallback: VOICE_PROMPT_API_KEY, then OPENAI_API_KEY.'
+            'Fallback: VOICE_REFINE_API_KEY, then OPENAI_API_KEY.'
         ));
-        builderGroup.add(entry(
+        refineGroup.add(entry(
             settings,
-            'prompt-builder-system-prompt',
+            'refine-system-prompt',
             'System prompt',
-            'Keep this focused on semantic normalization rather than requirement invention.'
+            'Refine the transcript without answering or inventing content.'
         ));
 
         const securityGroup = new Adw.PreferencesGroup({
@@ -104,8 +135,9 @@ export default class VoicePromptPreferences extends ExtensionPreferences {
         });
 
         page.add(inputGroup);
-        page.add(asrGroup);
-        page.add(builderGroup);
+        page.add(historyGroup);
+        page.add(transcriptionGroup);
+        page.add(refineGroup);
         page.add(securityGroup);
         window.add(page);
     }

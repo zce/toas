@@ -1,8 +1,8 @@
 {
   "uuid": "voice-prompt@local",
   "name": "Voice Prompt",
-  "description": "Push-to-talk voice input: realtime ASR → optional prompt builder → focused application.",
-  "version": 1,
+  "description": "Push-to-talk voice input: record, transcribe, refine, and insert.",
+  "version": 2,
   "shell-version": ["49", "50"],
   "settings-schema": "org.gnome.shell.extensions.voice-prompt"
 }
