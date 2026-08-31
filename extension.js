@@ -25,6 +25,7 @@ export default class ToasExtension extends Extension {
             this._indicator = new ToasIndicator({
                 onToggle: () => this._orchestrator?.toggle(),
                 onCancel: () => this._orchestrator?.cancel(),
+                onClearHistory: () => this._clearHistory(),
                 onOpenPreferences: () => this._openPreferences(),
             });
             this._orchestrator = new ToasOrchestrator(
@@ -94,6 +95,18 @@ export default class ToasExtension extends Extension {
                 this._orchestrator?.end();
                 return GLib.SOURCE_REMOVE;
             }
+        );
+    }
+
+    _clearHistory() {
+        const cleared = this._orchestrator?.clearHistory();
+        if (cleared === null || cleared === undefined)
+            return;
+
+        Main.notify(
+            cleared > 0
+                ? `Cleared ${cleared} voice session${cleared === 1 ? '' : 's'}`
+                : 'History is already empty'
         );
     }
 

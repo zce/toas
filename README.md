@@ -154,8 +154,8 @@ later history UI can support retry without recording again.
 The retention limit is configurable in Preferences and defaults to 10
 sessions. Text entries and their corresponding recordings are pruned together.
 Recordings left unreferenced by a crash are removed the next time the extension
-starts.
-The top-bar menu intentionally does not list history yet.
+starts. The top-bar menu's `Clear History` item removes all stored sessions and
+recordings; it is disabled while a voice session is in progress.
 
 ## Input behavior
 
