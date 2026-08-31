@@ -53,6 +53,9 @@ The compact bottom overlay shows a live waveform
 while recording, a spinner while processing, and text only when an error occurs.
 It stays hidden while idle and hides immediately after insertion.
 
+Left-click the top-bar icon to start recording, then left-click the recording
+dot to stop and process. Right-click the icon to open its action menu.
+
 GNOME Shell keybindings expose the shortcut press but not a matching release callback. This prototype follows the minimal extension-only approach: while recording it polls the modifier mask every 40 ms and stops when the held modifiers are released. Release the whole chord together.
 
 ## Fun-ASR

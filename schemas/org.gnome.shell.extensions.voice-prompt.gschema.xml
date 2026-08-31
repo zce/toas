@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.voice-prompt"
-          path="/org/gnome/shell/extensions/voice-prompt/">
+  <schema id="org.gnome.shell.extensions.voice-prompt" path="/org/gnome/shell/extensions/voice-prompt/">
     <key name="push-to-talk" type="as">
       <default>['&lt;Ctrl&gt;&lt;Shift&gt;space']</default>
       <summary>Push-to-talk shortcut</summary>
