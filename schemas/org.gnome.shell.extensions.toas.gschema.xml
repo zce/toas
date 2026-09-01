@@ -12,14 +12,6 @@
       <summary>Number of voice sessions to retain</summary>
     </key>
 
-    <key name="recording-format" type="s">
-      <choices>
-        <choice value="wav"/>
-      </choices>
-      <default>'wav'</default>
-      <summary>Recording file format</summary>
-    </key>
-
     <key name="transcription-endpoint" type="s">
       <default>'https://token-plan-cn.xiaomimimo.com/v1/chat/completions'</default>
       <summary>Multimodal Chat Completions endpoint</summary>

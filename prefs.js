@@ -47,20 +47,6 @@ export default class ToasPreferences extends ExtensionPreferences {
     inputGroup.add(shortcut)
     inputGroup.add(restoreClipboard)
 
-    const recordingGroup = new Adw.PreferencesGroup({
-      title: 'Recording',
-      description: 'Talk Once, Act Smart. MiMo transcription currently uses standard WAV recordings.'
-    })
-    const recordingFormat = new Adw.ComboRow({
-      title: 'Recording format',
-      model: Gtk.StringList.new(['WAV']),
-      selected: 0
-    })
-    recordingFormat.connect('notify::selected', () => {
-      settings.set_string('recording-format', 'wav')
-    })
-    recordingGroup.add(recordingFormat)
-
     const historyGroup = new Adw.PreferencesGroup({
       title: 'History',
       description: 'Sessions are stored under XDG_STATE_HOME/toas. Old text and recordings are removed together.'
@@ -151,7 +137,6 @@ export default class ToasPreferences extends ExtensionPreferences {
     })
 
     page.add(inputGroup)
-    page.add(recordingGroup)
     page.add(historyGroup)
     page.add(transcriptionGroup)
     page.add(refineGroup)

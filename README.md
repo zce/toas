@@ -96,8 +96,6 @@ TOAS_TRANSCRIPTION_MODEL=...
 TOAS_TRANSCRIPTION_API_KEY=...
 ```
 
-The transcription key can be supplied through `TOAS_TRANSCRIPTION_API_KEY`.
-
 ## Refine
 
 Refine turns the raw transcript into clean text without answering it or
@@ -123,9 +121,6 @@ TOAS_REFINE_API_KEY=...
 incomplete, or fails, the raw transcript is inserted instead.
 
 ## Recording
-
-The recording format is exposed as a constrained setting. WAV is currently the
-only supported choice for the MiMo transcription request.
 
 `pw-record` emits 16 kHz, mono, signed 16-bit PCM in 100 ms chunks. `toas` uses
 those chunks for the live waveform and wraps the completed recording in a
