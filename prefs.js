@@ -49,11 +49,11 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const historyGroup = new Adw.PreferencesGroup({
       title: 'History',
-      description: 'Sessions are stored under XDG_STATE_HOME/toas. Old text and recordings are removed together.'
+      description: 'Sessions are stored under XDG_STATE_HOME/toas. Recordings are referenced resources and can outlive their files.'
     })
     const historyLimit = new Adw.SpinRow({
       title: 'Sessions to keep',
-      subtitle: 'Includes the transcript, refined output, timing, and WAV recording.',
+      subtitle: 'Keeps this many recent sessions.',
       adjustment: new Gtk.Adjustment({
         lower: 1,
         upper: 1000,
@@ -67,7 +67,27 @@ export default class ToasPreferences extends ExtensionPreferences {
     historyLimit.connect('notify::value', () => {
       settings.set_uint('history-limit', Math.round(historyLimit.value))
     })
+    const recordingsLimit = new Adw.SpinRow({
+      title: 'Recordings to keep',
+      subtitle: 'Keeps the WAV file for this many recent sessions. Older sessions keep their text but lose the recording.',
+      adjustment: new Gtk.Adjustment({
+        lower: 1,
+        upper: 1000,
+        step_increment: 1,
+        page_increment: 10,
+        value: settings.get_uint('recording-limit')
+      }),
+      digits: 0,
+      numeric: true
+    })
+    recordingsLimit.connect('notify::value', () => {
+      settings.set_uint(
+        'recording-limit',
+        Math.round(recordingsLimit.value)
+      )
+    })
     historyGroup.add(historyLimit)
+    historyGroup.add(recordingsLimit)
 
     const transcriptionGroup = new Adw.PreferencesGroup({
       title: 'Transcription',
@@ -162,6 +182,10 @@ function textArea (settings, key) {
     left_margin: 8,
     right_margin: 8
   })
+  // The .inline style class makes the TextView background transparent so the
+  // surrounding card's appearance shows through instead of the default .view
+  // background (a dark box in dark themes).
+  textView.add_css_class('inline')
   const buffer = textView.get_buffer()
   buffer.text = settings.get_string(key)
   buffer.connect('changed', () => {
@@ -171,9 +195,11 @@ function textArea (settings, key) {
   const scroller = new Gtk.ScrolledWindow({
     min_content_height: 220,
     hscrollbar_policy: Gtk.PolicyType.NEVER,
-    has_frame: true,
     child: textView
   })
+  // The .card style class gives the text area the same rounded, borderless
+  // look as the other libadwaita rows, replacing the old has_frame border.
+  scroller.add_css_class('card')
   box.append(scroller)
   row.set_child(box)
   return row

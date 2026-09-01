@@ -8,8 +8,14 @@
 
     <key name="history-limit" type="u">
       <range min="1" max="1000"/>
+      <default>500</default>
+      <summary>Number of history entries to retain</summary>
+    </key>
+
+    <key name="recording-limit" type="u">
+      <range min="1" max="1000"/>
       <default>20</default>
-      <summary>Number of voice sessions to retain</summary>
+      <summary>Number of recording files to retain</summary>
     </key>
 
     <key name="transcription-endpoint" type="s">

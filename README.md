@@ -141,15 +141,20 @@ ${XDG_STATE_HOME:-~/.local/state}/toas/
   recordings/*.wav
 ```
 
-Each JSONL entry contains the raw transcript, final output, status, model names,
-stage timings, recording duration, and a relative recording path. Refine
-fallbacks are recorded as warnings. Failed transcriptions retain their audio so
-later history UI can support retry without recording again.
+Each JSONL entry is one history record: the raw transcript, final output,
+status, the transcription and refine models, endpoints, language, finish
+reason, token usage, stage timings, recording duration, and a reference to its
+WAV recording. Refine skips and fallbacks are recorded as warnings. Failed
+transcriptions retain their audio so later history UI can support retry
+without recording again.
 
-The retention limit is configurable in Preferences and defaults to 20
-sessions. Text entries and their corresponding recordings are pruned together.
-Recordings left unreferenced by a crash are removed the next time the extension
-starts. The top-bar menu's `Clear History` item removes all stored sessions and
+History records and recording files are pruned separately. `Sessions to keep`
+(default 500) limits how many records are retained, while `Recordings to keep`
+(default 20) limits how many of those records still reference an on-disk WAV
+file. A record can outlive its recording: when a recording is pruned ahead of
+its record, the record is kept and its audio reference is cleared. Recordings
+left unreferenced by a crash are removed the next time the extension starts.
+The top-bar menu's `Clear History` item removes all stored sessions and
 recordings; it is disabled while a voice session is in progress.
 
 ## Input behavior
