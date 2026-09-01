@@ -166,45 +166,6 @@ export default class ToasPreferences extends ExtensionPreferences {
   }
 }
 
-function textArea (settings, key) {
-  const row = new Adw.PreferencesRow()
-  const box = new Gtk.Box({
-    orientation: Gtk.Orientation.VERTICAL,
-    margin_top: 6,
-    margin_bottom: 6,
-    margin_start: 12,
-    margin_end: 12
-  })
-  const textView = new Gtk.TextView({
-    wrap_mode: Gtk.WrapMode.WORD_CHAR,
-    top_margin: 8,
-    bottom_margin: 8,
-    left_margin: 8,
-    right_margin: 8
-  })
-  // The .inline style class makes the TextView background transparent so the
-  // surrounding card's appearance shows through instead of the default .view
-  // background (a dark box in dark themes).
-  textView.add_css_class('inline')
-  const buffer = textView.get_buffer()
-  buffer.text = settings.get_string(key)
-  buffer.connect('changed', () => {
-    settings.set_string(key, buffer.text)
-  })
-
-  const scroller = new Gtk.ScrolledWindow({
-    min_content_height: 220,
-    hscrollbar_policy: Gtk.PolicyType.NEVER,
-    child: textView
-  })
-  // The .card style class gives the text area the same rounded, borderless
-  // look as the other libadwaita rows, replacing the old has_frame border.
-  scroller.add_css_class('card')
-  box.append(scroller)
-  row.set_child(box)
-  return row
-}
-
 function entry (settings, key, title, tooltip = '') {
   const row = new Adw.EntryRow({
     title,
@@ -233,4 +194,37 @@ function passwordEntry (settings, key, title, tooltip = '') {
   })
 
   return row
+}
+
+function textArea(settings, key) {
+  const textView = new Gtk.TextView({
+    wrap_mode: Gtk.WrapMode.WORD_CHAR,
+    top_margin: 12,
+    bottom_margin: 12,
+    left_margin: 18,
+    right_margin: 18,
+    hexpand: true,
+    vexpand: true
+  })
+
+  textView.add_css_class('inline')
+
+  const buffer = textView.get_buffer()
+  buffer.text = settings.get_string(key)
+
+  buffer.connect('changed', () => {
+    settings.set_string(key, buffer.text)
+  })
+
+  const scroller = new Gtk.ScrolledWindow({
+    hscrollbar_policy: Gtk.PolicyType.NEVER,
+    vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+    min_content_height: 220,
+    max_content_height: 220,
+    child: textView
+  })
+
+  scroller.add_css_class('card')
+
+  return scroller
 }
