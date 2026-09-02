@@ -62,6 +62,15 @@ test('recording quality reaches the recorder factory', () => {
   orchestrator.destroy()
 })
 
+test('starting a recording resets the overlay waveform', () => {
+  const { orchestrator, overlay } = makeOrchestrator()
+
+  orchestrator.begin()
+
+  expectEqual(overlay.resets, 1)
+  orchestrator.destroy()
+})
+
 test('normal session runs recording through idle with one terminal transition', async () => {
   const recording = { id: 'rec-1', path: '/tmp/rec-1.wav', durationMs: 4200, mimeType: 'audio/wav' }
   const { orchestrator, recorder, paster, history, overlay, run } = makeOrchestrator({

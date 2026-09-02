@@ -143,6 +143,7 @@ export class FakeOverlay {
   constructor () {
     this.states = []
     this.levels = []
+    this.resets = 0
     this.destroys = 0
   }
 
@@ -151,6 +152,7 @@ export class FakeOverlay {
   }
 
   setLevel (level) { this.levels.push(level) }
+  resetLevels () { this.resets++ }
   destroy () { this.destroys++ }
 }
 

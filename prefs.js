@@ -271,23 +271,29 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const refineWarning = new Adw.ActionRow({ title: 'Refine is not active' })
     refineWarning.add_css_class('warning')
-    refineGroup.add(refineWarning)
-
     refineGroup.add(refineEnabled)
-    refineGroup.add(entry(
+    refineGroup.add(refineWarning)
+    const refineEndpoint = entry(
       settings,
       'refine-endpoint',
       'Service endpoint',
       'Example: https://example.com/v1/chat/completions'
-    ))
-    refineGroup.add(entry(settings, 'refine-model', 'Model'))
-    refineGroup.add(passwordEntry(
+    )
+    const refineModel = entry(settings, 'refine-model', 'Model')
+    const refineApiKey = passwordEntry(
       settings,
       'refine-api-key',
       'API key',
       'Also read from TOAS_REFINE_API_KEY, then OPENAI_API_KEY, when left empty.'
-    ))
-    refineGroup.add(buildRefineTestConnectionRow(settings).row)
+    )
+    const refineTestRow = buildRefineTestConnectionRow(settings)
+    const refineDetails = [
+      refineEndpoint,
+      refineModel,
+      refineApiKey,
+      refineTestRow.row
+    ]
+    refineDetails.forEach(row => refineGroup.add(row))
     const refinePromptGroup = new Adw.PreferencesGroup({
       title: 'Refine Instructions',
       description: 'Tell the model how to edit your transcript. Paragraphs, lists, and code formatting are kept when pasted.'
@@ -302,8 +308,11 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Keys entered here are stored in plain text by your system settings. To keep keys out of that storage, leave the fields empty and set the environment variables before logging in.'
     })
 
-    const updateRefineWarning = () => {
+    const updateRefineState = () => {
       const refine = resolveRefineConfig(settings)
+      refineDetails.forEach(row => { row.visible = refine.enabled })
+      refinePromptGroup.visible = refine.enabled
+
       const missing = []
       if (!refine.model.value) { missing.push('a model') }
       if (!refine.apiKey.present) { missing.push('an API key') }
@@ -318,9 +327,9 @@ export default class ToasPreferences extends ExtensionPreferences {
       }
     }
 
-    const settingsChangedId = settings.connect('changed', updateRefineWarning)
-    refineEnabled.connect('notify::active', updateRefineWarning)
-    updateRefineWarning()
+    const settingsChangedId = settings.connect('changed', updateRefineState)
+    refineEnabled.connect('notify::active', updateRefineState)
+    updateRefineState()
     window.connect('destroy', () => {
       settings.disconnect(settingsChangedId)
     })
