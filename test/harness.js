@@ -13,7 +13,7 @@ export function expectEqual (actual, expected, message = '') {
   const expectedJson = JSON.stringify(expected)
   if (actualJson !== expectedJson) {
     throw new Error(
-            `${message || 'expectEqual failed'}\n  expected: ${expectedJson}\n  actual:   ${actualJson}`
+            `${message || 'expectEqual failed'}\n  expected: ${expectedJson}\n  actual:   ${actualJson}\n  at: ${new Error().stack?.split('\n')[2]?.trim() ?? ''}`
     )
   }
 }

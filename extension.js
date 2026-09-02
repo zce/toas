@@ -14,6 +14,9 @@ import { ShellOverlayView } from './lib/shell-overlay-view.js'
 import { ShellNotifier } from './lib/notifier.js'
 import { TextPaster } from './lib/input.js'
 import { HistoryStore } from './lib/history.js'
+import { HistoryRepository } from './lib/history-repository.js'
+import { OnboardingManager } from './lib/onboarding.js'
+import { resolveTranscriptionConfig } from './lib/effective-config.js'
 
 const PTT_MOD_MASK =
     Clutter.ModifierType.CONTROL_MASK |
@@ -28,24 +31,37 @@ export default class ToasExtension extends Extension {
     try {
       this._settings = this.getSettings()
       this._indicator = new ToasIndicator({
-        onToggle: () => this._orchestrator?.toggle(),
+        onToggle: () => {
+          if (this._guardReadyToRecord()) { this._orchestrator?.toggle() }
+        },
         onCancel: () => this._orchestrator?.cancel(),
         onClearHistory: () => this._clearHistory(),
         onOpenPreferences: () => this._openPreferences()
       })
       const overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
+      const history = new HistoryStore(this._settings)
+      const notifier = new ShellNotifier()
       this._overlayCollaborators = { overlay }
 
       this._orchestrator = new ToasOrchestrator({
         settings: this._settings,
         collaborators: {
           overlay,
-          history: new HistoryStore(this._settings),
+          history,
           paster: new TextPaster(this._settings),
-          notifier: new ShellNotifier()
+          notifier
         },
         onStateChanged: (state, message) => this._indicator?.render(state, message)
       })
+
+      this._historyRepository = new HistoryRepository(history)
+      this._onboarding = new OnboardingManager({
+        settings: this._settings,
+        notifier,
+        onOpenPreferences: () => this._openPreferences(),
+        hasExistingHistory: () => history.readEntries().length > 0
+      })
+      this._onboarding.maybeShowOnboarding()
 
       Main.panel.addToStatusArea(this.uuid, this._indicator)
       this._scheduleIndicatorPosition();
@@ -87,6 +103,9 @@ export default class ToasExtension extends Extension {
 
     this._orchestrator?.destroy()
     this._orchestrator = null
+
+    this._onboarding = null
+    this._historyRepository = null
 
     // The orchestrator drops collaborator references without destroying them;
     // the composition root owns their teardown.
@@ -133,6 +152,13 @@ export default class ToasExtension extends Extension {
     this._positionIdleId = 0;
   }
 
+  // Gate for every recording entry point (shortcut and top-bar). Returns
+  // false when the user was redirected to preferences instead.
+  _guardReadyToRecord () {
+    const ready = resolveTranscriptionConfig(this._settings).ready
+    return !this._onboarding.guardUnconfigured(ready)
+  }
+
   _onPushToTalk () {
     if (this._pttPollId) { return }
 
@@ -141,9 +167,11 @@ export default class ToasExtension extends Extension {
     // GNOME's keybinding callback only gives us the press. With no modifier
     // there is no cheap/reliable release signal, so degrade to toggle mode.
     if (heldModifiers === 0) {
-      this._orchestrator?.toggle()
+      if (this._guardReadyToRecord()) { this._orchestrator?.toggle() }
       return
     }
+
+    if (!this._guardReadyToRecord()) { return }
 
     this._orchestrator?.begin()
 
