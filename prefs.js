@@ -133,7 +133,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const historyGroup = new Adw.PreferencesGroup({
       title: 'History',
-      description: 'Sessions are stored under XDG_STATE_HOME/toas. Recordings are referenced resources and can outlive their files.'
+      description: 'Session text and some recordings are kept on this device. Clear everything from the top-bar menu.'
     })
     const historyLimit = new Adw.SpinRow({
       title: 'Sessions to keep',
@@ -153,7 +153,7 @@ export default class ToasPreferences extends ExtensionPreferences {
     })
     const recordingsLimit = new Adw.SpinRow({
       title: 'Recordings to keep',
-      subtitle: 'Keeps the WAV file for this many recent sessions. Older sessions keep their text but lose the recording.',
+      subtitle: 'Keeps the audio file for this many recent sessions. Older sessions keep their text but lose the audio.',
       adjustment: new Gtk.Adjustment({
         lower: 1,
         upper: 1000,
@@ -175,25 +175,25 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const transcriptionGroup = new Adw.PreferencesGroup({
       title: 'Transcription',
-      description: 'Sends WAV as a Data URL through one non-streaming JSON multimodal Chat Completions request.'
+      description: 'Your recording is sent to this service to be turned into text.'
     })
     transcriptionGroup.add(entry(
       settings,
       'transcription-endpoint',
-      'Chat completions endpoint'
+      'Service endpoint'
     ))
     transcriptionGroup.add(entry(settings, 'transcription-model', 'Model'))
     transcriptionGroup.add(entry(
       settings,
       'transcription-language',
       'Language',
-      'Optional ISO-639-1 code, for example en or zh. Leave empty for automatic detection.'
+      'Optional language code, for example en or zh. Leave empty for automatic detection.'
     ))
     transcriptionGroup.add(passwordEntry(
       settings,
       'transcription-api-key',
       'API key',
-      'Fallback: TOAS_TRANSCRIPTION_API_KEY.'
+      'Also read from TOAS_TRANSCRIPTION_API_KEY when left empty.'
     ))
 
     const testRow = buildTestConnectionRow(settings)
@@ -201,7 +201,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const refineGroup = new Adw.PreferencesGroup({
       title: 'Refine',
-      description: 'Rewrites the raw transcript into clean text. If it fails, the raw transcript is used.'
+      description: 'Cleans up the raw transcript before it is inserted. If it fails, the raw transcript is used.'
     })
 
     const refineEnabled = new Adw.SwitchRow({
@@ -223,7 +223,7 @@ export default class ToasPreferences extends ExtensionPreferences {
     refineGroup.add(entry(
       settings,
       'refine-endpoint',
-      'Chat completions endpoint',
+      'Service endpoint',
       'Example: https://example.com/v1/chat/completions'
     ))
     refineGroup.add(entry(settings, 'refine-model', 'Model'))
@@ -231,11 +231,11 @@ export default class ToasPreferences extends ExtensionPreferences {
       settings,
       'refine-api-key',
       'API key',
-      'Fallback: TOAS_REFINE_API_KEY, then OPENAI_API_KEY.'
+      'Also read from TOAS_REFINE_API_KEY, then OPENAI_API_KEY, when left empty.'
     ))
     const refinePromptGroup = new Adw.PreferencesGroup({
       title: 'Refine Instructions',
-      description: 'Tell the model how to edit the transcript. Formatting such as paragraphs, lists, and code is preserved when pasted.'
+      description: 'Tell the model how to edit your transcript. Paragraphs, lists, and code formatting are kept when pasted.'
     })
     refinePromptGroup.add(textArea(
       settings,
@@ -244,7 +244,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const securityGroup = new Adw.PreferencesGroup({
       title: 'Security',
-      description: 'Keys entered here are stored in dconf as plain text. For a cleaner setup, leave key fields empty and provide environment variables before logging into GNOME.'
+      description: 'Keys entered here are stored in plain text by your system settings. To keep keys out of that storage, leave the fields empty and set the environment variables before logging in.'
     })
 
     const updateRefineWarning = () => {
