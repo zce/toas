@@ -50,11 +50,41 @@ The default shortcut is `Ctrl+Shift+Space`. Hold it while speaking, then
 release the modifiers to stop and process. GNOME Shell does not expose a
 matching shortcut-release callback, so the extension polls the held modifier
 mask every 40 ms. A shortcut without modifiers works as a start/stop toggle.
+Capture a different combination from Preferences: click the shortcut button,
+press the keys, Escape cancels, Backspace disables.
 
 Left-click the top-bar microphone to start or stop. Right-click it to open the
 action menu. During transcription, refine, and insertion the on-screen overlay
 shows the active stage (`Transcribing…`, `Refining…`, `Inserting…`) next to the
-spinner; recording shows a live waveform.
+spinner; recording shows a live waveform. A close button on the overlay cancels
+the session directly.
+
+## First run
+
+On first enable a one-time notice explains the basics and discloses that
+audio is uploaded to your configured transcription service, that session text
+and some recordings are kept on disk, and where to clear them. Recording is
+blocked with a notification and a jump to Preferences until an API key (or
+environment fallback) is configured. The Transcription group has a
+`Test connection` button that sends a short silent sample through the current
+settings to verify endpoint, key, and model.
+
+## Failure handling
+
+Failures during recording, transcription, or insertion show the overlay error
+and a desktop notification with a next action. If the polish step fails, the
+raw transcript is inserted and a non-fatal notice says so. A recording that
+reaches the 24 MB cap (about 13 minutes) stops and processes what was captured.
+If the window you were typing in changed while processing ran, the text stays
+on the clipboard with a notice instead of being pasted into the new window.
+
+## History
+
+Recent sessions are available from the top-bar menu under `Recent sessions`.
+The list shows status, a preview, time, and duration; opening a row shows the
+full text with model and timing details plus a `Copy` action. Failed sessions
+with retained audio offer `Retry`, which reprocesses the stored recording and
+appends the attempt to history without pasting.
 
 ## Transcription
 
@@ -145,8 +175,10 @@ Each JSONL entry is one history record: the raw transcript, final output,
 status, the transcription and refine models, endpoints, language, finish
 reason, token usage, stage timings, recording duration, and a reference to its
 WAV recording. Refine skips and fallbacks are recorded as warnings. Failed
-transcriptions retain their audio so later history UI can support retry
-without recording again.
+transcriptions retain their audio so the history UI can retry them without
+recording again. Retry attempts are appended as separate records linked to
+their original session (`attemptOf`, `attemptNumber`); originals stay
+untouched.
 
 History records and recording files are pruned separately. `Sessions to keep`
 (default 500) limits how many records are retained, while `Recordings to keep`
@@ -154,8 +186,9 @@ History records and recording files are pruned separately. `Sessions to keep`
 file. A record can outlive its recording: when a recording is pruned ahead of
 its record, the record is kept and its audio reference is cleared. Recordings
 left unreferenced by a crash are removed the next time the extension starts.
-The top-bar menu's `Clear History` item removes all stored sessions and
-recordings; it is disabled while a voice session is in progress.
+The top-bar menu's `Clear History` item asks for confirmation, then removes
+all stored sessions and recordings; it is disabled while a voice session is in
+progress.
 
 ## Input behavior
 
