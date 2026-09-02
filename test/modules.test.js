@@ -7,6 +7,7 @@ import System from 'system'
 
 const SHELL_ONLY = new Set([
   'confirm-dialog.js',
+  'history-browser.js',
   'indicator.js',
   'input.js',
   'notifier.js',

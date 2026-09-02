@@ -15,6 +15,7 @@ import { ShellNotifier } from './lib/notifier.js'
 import { TextPaster } from './lib/input.js'
 import { HistoryStore } from './lib/history.js'
 import { HistoryRepository } from './lib/history-repository.js'
+import { HistoryBrowser, StClipboardAdapter } from './lib/history-browser.js'
 import { OnboardingManager } from './lib/onboarding.js'
 import { ConfirmDialog } from './lib/confirm-dialog.js'
 import { resolveTranscriptionConfig } from './lib/effective-config.js'
@@ -37,6 +38,7 @@ export default class ToasExtension extends Extension {
         },
         onCancel: () => this._orchestrator?.cancel(),
         onClearHistory: () => this._clearHistory(),
+        onBrowseHistory: () => this._historyBrowser?.open(),
         onOpenPreferences: () => this._openPreferences()
       })
       const overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
@@ -66,6 +68,12 @@ export default class ToasExtension extends Extension {
         hasExistingHistory: () => history.readEntries().length > 0
       })
       this._onboarding.maybeShowOnboarding()
+
+      this._historyBrowser = new HistoryBrowser({
+        repository: this._historyRepository,
+        clipboard: new StClipboardAdapter(),
+        notifier
+      })
 
       try {
         this._confirmDialog = new ConfirmDialog({
@@ -102,6 +110,9 @@ export default class ToasExtension extends Extension {
       this._confirmDialog?.destroy()
       this._confirmDialog = null
 
+      this._historyBrowser?.destroy()
+      this._historyBrowser = null
+
       this._indicator?.destroy()
       this._indicator = null
 
@@ -126,6 +137,9 @@ export default class ToasExtension extends Extension {
 
     this._onboarding = null
     this._historyRepository = null
+
+    this._historyBrowser?.destroy()
+    this._historyBrowser = null
 
     // Destroying the dialog releases its modal grab.
     this._confirmDialog?.destroy()
