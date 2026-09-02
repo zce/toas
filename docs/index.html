@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b100e">
+    <meta name="description" content="Cloud-powered, push-to-talk voice input for Fedora, GNOME, and Wayland. No local model runtime.">
+    <link rel="canonical" href="https://toas.cc/">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://toas.cc/">
+    <meta property="og:title" content="toas - Talk Once, Act Smart">
+    <meta property="og:description" content="Cloud-powered, push-to-talk voice input for Fedora, GNOME, and Wayland. No local model runtime.">
+    <meta property="og:site_name" content="toas">
+    <meta name="twitter:card" content="summary">
+    <title>toas - Talk Once, Act Smart</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="site-header">
+      <div class="container nav-wrap">
+        <a class="brand" href="#top" aria-label="toas home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <path d="M16 5v14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M10 13.5v4a6 6 0 0 0 12 0v-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M7 17.5a9 9 0 0 0 18 0M16 26v2" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand-name">toas</span>
+          <span class="brand-note">talk once</span>
+        </a>
+
+        <button class="nav-toggle" type="button" aria-controls="site-nav" aria-expanded="false" aria-label="Open navigation">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span class="sr-only">Open navigation</span>
+        </button>
+
+        <nav class="site-nav" id="site-nav" aria-label="Main navigation">
+          <a href="#workflow">How it works</a>
+          <a href="#features">Why toas</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#install">Install</a>
+          <a class="nav-github" href="https://github.com/zce/toas" target="_blank" rel="noreferrer">
+            GitHub
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M5 3h8v8M13 3 3 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" id="top">
+        <div class="hero-orbit hero-orbit-one" aria-hidden="true"></div>
+        <div class="hero-orbit hero-orbit-two" aria-hidden="true"></div>
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span class="eyebrow-dot"></span> Cloud-powered voice input for Linux</p>
+            <h1>Speak naturally.<br><span>Keep moving.</span></h1>
+            <p class="hero-lede">
+              <strong>toas</strong> turns a held shortcut into text in the app you are already using.
+              Cloud intelligence does the heavy lifting; your desktop stays light. No detours.
+              No context switching. Just say it once and carry on.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#install">
+                Install toas
+                <svg viewBox="0 0 18 18" aria-hidden="true">
+                  <path d="M3 9h11M9 4l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </a>
+              <a class="button button-quiet" href="#demo">Watch the flow <span aria-hidden="true">&#8595;</span></a>
+            </div>
+            <ul class="hero-facts" aria-label="toas highlights">
+              <li><span class="fact-icon">01</span> Cloud intelligence</li>
+              <li><span class="fact-icon">02</span> Light local footprint</li>
+              <li><span class="fact-icon">03</span> On-demand workflow</li>
+            </ul>
+          </div>
+
+          <div class="hero-visual" aria-label="Illustration of toas transcribing into a desktop app" role="img">
+            <div class="visual-label visual-label-top"><span class="live-dot"></span> live on your desktop</div>
+            <div class="desktop-shell">
+              <div class="desktop-topbar">
+                <span class="topbar-time">09:41</span>
+                <div class="topbar-center"><span class="topbar-app-dot"></span> Workbench</div>
+                <div class="topbar-status">
+                  <span class="status-glyph">&#9679;</span>
+                  <span class="status-glyph status-bars">&#9612;&#9615;&#9618;</span>
+                  <span class="mini-mic"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a2 2 0 0 0-2 2v3a2 2 0 0 0 4 0v-3a2 2 0 0 0-2-2ZM4 7.5a4 4 0 0 0 8 0M8 11.5v2M5.5 13.5h5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>
+                </div>
+              </div>
+              <div class="desktop-workspace">
+                <aside class="desktop-sidebar">
+                  <div class="sidebar-brand"><span></span> acme / notes</div>
+                  <div class="sidebar-line sidebar-line-active"></div>
+                  <div class="sidebar-line"></div>
+                  <div class="sidebar-line"></div>
+                  <div class="sidebar-line sidebar-line-short"></div>
+                  <div class="sidebar-spacer"></div>
+                  <div class="sidebar-line sidebar-line-short"></div>
+                </aside>
+                <div class="desktop-editor">
+                  <div class="editor-heading"><span class="editor-status"></span> sprint-notes.md <span class="editor-dirty">&#9679;</span></div>
+                  <div class="editor-body">
+                    <div class="code-line"><span>01</span><b># This week</b></div>
+                    <div class="code-line"><span>02</span>&nbsp;</div>
+                    <div class="code-line"><span>03</span><i>- ship the onboarding copy</i></div>
+                    <div class="code-line"><span>04</span><i>- check the pipewire fallback</i></div>
+                    <div class="code-line code-line-cursor"><span>05</span><em>keep the release small</em><u></u></div>
+                    <div class="code-line"><span>06</span>&nbsp;</div>
+                    <div class="code-line"><span>07</span><b>## Later</b></div>
+                  </div>
+                </div>
+                <div class="desktop-terminal">
+                  <div class="terminal-head"><span></span><span></span><span></span> terminal</div>
+                  <div class="terminal-body"><small>~/projects/toas</small><br><b>$</b> git status<br><span class="terminal-ok">clean working tree</span><br><br><b>$</b> _</div>
+                </div>
+              </div>
+              <div class="voice-overlay">
+                <div class="overlay-mic"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.25a2.5 2.5 0 0 0-2.5 2.5v3.5a2.5 2.5 0 0 0 5 0v-3.5A2.5 2.5 0 0 0 10 3.25ZM5 9.25a5 5 0 0 0 10 0M10 14.25v2.5M7 16.75h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+                <div class="overlay-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="overlay-copy"><small>toas</small><strong>Listening...</strong></div>
+                <div class="overlay-close">&#215;</div>
+              </div>
+              <div class="desktop-cursor" aria-hidden="true"></div>
+            </div>
+            <div class="visual-label visual-label-bottom"><span class="shortcut-key">Ctrl</span><span>+</span><span class="shortcut-key">Shift</span><span>+</span><span class="shortcut-key">Space</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="signal-strip" aria-label="Compatibility">
+        <div class="container signal-inner">
+          <p class="signal-label">Designed for the stack you already run</p>
+          <div class="signal-items">
+            <span><b class="signal-symbol">F</b> Fedora</span>
+            <span><b class="signal-symbol signal-symbol-gnome">G</b> GNOME Shell 49 / 50</span>
+            <span><b class="signal-symbol signal-symbol-wayland">W</b> Wayland</span>
+            <span><b class="signal-symbol signal-symbol-pipe">P</b> PipeWire</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-light" id="workflow">
+        <div class="container">
+          <div class="section-heading heading-split">
+            <div>
+              <p class="section-kicker">The short version</p>
+              <h2>One gesture.<br><em>Three quiet steps.</em></h2>
+            </div>
+            <p class="section-intro">toas stays out of the way until you need it. Hold the shortcut, talk, release. Cloud processing handles the heavy work; the local layer simply gets out of your way.</p>
+          </div>
+
+          <div class="workflow-grid">
+            <article class="workflow-card">
+              <div class="card-number">01 <span></span></div>
+              <div class="step-icon step-icon-mic" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 8a6 6 0 0 0-6 6v9a6 6 0 0 0 12 0v-9a6 6 0 0 0-6-6ZM12 22a12 12 0 0 0 24 0M24 34v6M17 40h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+              <h3>Hold to talk</h3>
+              <p>Keep your hands on the keyboard with the default <kbd>Ctrl</kbd> <span>+</span> <kbd>Shift</kbd> <span>+</span> <kbd>Space</kbd> shortcut. A live waveform confirms that toas is listening.</p>
+            </article>
+            <article class="workflow-card">
+              <div class="card-number">02 <span></span></div>
+              <div class="step-icon step-icon-process" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M9 15h30M9 24h19M9 33h24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="34" cy="24" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m32 24 1.5 1.5L36 22.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <h3>Transcribe, then refine</h3>
+              <p>Audio becomes text through your configured service. Optional Refine removes filler and fixes punctuation without changing what you meant.</p>
+            </article>
+            <article class="workflow-card">
+              <div class="card-number">03 <span></span></div>
+              <div class="step-icon step-icon-send" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M9 24h25M27 15l9 9-9 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13v-3h30v28H9v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <h3>Land where you are</h3>
+              <p>Single-line fields get direct text input. Multiline text uses a safe clipboard path, with terminal-aware paste and a target-window safeguard.</p>
+            </article>
+          </div>
+
+          <div class="demo-section" id="demo">
+            <div class="demo-heading">
+              <div>
+                <p class="section-kicker">See it in context</p>
+                <h2>A small layer with a big shortcut.</h2>
+              </div>
+              <span class="demo-status"><span class="demo-status-dot"></span><span class="demo-status-label" data-demo-status aria-live="polite">click to load</span></span>
+            </div>
+            <div class="demo-frame" data-demo-frame data-demo-src="assets/toas.mp4">
+              <div class="demo-placeholder" data-demo-placeholder role="button" tabindex="0" aria-label="Load toas demo video">
+                <div class="placeholder-orbit placeholder-orbit-left" aria-hidden="true"></div>
+                <div class="placeholder-orbit placeholder-orbit-right" aria-hidden="true"></div>
+                <div class="placeholder-content">
+                  <div class="play-button" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 6 9 6-9 6V6Z" fill="currentColor"/></svg></div>
+                  <p class="placeholder-label">Demo recording</p>
+                  <h3>Your desktop, uninterrupted.</h3>
+                  <p class="placeholder-copy">See the shortcut, the live overlay, and the moment clean text appears in the focused app.</p>
+                  <p class="placeholder-note">Click anywhere to load the demo video.</p>
+                </div>
+                <div class="placeholder-corner placeholder-corner-tl">READY / 00:00</div>
+                <div class="placeholder-corner placeholder-corner-br">1000 / 616</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section feature-section" id="features">
+        <div class="container">
+          <div class="section-heading feature-heading">
+            <p class="section-kicker section-kicker-lime">Why toas</p>
+            <h2>Cloud intelligence.<br><em>Local lightness.</em></h2>
+            <p class="section-intro">Use efficient cloud models when you need them, keep your desktop lean, and turn one short interaction into useful work.</p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature-card feature-card-wide feature-card-green">
+              <div class="feature-copy">
+                <span class="feature-tag">01 / MEANING FIRST</span>
+                <h3>Polish the words,<br>not the idea.</h3>
+                <p>Refine is optional and opinionated in the right way: clean up speech, preserve intent. No answering, summarizing, or making your message sound like a bot.</p>
+              </div>
+              <div class="transcript-visual" aria-hidden="true">
+                <div class="transcript-row transcript-raw"><small>raw</small><span>um can you maybe send the draft today</span></div>
+                <div class="transcript-arrow">&#8595;</div>
+                <div class="transcript-row transcript-clean"><small>toas</small><strong>Can you maybe send the draft today?</strong></div>
+              </div>
+            </article>
+
+            <article class="feature-card">
+              <span class="feature-tag">02 / OUTPUT</span>
+              <div class="feature-icon feature-icon-target" aria-hidden="true"><svg viewBox="0 0 40 40"><rect x="6" y="7" width="28" height="26" rx="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M11 14h12M11 19h17M11 24h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="m26 25 3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <h3>Respects your cursor.</h3>
+              <p>toas captures the target when you stop speaking. If the target window changes, your text stays safely on the clipboard instead of landing in the wrong place.</p>
+              <div class="feature-pills"><span>Editor</span><span>Browser</span><span>Terminal</span></div>
+            </article>
+
+            <article class="feature-card">
+              <span class="feature-tag">03 / CLOUD + LOCAL</span>
+              <div class="feature-icon feature-icon-shield" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 5 32 10v9c0 8-5.2 13-12 16-6.8-3-12-8-12-16v-9l12-5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m14 20 4 4 8-9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <h3>Cloud power.<br>Local lightness.</h3>
+              <p>No model weights, inference runtime, or always-on service to install and maintain. Audio is uploaded only after you stop recording. Bring a fast, cost-efficient endpoint and use it only when you need it.</p>
+              <div class="feature-metric"><strong>0</strong><span>local model runtimes</span></div>
+            </article>
+
+            <article class="feature-card feature-card-wide feature-card-history">
+              <div class="feature-copy">
+                <span class="feature-tag">04 / HISTORY</span>
+                <h3>Keep the useful<br>parts of yesterday.</h3>
+                <p>Your words appear in the top-bar menu. Copy a result, try transcription again from its retained recording if it fails, or clear everything with one confirmation.</p>
+              </div>
+              <div class="history-visual" aria-hidden="true">
+                <div class="history-title"><span class="history-dot"></span> Your words <span class="history-more">...</span></div>
+                <div class="history-item"><span class="history-play">&#9654;</span><span><b>Plan the next release...</b><small>just now · 00:18</small></span><i>&#8599;</i></div>
+                <div class="history-item"><span class="history-play history-play-muted">&#9654;</span><span><b>Review the API changes...</b><small>12 min ago · 00:32</small></span><i>&#8599;</i></div>
+                <div class="history-item history-item-muted"><span class="history-play history-play-muted">&#9654;</span><span><b>Prepare meeting notes...</b><small>yesterday · 01:04</small></span><i>&#8599;</i></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section privacy-section" id="privacy">
+        <div class="container">
+          <div class="privacy-heading">
+            <div>
+              <p class="section-kicker section-kicker-lime">Privacy, clearly bounded</p>
+              <h2>We keep the local layer<br><em>small and visible.</em></h2>
+            </div>
+            <p class="section-intro">Privacy has two sides. toas is explicit about what happens on your machine and what happens after an API call.</p>
+          </div>
+          <div class="privacy-grid">
+            <article class="privacy-card">
+              <span class="privacy-tag">01 / ON YOUR DESKTOP</span>
+              <h3>Nothing listens in the background.</h3>
+              <p>No telemetry, context capture, local model runtime, or always-on inference service. Audio is captured only while you record and sent only after you stop.</p>
+              <div class="privacy-rule"><span>toas controls</span><b>capture / storage / output</b></div>
+            </article>
+            <article class="privacy-card privacy-card-provider">
+              <span class="privacy-tag">02 / AFTER UPLOAD</span>
+              <h3>Your provider sets the policy.</h3>
+              <p>toas sends completed audio to the transcription endpoint you configure. Optional Refine sends transcript text to its own endpoint. Retention, training, logging, and residency depend on that provider.</p>
+              <div class="privacy-rule"><span>you choose</span><b>endpoint / model / policy</b></div>
+            </article>
+            <article class="privacy-card privacy-card-control">
+              <span class="privacy-tag">03 / YOUR CONTROL</span>
+              <h3>Keep, limit, or clear.</h3>
+              <p>Your words and retained recordings stay on your machine for history and retry. Set retention in Preferences, use environment variables for keys, and clear history when you want.</p>
+              <div class="privacy-rule"><span>local state</span><b>~/.local/state/toas</b></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-light setup-section" id="setup">
+        <div class="container setup-grid">
+          <div>
+            <p class="section-kicker">Your setup, your endpoints</p>
+            <h2>Choose your model.<br><em>Keep your desktop light.</em></h2>
+            <p class="section-intro">Configure the service, model, language, and polish step from GNOME Preferences. No weights or local inference stack to download. Bring the endpoint that fits your quality, speed, and budget.</p>
+            <div class="setup-list">
+              <div class="setup-list-item"><span class="check-mark">&#10003;</span><span><strong>Cloud transcription on demand</strong><small>OpenAI-compatible multimodal Chat Completions with audio input and automatic language detection.</small></span></div>
+              <div class="setup-list-item"><span class="check-mark">&#10003;</span><span><strong>Optional OpenAI-compatible Refine</strong><small>Bring a model that knows how you want your writing cleaned up.</small></span></div>
+              <div class="setup-list-item"><span class="check-mark">&#10003;</span><span><strong>Test before you talk</strong><small>Verify endpoint, key, and model from Preferences with a silent sample.</small></span></div>
+            </div>
+          </div>
+          <div class="settings-card" role="img" aria-label="Illustration of toas preferences">
+            <div class="settings-window-bar"><span class="window-dot window-dot-red"></span><span class="window-dot window-dot-yellow"></span><span class="window-dot window-dot-green"></span><span>toas Preferences</span></div>
+            <div class="settings-content">
+              <div class="settings-sidebar"><strong>toas</strong><span class="settings-nav-active">Push-to-Talk</span><span>Recording</span><span>History</span><span>Transcription</span><span>Refine</span><span>Security</span></div>
+              <div class="settings-main">
+                <p class="settings-title">Push-to-Talk</p>
+                <p class="settings-subtitle">Hold the shortcut, speak, then release.</p>
+                <div class="settings-row"><span>Shortcut</span><b><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Space</kbd></b></div>
+                <div class="settings-row settings-row-toggle"><span>Paste automatically</span><i class="toggle-on"><b></b></i></div>
+                <div class="settings-divider"></div>
+                <p class="settings-title settings-title-small">Transcription</p>
+                <div class="settings-input"><small>MODEL</small><span>mimo-v2.5-asr</span></div>
+                <div class="settings-input settings-input-success"><small>CONNECTION</small><span><i></i> Ready to transcribe</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section install-section" id="install">
+        <div class="container install-wrap">
+          <div class="install-heading">
+            <p class="section-kicker section-kicker-lime">Ready when you are</p>
+            <h2>Give your hands<br>the shortcut.</h2>
+            <p>Install the extension, add a transcription key in Preferences, and keep the default shortcut or choose your own.</p>
+          </div>
+          <div class="install-panel">
+            <div class="install-panel-top"><span><i></i> shell / command</span><span>Fedora + GNOME</span></div>
+            <div class="install-actions" role="group" aria-label="Extension action">
+              <button class="install-action" type="button" data-install-mode data-install-target="install-command" data-copy-label="Copy install command" aria-pressed="true">Install</button>
+              <button class="install-action" type="button" data-install-mode data-install-target="uninstall-command" data-copy-label="Copy uninstall command" aria-pressed="false">Uninstall</button>
+            </div>
+            <div class="install-command" id="install-command"><span class="prompt">$</span><code>curl -fsSL https://toas.cc/install.sh | bash</code></div>
+            <div class="install-command" id="uninstall-command" hidden><span class="prompt">$</span><code>curl -fsSL https://toas.cc/uninstall.sh | bash</code></div>
+            <button class="copy-button" type="button" data-install-copy data-copy-target="install-command"><span class="copy-icon">&#10697;</span><span data-copy-label>Copy install command</span></button>
+            <div class="install-note"><span class="note-mark">i</span><span>Requires <code>curl</code>, <code>tar</code>, Fedora, GNOME Shell 49 / 50, Wayland, and <code>pw-record</code>.</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div class="footer-brand"><span class="brand-mark brand-mark-small" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M16 5v14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M10 13.5v4a6 6 0 0 0 12 0v-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M7 17.5a9 9 0 0 0 18 0M16 26v2" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></span><span>toas</span></div>
+        <p>Talk Once, Act Smart.</p>
+        <div class="footer-links"><a href="https://github.com/zce/toas" target="_blank" rel="noreferrer">Source on GitHub <span aria-hidden="true">&#8599;</span></a><a href="https://github.com/zce/toas/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT License</a></div>
+      </div>
+    </footer>
+  </body>
+</html>

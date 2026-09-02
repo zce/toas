@@ -1,0 +1,8 @@
+{
+  "uuid": "toas@zce.me",
+  "name": "Talk Once",
+  "description": "Talk Once, Act Smart. Record, transcribe, refine, and insert.",
+  "version": 10,
+  "shell-version": ["49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.toas"
+}

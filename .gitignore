@@ -1,0 +1,4 @@
+probe-*.mjs
+*.gresource
+schemas/gschemas.compiled
+.scratch
