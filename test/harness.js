@@ -51,7 +51,8 @@ export async function run () {
     } catch (error) {
       failed++
       console.error(`FAIL - ${name}`)
-      console.error(`    ${error?.stack ?? error}`)
+      console.error(`    ${error?.message ?? error}`)
+      if (error?.stack) { console.error(`    ${error.stack.split('\n').slice(1, 4).join('\n')}`) }
     }
   }
 

@@ -155,6 +155,59 @@ test('transcription failure notifies once with the error detail', async () => {
   orchestrator.destroy()
 })
 
+test('refine fallback notifies as a soft warning, session still succeeds', async () => {
+  const recording = { id: 'rec-6', path: '/tmp/rec-6.wav', durationMs: 3000, mimeType: 'audio/wav' }
+  const { orchestrator, paster, history, notifier, run } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    transcriber: new FakeTranscriber({ text: 'hello world' }),
+    refiner: new FakeRefiner({ error: new Error('refine provider down') })
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  // Session succeeds: raw transcript pasted (uppercase transform never ran),
+  // history records ok.
+  expectEqual(paster.writes, ['hello world'])
+  expectEqual(history.appends[0].status, 'ok')
+  expectEqual(run.events.filter(e => e.state === 'error').length, 0)
+
+  // But the user learns the refine stage was skipped.
+  expectEqual(notifier.notifications.length, 1)
+  expectEqual(notifier.notifications[0].title, 'Inserted the raw transcript')
+  orchestrator.destroy()
+})
+
+test('clean success notifies nothing; cancel notifies nothing', async () => {
+  const recording = { id: 'rec-7', path: '/tmp/rec-7.wav', durationMs: 3000, mimeType: 'audio/wav' }
+  const success = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) })
+  })
+  success.orchestrator.begin()
+  await success.orchestrator.end()
+  expectEqual(success.notifier.notifications, [])
+  success.orchestrator.destroy()
+
+  const cancelled = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    transcriber: new FakeTranscriber({ delayMs: 30 })
+  })
+  cancelled.orchestrator.begin()
+  const pending = cancelled.orchestrator.end()
+  cancelled.orchestrator.cancel()
+  await pending
+  expectEqual(cancelled.notifier.notifications, [])
+  cancelled.orchestrator.destroy()
+
+  const tap = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeShortTap(120) })
+  })
+  tap.orchestrator.begin()
+  await tap.orchestrator.end()
+  expectEqual(tap.notifier.notifications, [])
+  tap.orchestrator.destroy()
+})
+
 test('cancellation during processing leaves no output or history', async () => {
   const recording = { id: 'rec-2', path: '/tmp/rec-2.wav', durationMs: 5000, mimeType: 'audio/wav' }
   const { orchestrator, recorder, transcriber, paster, history, run } = makeOrchestrator({

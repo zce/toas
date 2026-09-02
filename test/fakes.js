@@ -67,8 +67,9 @@ export class FakeTranscriber {
 }
 
 export class FakeRefiner {
-  constructor ({ error = null } = {}) {
+  constructor ({ error = null, text = null } = {}) {
     this.error = error
+    this.refinedText = text
     this.calls = []
     this.cancels = 0
   }
@@ -81,7 +82,7 @@ export class FakeRefiner {
     this.calls.push({ transcript, model })
     if (this.error) { throw this.error }
     return {
-      text: transcript.toUpperCase(),
+      text: this.refinedText ?? transcript.toUpperCase(),
       ran: true,
       reason: null,
       model,
