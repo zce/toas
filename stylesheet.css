@@ -11,7 +11,7 @@
 .toas-icon {
   icon-size: 16px;
   opacity: 0.9;
-  color: #f2a2a2;
+  color: -st-accent-color;
 }
 
 .toas-status {
