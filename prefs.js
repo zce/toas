@@ -196,7 +196,7 @@ function passwordEntry (settings, key, title, tooltip = '') {
   return row
 }
 
-function textArea(settings, key) {
+function textArea (settings, key) {
   const textView = new Gtk.TextView({
     wrap_mode: Gtk.WrapMode.WORD_CHAR,
     top_margin: 12,

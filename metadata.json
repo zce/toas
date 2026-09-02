@@ -1,6 +1,6 @@
 {
   "uuid": "toas@zce.me",
-  "name": "toas",
+  "name": "Talk Once",
   "description": "Talk Once, Act Smart. Record, transcribe, refine, and insert.",
   "version": 6,
   "shell-version": ["49", "50"],

@@ -33,7 +33,7 @@ export default class ToasExtension extends Extension {
         (state, message) => this._indicator?.render(state, message)
       )
 
-      Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right')
+      Main.panel.addToStatusArea(this.uuid, this._indicator)
       Main.wm.addKeybinding(
         'push-to-talk',
         this._settings,
@@ -124,9 +124,7 @@ export default class ToasExtension extends Extension {
         try {
           Gio.DBus.session.call_finish(result)
         } catch (error) {
-          console.error(
-                        `[toas] Failed to open preferences: ${error.message}`
-          )
+          console.error(`[toas] Failed to open preferences: ${error.message}`)
         }
       }
     )

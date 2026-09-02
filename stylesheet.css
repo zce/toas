@@ -32,6 +32,12 @@
   background-color: -st-accent-color;
 }
 
+.toas-status-icon {
+  transition: color 150ms ease-in-out;
+  margin: 0;
+  padding: 0;
+}
+
 .toas-menu-icon {
   icon-size: 16px;
   margin-right: 8px;
