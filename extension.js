@@ -54,6 +54,9 @@ export default class ToasExtension extends Extension {
         onStateChanged: (state, message) => this._indicator?.render(state, message)
       })
 
+      // Overlay close button cancels the live session directly.
+      overlay.setOnCancelRequested?.(() => this._orchestrator?.cancel())
+
       this._historyRepository = new HistoryRepository(history)
       this._onboarding = new OnboardingManager({
         settings: this._settings,

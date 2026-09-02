@@ -35,6 +35,21 @@
   background-color: -st-accent-color;
 }
 
+.toas-close-button {
+  /* Compact ghost close button; only reactive element on the overlay. */
+  min-width: 20px;
+  min-height: 20px;
+  padding: 2px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.75);
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.toas-close-button:hover {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
 .toas-status-icon {
   transition: color 150ms ease-in-out;
   margin: 0;
