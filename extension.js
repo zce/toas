@@ -34,6 +34,8 @@ export default class ToasExtension extends Extension {
       )
 
       Main.panel.addToStatusArea(this.uuid, this._indicator)
+      this._scheduleIndicatorPosition();
+
       Main.wm.addKeybinding(
         'push-to-talk',
         this._settings,
@@ -42,16 +44,23 @@ export default class ToasExtension extends Extension {
         () => this._onPushToTalk()
       )
     } catch (error) {
+      this._destroyIndicatorPosition();
+
       this._orchestrator?.destroy()
       this._orchestrator = null
+
       this._indicator?.destroy()
       this._indicator = null
+
       this._settings = null
+
       throw error
     }
   }
 
   disable () {
+    this._destroyIndicatorPosition();
+
     if (this._pttPollId) {
       GLib.source_remove(this._pttPollId)
       this._pttPollId = 0
@@ -64,7 +73,42 @@ export default class ToasExtension extends Extension {
 
     this._indicator?.destroy()
     this._indicator = null
+
     this._settings = null
+  }
+
+  _scheduleIndicatorPosition() {
+    this._positionIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      this._positionIdleId = 0;
+      this._positionIndicator();
+      return GLib.SOURCE_REMOVE;
+    });
+  }
+
+  _positionIndicator() {
+    const indicator = this._indicator?.container;
+    const keyboard = Main.panel.statusArea.keyboard?.container;
+
+    if (!indicator || !keyboard) {
+      return;
+    }
+
+    const parent = keyboard.get_parent();
+
+    if (!parent || indicator.get_parent() !== parent) {
+      return;
+    }
+
+    parent.set_child_below_sibling(indicator, keyboard);
+  }
+
+  _destroyIndicatorPosition() {
+    if (!this._positionIdleId) {
+      return;
+    }
+
+    GLib.source_remove(this._positionIdleId);
+    this._positionIdleId = 0;
   }
 
   _onPushToTalk () {
@@ -87,7 +131,9 @@ export default class ToasExtension extends Extension {
       () => {
         const modifiers = global.get_pointer()[2]
 
-        if ((modifiers & heldModifiers) !== 0) { return GLib.SOURCE_CONTINUE }
+        if ((modifiers & heldModifiers) !== 0) {
+          return GLib.SOURCE_CONTINUE;
+        }
 
         this._pttPollId = 0
         this._orchestrator?.end()
@@ -98,6 +144,7 @@ export default class ToasExtension extends Extension {
 
   _clearHistory () {
     const cleared = this._orchestrator?.clearHistory()
+
     if (cleared === null || cleared === undefined) { return }
 
     Main.notify(
