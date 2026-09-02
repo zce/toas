@@ -10,6 +10,7 @@ class FakeOverlayView {
     this.shown = false
     this.hideCalls = 0
     this.showCalls = 0
+    this.resetCalls = 0
     this.destroyed = 0
     this.timerFn = null
   }
@@ -27,6 +28,7 @@ class FakeOverlayView {
   show () { this.showCalls++ }
   hide () { this.hideCalls++ }
   setLevel (level) { this.level = level }
+  resetLevels () { this.resetCalls++ }
   destroy () { this.destroyed++ }
 }
 
@@ -79,6 +81,16 @@ test('spinner runs only for processing states', () => {
 
   presenter.render('recording')
   expectEqual(view.spinnerStopped, true)
+  presenter.destroy()
+})
+
+test('resetLevels clears the view through the presenter', () => {
+  const view = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view })
+
+  presenter.resetLevels()
+
+  expectEqual(view.resetCalls, 1)
   presenter.destroy()
 })
 

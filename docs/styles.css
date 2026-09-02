@@ -1928,39 +1928,6 @@ code {
   box-shadow: none;
 }
 
-.install-actions {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 2px;
-  margin-top: 16px;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: #111914;
-}
-
-.install-action {
-  min-height: 32px;
-  border-radius: 2px;
-  background: transparent;
-  color: #7e8d7d;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  transition: background 160ms ease, color 160ms ease;
-}
-
-.install-action:hover,
-.install-action:focus-visible {
-  color: var(--lime);
-}
-
-.install-action[aria-pressed="true"] {
-  background: var(--lime);
-  color: var(--ink);
-}
-
 .install-command {
   display: flex;
   min-height: 68px;
@@ -2019,16 +1986,35 @@ code {
   line-height: 1;
 }
 
-.install-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+.install-panel-footer {
   margin-top: 19px;
   padding-top: 15px;
   border-top: 1px solid var(--line);
   color: #7e8d7d;
   font-size: 11px;
   line-height: 1.5;
+}
+
+.install-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.install-uninstall {
+  margin: 10px 0 0 23px;
+  color: #657465;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.install-uninstall code {
+  padding: 0;
+  background: transparent;
+  color: #849282;
+  font-size: inherit;
+  overflow-wrap: anywhere;
 }
 
 .note-mark {

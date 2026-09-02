@@ -333,14 +333,12 @@
           </div>
           <div class="install-panel">
             <div class="install-panel-top"><span><i></i> shell / command</span><span>Fedora + GNOME</span></div>
-            <div class="install-actions" role="group" aria-label="Extension action">
-              <button class="install-action" type="button" data-install-mode data-install-target="install-command" data-copy-label="Copy install command" aria-pressed="true">Install</button>
-              <button class="install-action" type="button" data-install-mode data-install-target="uninstall-command" data-copy-label="Copy uninstall command" aria-pressed="false">Uninstall</button>
-            </div>
             <div class="install-command" id="install-command"><span class="prompt">$</span><code>curl -fsSL https://toas.cc/install.sh | bash</code></div>
-            <div class="install-command" id="uninstall-command" hidden><span class="prompt">$</span><code>curl -fsSL https://toas.cc/uninstall.sh | bash</code></div>
-            <button class="copy-button" type="button" data-install-copy data-copy-target="install-command"><span class="copy-icon">&#10697;</span><span data-copy-label>Copy install command</span></button>
-            <div class="install-note"><span class="note-mark">i</span><span>Requires <code>curl</code>, <code>tar</code>, Fedora, GNOME Shell 49 / 50, Wayland, and <code>pw-record</code>.</span></div>
+            <button class="copy-button" type="button" data-copy-target="install-command"><span class="copy-icon">&#10697;</span><span data-copy-label>Copy command</span></button>
+            <div class="install-panel-footer">
+              <div class="install-note"><span class="note-mark">i</span><span>Requires <code>curl</code>, <code>tar</code>, Fedora, GNOME Shell 49 / 50, Wayland, and <code>pw-record</code>.</span></div>
+              <p class="install-uninstall">Need to remove toas later? Run <code>curl -fsSL https://toas.cc/uninstall.sh | bash</code></p>
+            </div>
           </div>
         </div>
       </section>
