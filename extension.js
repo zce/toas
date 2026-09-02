@@ -72,7 +72,8 @@ export default class ToasExtension extends Extension {
       this._historyBrowser = new HistoryBrowser({
         repository: this._historyRepository,
         clipboard: new StClipboardAdapter(),
-        notifier
+        notifier,
+        retryFn: entry => this._orchestrator?.retry(entry) ?? Promise.resolve(null)
       })
 
       try {
