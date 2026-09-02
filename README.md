@@ -198,12 +198,14 @@ progress.
 
 ## Input behavior
 
-The final output is copied to the GNOME clipboard without changing whitespace,
-line breaks, Markdown, lists, or code indentation, then pasted through a
-compositor-side Clutter virtual keyboard using the common Linux `Shift+Insert`
-binding. This works in regular editors and IDE-embedded terminals without
-guessing the focused widget from the window class. The extension never
-synthesizes Enter, though embedded line breaks remain part of the pasted text.
+Single-line output is committed directly when the focused Wayland application
+exposes a text-input focus, avoiding clipboard history. Otherwise the final
+output is copied to the GNOME clipboard without changing whitespace, line
+breaks, Markdown, lists, or code indentation, then pasted through a
+compositor-side Clutter virtual keyboard. Standalone terminals use
+`Ctrl+Shift+V`; other applications, including IDE-embedded terminals, use
+`Shift+Insert`. The extension never synthesizes Enter, though embedded line
+breaks remain part of clipboard-pasted text.
 
 When `Restore text clipboard` is enabled, the previous text clipboard value is
 restored after pasting. Rich or image clipboard content cannot be restored

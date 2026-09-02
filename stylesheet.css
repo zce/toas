@@ -15,7 +15,7 @@
 }
 
 .toas-status {
-  /*max-width: 180px;*/
+  max-width: 320px;
   font-family: "Maple Mono";
   font-size: 14px;
   font-weight: 500;
@@ -88,6 +88,7 @@
 }
 
 .toas-history-menu-scroll {
+  max-width: 420px;
   max-height: 360px;
 }
 
