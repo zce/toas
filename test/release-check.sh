@@ -39,6 +39,9 @@ if ls lib/*.js | grep -qE 'test|spec|probe'; then
 fi
 [ "$rc" -eq 0 ] && echo "ok"
 
+step "Import graph: relative imports resolve and named exports exist"
+gjs -m test/imports.test.js >/dev/null 2>&1 && echo "ok" || { echo "FAILED"; rc=1; }
+
 step "Metadata is valid JSON with version and shell versions"
 gjs -m test/metadata.test.js >/dev/null 2>&1 && echo "ok" || { echo "FAILED"; rc=1; }
 

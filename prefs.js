@@ -2,9 +2,10 @@ import Adw from 'gi://Adw'
 import Gdk from 'gi://Gdk'
 import Gio from 'gi://Gio'
 import Gtk from 'gi://Gtk'
+import Soup from 'gi://Soup?version=3.0'
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
-import { resolveRefineConfig } from './lib/effective-config.js'
+import { resolveRefineConfig, resolveTranscriptionConfig } from './lib/effective-config.js'
 
 // Inline shortcut capture, modeled on Clipboard Indicator: a frameless button
 // enters capture mode via Gtk.EventControllerKey; Escape cancels, Backspace
@@ -370,8 +371,6 @@ function statusLabelWrapper (label) {
 // with any Chat Completions shape counts as reachable; the sample is not
 // expected to contain speech.
 async function probeTranscriptionEndpoint (config, settings) {
-  const Soup = (await import('gi://Soup?version=3.0')).default
-
   const message = Soup.Message.new('POST', config.endpoint.value)
   message.get_request_headers().append('Authorization', `Bearer ${readTranscriptionKey(settings)}`)
   message.set_request_body_from_bytes(
