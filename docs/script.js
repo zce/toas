@@ -61,31 +61,6 @@ if (demoPlaceholder) {
   })
 }
 
-const installModes = document.querySelectorAll('[data-install-mode]')
-const installPanels = document.querySelectorAll('.install-command')
-const installCopy = document.querySelector('[data-install-copy]')
-
-if (installModes.length > 0 && installPanels.length > 0 && installCopy) {
-  const copyLabel = installCopy.querySelector('[data-copy-label]')
-
-  installModes.forEach(mode => {
-    mode.addEventListener('click', () => {
-      const target = mode.dataset.installTarget
-
-      installPanels.forEach(panel => {
-        panel.hidden = panel.id !== target
-      })
-      installModes.forEach(item => {
-        const active = item === mode
-        item.setAttribute('aria-pressed', String(active))
-      })
-
-      installCopy.dataset.copyTarget = target
-      if (copyLabel) { copyLabel.textContent = mode.dataset.copyLabel }
-    })
-  })
-}
-
 document.querySelectorAll('[data-copy-target]').forEach(button => {
   button.addEventListener('click', async () => {
     const targetId = button.dataset.copyTarget
@@ -123,7 +98,7 @@ document.querySelectorAll('[data-copy-target]').forEach(button => {
         if (label && button.dataset.copyTarget === targetId) { label.textContent = defaultLabel }
       }, 2200)
     } catch {
-      if (label && button.dataset.copyTarget === targetId) { label.textContent = 'Select the commands above' }
+      if (label && button.dataset.copyTarget === targetId) { label.textContent = 'Unable to copy command' }
     }
   })
 })
