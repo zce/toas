@@ -9,6 +9,11 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { ToasIndicator } from './lib/indicator.js'
 import { ToasOrchestrator } from './lib/orchestrator.js'
+import { ToasOverlayPresenter } from './lib/overlay-presenter.js'
+import { ShellOverlayView } from './lib/shell-overlay-view.js'
+import { ShellNotifier } from './lib/notifier.js'
+import { TextPaster } from './lib/input.js'
+import { HistoryStore } from './lib/history.js'
 
 const PTT_MOD_MASK =
     Clutter.ModifierType.CONTROL_MASK |
@@ -28,10 +33,16 @@ export default class ToasExtension extends Extension {
         onClearHistory: () => this._clearHistory(),
         onOpenPreferences: () => this._openPreferences()
       })
-      this._orchestrator = new ToasOrchestrator(
-        this._settings,
-        (state, message) => this._indicator?.render(state, message)
-      )
+      this._orchestrator = new ToasOrchestrator({
+        settings: this._settings,
+        collaborators: {
+          overlay: new ToasOverlayPresenter({ view: new ShellOverlayView() }),
+          history: new HistoryStore(this._settings),
+          paster: new TextPaster(this._settings),
+          notifier: new ShellNotifier()
+        },
+        onStateChanged: (state, message) => this._indicator?.render(state, message)
+      })
 
       Main.panel.addToStatusArea(this.uuid, this._indicator)
       this._scheduleIndicatorPosition();

@@ -11,7 +11,7 @@
 .toas-icon {
   icon-size: 16px;
   opacity: 0.9;
-  color: -st-accent-color;
+  color: -st-accent-fg-color;
 }
 
 .toas-status {
@@ -19,6 +19,7 @@
   font-family: "Maple Mono";
   font-size: 14px;
   font-weight: 500;
+  color: st-transparentize(-st-accent-fg-color, 0.8);
 }
 
 .toas-bars {
