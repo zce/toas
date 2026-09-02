@@ -232,13 +232,11 @@ export default class ToasExtension extends Extension {
   }
 
   _clearHistory () {
+    // Confirmation is mandatory; without the dialog, do nothing rather than
+    // silently bypassing it.
     if (this._confirmDialog) {
       this._confirmDialog.open(global.get_current_time())
-      return
     }
-
-    // Fallback when the dialog could not be constructed.
-    this._doClearHistory()
   }
 
   _doClearHistory () {

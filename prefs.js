@@ -1,4 +1,5 @@
 import Adw from 'gi://Adw'
+import Gdk from 'gi://Gdk'
 import Gio from 'gi://Gio'
 import Gtk from 'gi://Gtk'
 
@@ -79,6 +80,10 @@ function buildShortcutButton (settings) {
       }
 
       const accelerator = Gtk.accelerator_name_with_keycode(null, keyval, keycode, mask)
+      if (!accelerator || !Gtk.accelerator_valid(keyval, mask)) {
+        button.set_label('That combination cannot be used…')
+        return Gdk.EVENT_STOP
+      }
       button.set_label(accelerator)
 
       // Small debounce so modifier taps settle before saving.
@@ -258,16 +263,17 @@ export default class ToasPreferences extends ExtensionPreferences {
         refineWarning.subtitle =
                 `Missing ${missing.join(' and ')}. Until then recordings keep the ` +
                 'raw transcript without polishing.'
-      } else if (!refine.enabled) {
-        refineWarning.visible = false
       } else {
         refineWarning.visible = false
       }
     }
 
-    settings.connect('changed', updateRefineWarning)
+    const settingsChangedId = settings.connect('changed', updateRefineWarning)
     refineEnabled.connect('notify::active', updateRefineWarning)
     updateRefineWarning()
+    window.connect('destroy', () => {
+      settings.disconnect(settingsChangedId)
+    })
 
     page.add(inputGroup)
     page.add(historyGroup)

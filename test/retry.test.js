@@ -90,6 +90,11 @@ test('retry failure appends a linked error attempt, original preserved', async (
   expectEqual(attempt.error.message, 'still unauthorized')
   expectEqual(attempt.attemptOf, 'orig-2')
   expectEqual(repo.get('orig-2').status, 'error')
+
+  // Cancelling a retry must not delete the original session's audio.
+  orchestrator.begin()
+  orchestrator.cancel()
+  expectEqual(repo.resolveAudio(repo.get('orig-2')).available, true)
   orchestrator.destroy()
 })
 

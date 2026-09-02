@@ -66,7 +66,7 @@ test('normal session runs recording through idle with one terminal transition', 
   orchestrator.destroy()
 })
 
-test('destroy cancels in-flight work but leaves collaborator teardown to the owner', () => {
+test('destroy cancels in-flight network work but leaves collaborator teardown to the owner', () => {
   const { orchestrator, recorder, transcriber, refiner, paster, history, overlay, notifier } = makeOrchestrator()
 
   orchestrator.destroy()
@@ -74,8 +74,9 @@ test('destroy cancels in-flight work but leaves collaborator teardown to the own
   expectEqual(recorder.destroys, 0)
   expectEqual(overlay.destroys, 0)
   expectEqual(paster.destroys, 0)
-  // Cancellation is fine (in-flight work must stop), destruction is not.
-  expectEqual(transcriber.cancels, 0)
+  // In-flight HTTP work must stop; collaborators are not destroyed.
+  expectEqual(transcriber.cancels, 1)
+  expectEqual(refiner.cancels, 1)
   expectEqual(notifier.cancels, 0)
 })
 
