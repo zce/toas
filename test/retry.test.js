@@ -68,6 +68,7 @@ test('retry runs transcription on retained audio without a recorder', async () =
   expectEqual(attempt.attemptOf, 'orig-1')
   expectEqual(attempt.attemptNumber, 1)
   expectEqual(attempt.output, 'RETRIED TEXT')
+  expectEqual(attempt.audio, null)
 
   // Original record untouched.
   expectEqual(repo.get('orig-1').status, 'error')

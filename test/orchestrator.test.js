@@ -10,7 +10,9 @@ function makeOrchestrator ({
   paster = new FakePaster(),
   history = new FakeHistory(),
   overlay = new FakeOverlay(),
-  notifier = new FakeNotifier()
+  notifier = new FakeNotifier(),
+  settings = {},
+  recorderFactory = null
 } = {}) {
   const run = new class RunSpy {
     constructor () { this.events = [] }
@@ -18,9 +20,9 @@ function makeOrchestrator ({
   }()
 
   const orchestrator = new ToasOrchestrator({
-    settings: {},
+    settings,
     collaborators: {
-      recorderFactory: () => recorder,
+      recorderFactory: recorderFactory ?? (() => recorder),
       history,
       transcriber,
       refiner,
@@ -39,6 +41,24 @@ test('orchestrator accepts injected collaborators', () => {
 
   expectTruthy(orchestrator)
   expectEqual(recorder.starts, 0)
+  orchestrator.destroy()
+})
+
+test('recording quality reaches the recorder factory', () => {
+  let receivedRate = null
+  const recorder = new FakeRecorder()
+  const { orchestrator } = makeOrchestrator({
+    recorder,
+    settings: { get_enum: () => 1 },
+    recorderFactory: (_directory, _onLevel, _onError, sampleRate) => {
+      receivedRate = sampleRate
+      return recorder
+    }
+  })
+
+  orchestrator.begin()
+  expectEqual(receivedRate, 48000)
+  orchestrator.cancel()
   orchestrator.destroy()
 })
 

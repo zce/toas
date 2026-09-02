@@ -1,5 +1,5 @@
 import GLib from 'gi://GLib'
-import { resolveTranscriptionConfig, resolveRefineConfig, ConfigSource } from '../lib/effective-config.js'
+import { resolveTranscriptionConfig, resolveRefineConfig, ConfigSource, resolveSampleRate, AUDIO_QUALITY_PRESETS } from '../lib/effective-config.js'
 import { test, expectEqual, run } from './harness.js'
 
 class FakeSettings {
@@ -20,6 +20,10 @@ class FakeSettings {
 
   get_boolean (key) {
     return this.get_user_value(key) ?? false
+  }
+
+  get_enum (key) {
+    return this.get_user_value(key) ?? 0
   }
 
   getenv (name) {
@@ -114,6 +118,16 @@ test('environment-provided refine model satisfies readiness', () => {
     expectEqual(r.model.value, 'env-model')
     expectEqual(r.ready, true)
   })
+})
+
+test('sample rate follows the audio quality setting', () => {
+  expectEqual(resolveSampleRate(new FakeSettings()), AUDIO_QUALITY_PRESETS.standard.sampleRate)
+  expectEqual(resolveSampleRate(new FakeSettings({ 'audio-quality': 1 })), AUDIO_QUALITY_PRESETS.high.sampleRate)
+  expectEqual(resolveSampleRate(new FakeSettings({ 'audio-quality': 2 })), AUDIO_QUALITY_PRESETS.balanced.sampleRate)
+})
+
+test('unknown quality values degrade to the standard rate', () => {
+  expectEqual(resolveSampleRate(new FakeSettings({ 'audio-quality': 99 })), AUDIO_QUALITY_PRESETS.standard.sampleRate)
 })
 
 await run()

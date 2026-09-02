@@ -3,6 +3,7 @@ import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import Meta from 'gi://Meta'
 import Shell from 'gi://Shell'
+import St from 'gi://St'
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
@@ -15,7 +16,6 @@ import { ShellNotifier } from './lib/notifier.js'
 import { TextPaster } from './lib/input.js'
 import { HistoryStore } from './lib/history.js'
 import { HistoryRepository } from './lib/history-repository.js'
-import { HistoryBrowser, StClipboardAdapter } from './lib/history-browser.js'
 import { OnboardingManager } from './lib/onboarding.js'
 import { ConfirmDialog } from './lib/confirm-dialog.js'
 import { resolveTranscriptionConfig } from './lib/effective-config.js'
@@ -32,22 +32,30 @@ export default class ToasExtension extends Extension {
   enable () {
     try {
       this._settings = this.getSettings()
+      const history = new HistoryStore(this._settings)
+      this._historyStore = history
+      const notifier = new ShellNotifier()
+      this._historyRepository = new HistoryRepository(history)
+      this._historyClipboard = St.Clipboard.get_default()
+
       this._indicator = new ToasIndicator({
         onToggle: () => {
           if (this._guardReadyToRecord()) { this._orchestrator?.toggle() }
         },
-        onCancel: () => this._orchestrator?.cancel(),
         onClearHistory: () => this._clearHistory(),
-        onBrowseHistory: () => this._historyBrowser?.open(),
-        onOpenPreferences: () => this._openPreferences()
+        onOpenPreferences: () => this._openPreferences(),
+        onListHistory: () => this._listHistory(),
+        onCopySession: entry => this._copySession(entry, notifier),
+        onRetrySession: entry => this._retrySession(entry, notifier),
+        onCanRetrySession: entry =>
+          this._historyRepository.resolveAudio(entry).available
       })
       const overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
-      const history = new HistoryStore(this._settings)
-      const notifier = new ShellNotifier()
       this._overlayCollaborators = { overlay }
 
       this._orchestrator = new ToasOrchestrator({
         settings: this._settings,
+        historyRepository: this._historyRepository,
         collaborators: {
           overlay,
           history,
@@ -60,7 +68,6 @@ export default class ToasExtension extends Extension {
       // Overlay close button cancels the live session directly.
       overlay.setOnCancelRequested?.(() => this._orchestrator?.cancel())
 
-      this._historyRepository = new HistoryRepository(history)
       this._onboarding = new OnboardingManager({
         settings: this._settings,
         notifier,
@@ -68,13 +75,6 @@ export default class ToasExtension extends Extension {
         hasExistingHistory: () => history.readEntries().length > 0
       })
       this._onboarding.maybeShowOnboarding()
-
-      this._historyBrowser = new HistoryBrowser({
-        repository: this._historyRepository,
-        clipboard: new StClipboardAdapter(),
-        notifier,
-        retryFn: entry => this._orchestrator?.retry(entry) ?? Promise.resolve(null)
-      })
 
       try {
         this._confirmDialog = new ConfirmDialog({
@@ -111,11 +111,11 @@ export default class ToasExtension extends Extension {
       this._confirmDialog?.destroy()
       this._confirmDialog = null
 
-      this._historyBrowser?.destroy()
-      this._historyBrowser = null
-
       this._indicator?.destroy()
       this._indicator = null
+
+      this._historyStore?.destroy()
+      this._historyStore = null
 
       this._settings = null
 
@@ -138,9 +138,7 @@ export default class ToasExtension extends Extension {
 
     this._onboarding = null
     this._historyRepository = null
-
-    this._historyBrowser?.destroy()
-    this._historyBrowser = null
+    this._historyClipboard = null
 
     // Destroying the dialog releases its modal grab.
     this._confirmDialog?.destroy()
@@ -153,6 +151,9 @@ export default class ToasExtension extends Extension {
 
     this._indicator?.destroy()
     this._indicator = null
+
+    this._historyStore?.destroy()
+    this._historyStore = null
 
     this._settings = null
   }
@@ -249,6 +250,46 @@ export default class ToasExtension extends Extension {
         ? `Cleared ${cleared} voice session${cleared === 1 ? '' : 's'}`
         : 'History is already empty'
     )
+  }
+
+  _copySession (entry, notifier) {
+    const text = entry.output || entry.transcript || ''
+    if (!text) { return }
+
+    this._historyClipboard?.set_text(St.ClipboardType.CLIPBOARD, text)
+    notifier.notify('Copied', 'Session text is on the clipboard.')
+    this._indicator?.menu.close()
+  }
+
+  _listHistory () {
+    return this._historyRepository.list({ limit: 30 }).map(entry => {
+      const attempts = this._historyRepository.attemptsOf(entry.id)
+      const latest = attempts[attempts.length - 1]
+      if (!latest) { return entry }
+
+      return {
+        ...entry,
+        status: latest.status,
+        transcript: latest.transcript ?? entry.transcript,
+        output: latest.output ?? entry.output,
+        attemptNumber: latest.attemptNumber
+      }
+    })
+  }
+
+  async _retrySession (entry, notifier) {
+    this._indicator?.menu.close()
+    notifier.notify('Retrying session', 'Processing the retained recording again.')
+    const attempt = await this._orchestrator?.retry(entry)
+
+    if (attempt?.status === 'ok') {
+      notifier.notify('Retry succeeded', 'Open the menu to copy the new result.')
+    } else if (attempt?.status === 'error') {
+      notifier.notify(
+        'Retry failed',
+        attempt.error?.message ?? 'The session failed again.'
+      )
+    }
   }
 
   _openPreferences () {

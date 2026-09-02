@@ -1,11 +1,12 @@
 import Adw from 'gi://Adw'
 import Gdk from 'gi://Gdk'
 import Gio from 'gi://Gio'
+import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk'
 import Soup from 'gi://Soup?version=3.0'
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
-import { resolveRefineConfig, resolveTranscriptionConfig } from './lib/effective-config.js'
+import { resolveRefineConfig, resolveSampleRate, resolveTranscriptionConfig } from './lib/effective-config.js'
 
 // Inline shortcut capture, modeled on Clipboard Indicator: a frameless button
 // enters capture mode via Gtk.EventControllerKey; Escape cancels, Backspace
@@ -134,12 +135,59 @@ export default class ToasPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT
     )
 
+    const autoPaste = new Adw.SwitchRow({
+      title: 'Paste automatically',
+      subtitle: 'Paste the result into the focused application. Off copies it to the clipboard only, so you paste it yourself.'
+    })
+    settings.bind(
+      'auto-paste',
+      autoPaste,
+      'active',
+      Gio.SettingsBindFlags.DEFAULT
+    )
+
     inputGroup.add(shortcutRow)
+    inputGroup.add(autoPaste)
     inputGroup.add(restoreClipboard)
+
+    const recordingGroup = new Adw.PreferencesGroup({
+      title: 'Recording',
+      description: 'Capture format for new recordings. Existing history keeps its format.'
+    })
+
+    const qualityModel = Gtk.StringList.new([
+      'Standard · 16 kHz',
+      'Balanced · 24 kHz',
+      'High · 48 kHz'
+    ])
+    const qualityValues = [0, 2, 1]
+    const qualitySelector = new Gtk.DropDown({
+      model: qualityModel,
+      valign: Gtk.Align.CENTER,
+      width_request: 190
+    })
+    qualitySelector.selected = Math.max(
+      0,
+      qualityValues.indexOf(settings.get_enum('audio-quality'))
+    )
+
+    const qualityRow = new Adw.ActionRow({
+      title: 'Audio quality',
+      subtitle: 'Standard: ~13 min cap · Balanced: ~9 min · High: ~4 min.'
+    })
+    qualityRow.add_suffix(qualitySelector)
+    qualitySelector.connect('notify::selected', () => {
+      settings.set_enum(
+        'audio-quality',
+        qualityValues[qualitySelector.selected] ?? 0
+      )
+    })
+
+    recordingGroup.add(qualityRow)
 
     const historyGroup = new Adw.PreferencesGroup({
       title: 'History',
-      description: 'Session text and some recordings are kept on this device. Clear everything from the top-bar menu.'
+      description: 'Session text and some recordings are kept on this device. Manage them from the top-bar menu.'
     })
     const historyLimit = new Adw.SpinRow({
       title: 'Sessions to keep',
@@ -239,6 +287,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       'API key',
       'Also read from TOAS_REFINE_API_KEY, then OPENAI_API_KEY, when left empty.'
     ))
+    refineGroup.add(buildRefineTestConnectionRow(settings).row)
     const refinePromptGroup = new Adw.PreferencesGroup({
       title: 'Refine Instructions',
       description: 'Tell the model how to edit your transcript. Paragraphs, lists, and code formatting are kept when pasted.'
@@ -277,6 +326,7 @@ export default class ToasPreferences extends ExtensionPreferences {
     })
 
     page.add(inputGroup)
+    page.add(recordingGroup)
     page.add(historyGroup)
     page.add(transcriptionGroup)
     page.add(refineGroup)
@@ -310,26 +360,20 @@ Gio._promisify(
 )
 
 function buildTestConnectionRow (settings) {
-  const statusLabel = new Gtk.Label({
-    valign: Gtk.Align.CENTER,
-    css_classes: ['dim-label'],
-    ellipsize: 3 // Pango.EllipsizeMode.END
-  })
-
   const button = new Gtk.Button({ valign: Gtk.Align.CENTER })
   button.set_label('Test connection')
 
+  const description = 'Sends a short silent sample to check endpoint, key, and model.'
   const row = new Adw.ActionRow({
     title: 'Connection',
-    subtitle: 'Sends a short silent sample to check endpoint, key, and model.'
+    subtitle: description
   })
-  row.add_suffix(statusLabelWrapper(statusLabel))
   row.add_suffix(button)
 
   let busy = false
 
   const setStatus = text => {
-    statusLabel.set_label(text ?? '')
+    row.subtitle = text || description
   }
 
   button.connect('clicked', async () => {
@@ -356,20 +400,50 @@ function buildTestConnectionRow (settings) {
     }
   })
 
-  return { row, button, statusLabel }
+  return { row, button }
 }
 
-function statusLabelWrapper (label) {
-  const box = new Gtk.Box({
+function buildRefineTestConnectionRow (settings) {
+  const button = new Gtk.Button({
+    label: 'Test connection',
     valign: Gtk.Align.CENTER
   })
-  box.append(label)
-  return box
+  const description = 'Sends a short text request to check endpoint, key, and model.'
+  const row = new Adw.ActionRow({
+    title: 'Connection',
+    subtitle: description
+  })
+  row.add_suffix(button)
+
+  let busy = false
+  button.connect('clicked', async () => {
+    if (busy) { return }
+
+    const config = resolveRefineConfig(settings)
+    if (!config.model.value || !config.apiKey.present) {
+      row.subtitle = 'Add a model and API key first.'
+      return
+    }
+
+    busy = true
+    button.sensitive = false
+    row.subtitle = 'Testing…'
+    try {
+      await probeRefineEndpoint(config, settings)
+      row.subtitle = '✓ Connection works'
+    } catch (error) {
+      row.subtitle = `✗ ${describeProbeFailure(error)}`
+    } finally {
+      busy = false
+      button.sensitive = true
+    }
+  })
+
+  return { row, button }
 }
 
-// One non-streaming request with a 0.25 s silent WAV payload. A 2xx response
-// with any Chat Completions shape counts as reachable; the sample is not
-// expected to contain speech.
+// One non-streaming request with a 0.25 s silent WAV payload. Success requires
+// the same assistant-message shape the production client consumes.
 async function probeTranscriptionEndpoint (config, settings) {
   const message = Soup.Message.new('POST', config.endpoint.value)
   message.get_request_headers().append('Authorization', `Bearer ${readTranscriptionKey(settings)}`)
@@ -381,7 +455,7 @@ async function probeTranscriptionEndpoint (config, settings) {
         role: 'user',
         content: [{
           type: 'input_audio',
-          input_audio: { data: `data:audio/wav;base64,${silenceWavBase64()}` }
+          input_audio: { data: `data:audio/wav;base64,${silenceWavBase64(resolveSampleRate(settings))}` }
         }]
       }],
       asr_options: { language: config.language },
@@ -407,18 +481,51 @@ async function probeTranscriptionEndpoint (config, settings) {
     throw error
   }
 
-  // 2xx: even an empty transcription proves endpoint + auth + model respond.
-  let parsed = null
-  try {
-    parsed = JSON.parse(new TextDecoder().decode(bytes.get_data()))
-  } catch {
-    const error = new Error('Response was not valid JSON')
-    error.invalidJson = true
+  validateProbeResponse(message, bytes)
+}
+
+async function probeRefineEndpoint (config, settings) {
+  const message = Soup.Message.new('POST', config.endpoint.value)
+  message.get_request_headers().append(
+    'Authorization',
+    `Bearer ${readRefineKey(settings)}`
+  )
+  message.set_request_body_from_bytes(
+    'application/json',
+    new GLib.Bytes(new TextEncoder().encode(JSON.stringify({
+      model: config.model.value,
+      messages: [{ role: 'user', content: 'Reply with OK.' }],
+      stream: false
+    })))
+  )
+
+  const session = new Soup.Session()
+  session.timeout = 20
+  const bytes = await session.send_and_read_async(
+    message,
+    GLib.PRIORITY_DEFAULT,
+    null
+  )
+  validateProbeResponse(message, bytes)
+}
+
+function validateProbeResponse (message, bytes) {
+  const status = message.get_status()
+  if (status < 200 || status >= 300) {
+    const error = new Error(`HTTP ${status}`)
+    error.httpStatus = status
+    error.responseBody = new TextDecoder()
+      .decode(bytes.get_data())
+      .slice(0, 160)
     throw error
   }
 
-  if (!parsed || typeof parsed !== 'object') {
-    const error = new Error('Response was not a Chat Completions object')
+  try {
+    const parsed = JSON.parse(new TextDecoder().decode(bytes.get_data()))
+    const content = parsed?.choices?.[0]?.message?.content
+    if (typeof content !== 'string' || !content.trim()) { throw new Error() }
+  } catch {
+    const error = new Error('Response was not valid JSON')
     error.invalidJson = true
     throw error
   }
@@ -434,6 +541,16 @@ function readTranscriptionKey (settings) {
   if (envValue && envValue.trim()) { return envValue.trim() }
 
   return ''
+}
+
+function readRefineKey (settings) {
+  const userValue = settings.get_user_value('refine-api-key')
+    ? settings.get_string('refine-api-key').trim()
+    : ''
+  return userValue ||
+    GLib.getenv('TOAS_REFINE_API_KEY')?.trim() ||
+    GLib.getenv('OPENAI_API_KEY')?.trim() ||
+    ''
 }
 
 function describeProbeFailure (error) {
@@ -455,9 +572,10 @@ function describeProbeFailure (error) {
   return 'Could not reach the endpoint — check the URL and connection.'
 }
 
-// 0.25 s of silence at 16 kHz mono 16-bit, wrapped in a minimal WAV header.
-function silenceWavBase64 () {
-  const sampleRate = 16000
+// 0.25 s of silence at the currently selected sample rate, mono 16-bit,
+// wrapped in a minimal WAV header. The probe uses the same format real
+// recordings will be sent in.
+function silenceWavBase64 (sampleRate) {
   const durationSeconds = 0.25
   const sampleCount = Math.floor(sampleRate * durationSeconds)
   const dataBytes = sampleCount * 2

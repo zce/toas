@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
+  <enum id='org.gnome.shell.extensions.toas.AudioQuality'>
+    <value nick='standard' value='0'/>
+    <value nick='high' value='1'/>
+    <value nick='balanced' value='2'/>
+  </enum>
   <schema id="org.gnome.shell.extensions.toas" path="/org/gnome/shell/extensions/toas/">
     <key name="push-to-talk" type="as">
       <default>['&lt;Ctrl&gt;&lt;Shift&gt;space']</default>
@@ -66,6 +71,23 @@
     <key name="restore-clipboard" type="b">
       <default>true</default>
       <summary>Restore previous clipboard text after paste</summary>
+    </key>
+
+    <key name="auto-paste" type="b">
+      <default>true</default>
+      <summary>Paste the output into the focused application</summary>
+      <description>
+        When disabled, the output is only copied to the clipboard.
+      </description>
+    </key>
+
+    <key name="audio-quality" enum="org.gnome.shell.extensions.toas.AudioQuality">
+      <default>'standard'</default>
+      <summary>Recording quality preset</summary>
+      <description>
+        Preset for the recording sample rate. Higher quality produces
+        larger uploads and reaches the recording size cap sooner.
+      </description>
     </key>
 
     <key name="onboarding-shown" type="b">

@@ -80,11 +80,10 @@ on the clipboard with a notice instead of being pasted into the new window.
 
 ## History
 
-Recent sessions are available from the top-bar menu under `Recent sessions`.
-The list shows status, a preview, time, and duration; opening a row shows the
-full text with model and timing details plus a `Copy` action. Failed sessions
-with retained audio offer `Retry`, which reprocesses the stored recording and
-appends the attempt to history without pasting.
+Recent sessions are listed directly in the top-bar menu. Expand a row to copy
+its text or retry a failed session whose recording is still retained. Retry
+reprocesses the stored recording and appends the attempt to history without
+pasting.
 
 ## Transcription
 
@@ -152,14 +151,21 @@ incomplete, or fails, the raw transcript is inserted instead.
 
 ## Recording
 
-`pw-record` emits 16 kHz, mono, signed 16-bit PCM in 100 ms chunks. `toas` uses
+`pw-record` emits mono signed 16-bit PCM in 100 ms chunks. `toas` uses
 those chunks for the live waveform and wraps the completed recording in a
 standard WAV container before transcription.
 
+The `Audio quality` preference picks the capture sample rate via three
+presets: `Standard` (16 kHz, the ASR-typical format), `Balanced` (24 kHz),
+and `High` (48 kHz, higher fidelity). All are accepted by the default
+transcription endpoint.
+Existing history keeps its recorded format regardless of the setting.
+
 Audio is never sent while recording. It is uploaded only after the user stops.
 Recordings shorter than one second are discarded without transcription.
-Recordings are capped at 24 MB (about 13 minutes at this format) so an
-accidental open session cannot exhaust GNOME Shell memory during upload.
+Recordings are capped at 24 MB so an accidental open session cannot exhaust
+GNOME Shell memory during upload — about 13 minutes at `Standard`, about
+9 minutes at `Balanced`, and about 4 minutes at `High`.
 
 ## History
 
@@ -201,6 +207,10 @@ embedded line breaks remain part of the pasted text.
 When `Restore text clipboard` is enabled, the previous text clipboard value is
 restored after pasting. Rich or image clipboard content cannot be restored
 through `St.Clipboard`.
+
+When `Paste automatically` is disabled, nothing is typed into the focused
+application: the result stays on the clipboard with a notice, and the previous
+clipboard value is not restored (the result is the deliverable).
 
 ## Secrets
 
