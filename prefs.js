@@ -3,6 +3,99 @@ import Gio from 'gi://Gio'
 import Gtk from 'gi://Gtk'
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
+import { resolveRefineConfig } from './lib/effective-config.js'
+
+// Inline shortcut capture, modeled on Clipboard Indicator: a frameless button
+// enters capture mode via Gtk.EventControllerKey; Escape cancels, Backspace
+// disables, any other combination is normalized and saved.
+function buildShortcutButton (settings) {
+  const button = new Gtk.Button({ has_frame: false })
+
+  const setLabelFromSettings = () => {
+    const value = settings.get_strv('push-to-talk')[0]
+    button.set_label(value || 'Disabled')
+  }
+
+  let editing = false
+  let controller = null
+  let debounceId = 0
+
+  const stopEditing = () => {
+    editing = false
+    if (controller) {
+      button.remove_controller(controller)
+      controller = null
+    }
+    if (debounceId) {
+      GLib.source_remove(debounceId)
+      debounceId = 0
+    }
+    setLabelFromSettings()
+  }
+
+  button.connect('clicked', () => {
+    if (editing) {
+      stopEditing()
+      return
+    }
+
+    editing = true
+    button.set_label('Press a key combination…')
+
+    controller = new Gtk.EventControllerKey()
+    button.add_controller(controller)
+
+    controller.connect('key-pressed', (_ec, keyval, keycode, mask) => {
+      if (debounceId) {
+        GLib.source_remove(debounceId)
+        debounceId = 0
+      }
+
+      mask &= Gtk.accelerator_get_default_mod_mask()
+
+      if (mask === 0) {
+        if (keyval === Gdk.KEY_Escape) {
+          stopEditing()
+          return Gdk.EVENT_STOP
+        }
+        if (keyval === Gdk.KEY_BackSpace) {
+          settings.set_strv('push-to-talk', [])
+          stopEditing()
+          return Gdk.EVENT_STOP
+        }
+      }
+
+      // Bare modifier presses are not valid accelerators.
+      const bareModifiers = [
+        Gdk.KEY_Shift_L, Gdk.KEY_Shift_R,
+        Gdk.KEY_Control_L, Gdk.KEY_Control_R,
+        Gdk.KEY_Alt_L, Gdk.KEY_Alt_R,
+        Gdk.KEY_Super_L, Gdk.KEY_Super_R,
+        Gdk.KEY_Meta_L, Gdk.KEY_Meta_R
+      ]
+      if (bareModifiers.includes(keyval)) {
+        button.set_label('Add a regular key to the modifier…')
+        return Gdk.EVENT_STOP
+      }
+
+      const accelerator = Gtk.accelerator_name_with_keycode(null, keyval, keycode, mask)
+      button.set_label(accelerator)
+
+      // Small debounce so modifier taps settle before saving.
+      debounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
+        debounceId = 0
+        settings.set_strv('push-to-talk', [accelerator])
+        stopEditing()
+        return GLib.SOURCE_REMOVE
+      })
+
+      return Gdk.EVENT_STOP
+    })
+  })
+
+  setLabelFromSettings()
+  return button
+}
 
 export default class ToasPreferences extends ExtensionPreferences {
   fillPreferencesWindow (window) {
@@ -18,20 +111,11 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Hold the shortcut, speak, then release the modifiers to finish.'
     })
 
-    const shortcut = new Adw.EntryRow({
+    const shortcutRow = new Adw.ActionRow({
       title: 'Shortcut',
-      text: settings.get_strv('push-to-talk')[0] ?? ''
+      subtitle: 'Click the button, then press the combination. Escape cancels; Backspace clears.'
     })
-    const shortcutLabel = new Gtk.ShortcutLabel({
-      accelerator: shortcut.text,
-      valign: Gtk.Align.CENTER
-    })
-    shortcut.add_suffix(shortcutLabel)
-    shortcut.connect('changed', () => {
-      const value = shortcut.text.trim()
-      settings.set_strv('push-to-talk', value ? [value] : [])
-      shortcutLabel.accelerator = value
-    })
+    shortcutRow.add_suffix(buildShortcutButton(settings))
 
     const restoreClipboard = new Adw.SwitchRow({
       title: 'Restore text clipboard',
@@ -44,7 +128,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT
     )
 
-    inputGroup.add(shortcut)
+    inputGroup.add(shortcutRow)
     inputGroup.add(restoreClipboard)
 
     const historyGroup = new Adw.PreferencesGroup({
@@ -112,9 +196,12 @@ export default class ToasPreferences extends ExtensionPreferences {
       'Fallback: TOAS_TRANSCRIPTION_API_KEY.'
     ))
 
+    const testRow = buildTestConnectionRow(settings)
+    transcriptionGroup.add(testRow.row)
+
     const refineGroup = new Adw.PreferencesGroup({
       title: 'Refine',
-      description: 'Uses OpenAI-compatible Chat Completions. Failure falls back to the raw transcript.'
+      description: 'Rewrites the raw transcript into clean text. If it fails, the raw transcript is used.'
     })
 
     const refineEnabled = new Adw.SwitchRow({
@@ -127,6 +214,10 @@ export default class ToasPreferences extends ExtensionPreferences {
       'active',
       Gio.SettingsBindFlags.DEFAULT
     )
+
+    const refineWarning = new Adw.ActionRow({ title: 'Refine is not active' })
+    refineWarning.add_css_class('warning')
+    refineGroup.add(refineWarning)
 
     refineGroup.add(refineEnabled)
     refineGroup.add(entry(
@@ -156,6 +247,28 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Keys entered here are stored in dconf as plain text. For a cleaner setup, leave key fields empty and provide environment variables before logging into GNOME.'
     })
 
+    const updateRefineWarning = () => {
+      const refine = resolveRefineConfig(settings)
+      const missing = []
+      if (!refine.model.value) { missing.push('a model') }
+      if (!refine.apiKey.present) { missing.push('an API key') }
+
+      if (refine.enabled && missing.length > 0) {
+        refineWarning.visible = true
+        refineWarning.subtitle =
+                `Missing ${missing.join(' and ')}. Until then recordings keep the ` +
+                'raw transcript without polishing.'
+      } else if (!refine.enabled) {
+        refineWarning.visible = false
+      } else {
+        refineWarning.visible = false
+      }
+    }
+
+    settings.connect('changed', updateRefineWarning)
+    refineEnabled.connect('notify::active', updateRefineWarning)
+    updateRefineWarning()
+
     page.add(inputGroup)
     page.add(historyGroup)
     page.add(transcriptionGroup)
@@ -179,6 +292,194 @@ function entry (settings, key, title, tooltip = '') {
   })
 
   return row
+}
+
+// "Test connection" row: sends one tiny generated-WAV request through the same
+// effective configuration as production and reports the outcome inline.
+Gio._promisify(
+  Soup.Session.prototype,
+  'send_and_read_async',
+  'send_and_read_finish'
+)
+
+function buildTestConnectionRow (settings) {
+  const statusLabel = new Gtk.Label({
+    valign: Gtk.Align.CENTER,
+    css_classes: ['dim-label'],
+    ellipsize: 3 // Pango.EllipsizeMode.END
+  })
+
+  const button = new Gtk.Button({ valign: Gtk.Align.CENTER })
+  button.set_label('Test connection')
+
+  const row = new Adw.ActionRow({
+    title: 'Connection',
+    subtitle: 'Sends a short silent sample to check endpoint, key, and model.'
+  })
+  row.add_suffix(statusLabelWrapper(statusLabel))
+  row.add_suffix(button)
+
+  let busy = false
+
+  const setStatus = text => {
+    statusLabel.set_label(text ?? '')
+  }
+
+  button.connect('clicked', async () => {
+    if (busy) { return }
+
+    const config = resolveTranscriptionConfig(settings)
+    if (!config.ready) {
+      setStatus('Add an API key first.')
+      return
+    }
+
+    busy = true
+    button.set_sensitive(false)
+    setStatus('Testing…')
+
+    try {
+      await probeTranscriptionEndpoint(config, settings)
+      setStatus('✓ Connection works')
+    } catch (error) {
+      setStatus(`✗ ${describeProbeFailure(error)}`)
+    } finally {
+      busy = false
+      button.set_sensitive(true)
+    }
+  })
+
+  return { row, button, statusLabel }
+}
+
+function statusLabelWrapper (label) {
+  const box = new Gtk.Box({
+    valign: Gtk.Align.CENTER
+  })
+  box.append(label)
+  return box
+}
+
+// One non-streaming request with a 0.25 s silent WAV payload. A 2xx response
+// with any Chat Completions shape counts as reachable; the sample is not
+// expected to contain speech.
+async function probeTranscriptionEndpoint (config, settings) {
+  const Soup = (await import('gi://Soup?version=3.0')).default
+
+  const message = Soup.Message.new('POST', config.endpoint.value)
+  message.get_request_headers().append('Authorization', `Bearer ${readTranscriptionKey(settings)}`)
+  message.set_request_body_from_bytes(
+    'application/json',
+    new GLib.Bytes(new TextEncoder().encode(JSON.stringify({
+      model: config.model.value,
+      messages: [{
+        role: 'user',
+        content: [{
+          type: 'input_audio',
+          input_audio: { data: `data:audio/wav;base64,${silenceWavBase64()}` }
+        }]
+      }],
+      asr_options: { language: config.language },
+      stream: false
+    })))
+  )
+
+  const session = new Soup.Session()
+  session.timeout = 20
+
+  const bytes = await session.send_and_read_async(
+    message,
+    GLib.PRIORITY_DEFAULT,
+    null
+  )
+
+  const status = message.get_status()
+  if (status < 200 || status >= 300) {
+    const body = new TextDecoder().decode(bytes.get_data()).slice(0, 160)
+    const error = new Error(`HTTP ${status}`)
+    error.httpStatus = status
+    error.responseBody = body
+    throw error
+  }
+
+  // 2xx: even an empty transcription proves endpoint + auth + model respond.
+  let parsed = null
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(bytes.get_data()))
+  } catch {
+    const error = new Error('Response was not valid JSON')
+    error.invalidJson = true
+    throw error
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    const error = new Error('Response was not a Chat Completions object')
+    error.invalidJson = true
+    throw error
+  }
+}
+
+function readTranscriptionKey (settings) {
+  const userValue = settings.get_user_value('transcription-api-key')
+    ? settings.get_string('transcription-api-key').trim()
+    : ''
+  if (userValue) { return userValue }
+
+  const envValue = GLib.getenv('TOAS_TRANSCRIPTION_API_KEY')
+  if (envValue && envValue.trim()) { return envValue.trim() }
+
+  return ''
+}
+
+function describeProbeFailure (error) {
+  if (error?.httpStatus === 401 || error?.httpStatus === 403) {
+    return 'Key rejected — check the API key.'
+  }
+  if (error?.httpStatus === 404) {
+    return 'Endpoint or model not found — check both spellings.'
+  }
+  if (error?.httpStatus === 429) {
+    return 'Rate limited — the key works, but requests are throttled.'
+  }
+  if (error?.httpStatus) {
+    return `HTTP ${error.httpStatus} — the endpoint responded with an error.`
+  }
+  if (error?.invalidJson) {
+    return 'The endpoint did not return Chat Completions JSON.'
+  }
+  return 'Could not reach the endpoint — check the URL and connection.'
+}
+
+// 0.25 s of silence at 16 kHz mono 16-bit, wrapped in a minimal WAV header.
+function silenceWavBase64 () {
+  const sampleRate = 16000
+  const durationSeconds = 0.25
+  const sampleCount = Math.floor(sampleRate * durationSeconds)
+  const dataBytes = sampleCount * 2
+
+  const header = new ArrayBuffer(44)
+  const view = new DataView(header)
+  const writeAscii = (offset, text) => {
+    for (let i = 0; i < text.length; i++) { view.setUint8(offset + i, text.charCodeAt(i)) }
+  }
+
+  writeAscii(0, 'RIFF')
+  view.setUint32(4, 36 + dataBytes, true)
+  writeAscii(8, 'WAVE')
+  writeAscii(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeAscii(36, 'data')
+  view.setUint32(40, dataBytes, true)
+
+  const wav = new Uint8Array(44 + dataBytes)
+  wav.set(new Uint8Array(header), 0)
+  return GLib.base64_encode(wav)
 }
 
 function passwordEntry (settings, key, title, tooltip = '') {
