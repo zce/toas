@@ -9,6 +9,7 @@ export class FakeRecorder {
     this.stopError = stopError
     this.starts = 0
     this.stops = 0
+    this.cancels = 0
     this.destroys = 0
     this.onLevel = null
   }
@@ -21,6 +22,10 @@ export class FakeRecorder {
     this.stops++
     if (this.stopError) { throw this.stopError }
     return this.recording
+  }
+
+  cancel () {
+    this.cancels++
   }
 
   destroy () {

@@ -9,7 +9,6 @@ const SHELL_ONLY = new Set([
   'indicator.js',
   'input.js',
   'notifier.js',
-  'overlay.js',
   'shell-overlay-view.js'
 ])
 

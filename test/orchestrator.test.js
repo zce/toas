@@ -1,6 +1,6 @@
 import { ToasOrchestrator } from '../lib/orchestrator.js'
 import { FakeRecorder, FakeTranscriber, FakeRefiner, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeCaptureFailure } from '../lib/recorder-outcome.js'
+import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeCaptureFailure, recordingOutcomeCancelled, recordingOutcomeSizeLimit } from '../lib/recorder-outcome.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 function makeOrchestrator ({
@@ -64,6 +64,41 @@ test('normal session runs recording through idle with one terminal transition', 
   expectEqual(terminal.length, 1)
   expectEqual(terminal[0].state, 'idle')
   orchestrator.destroy()
+})
+
+test('destroy cancels in-flight work but leaves collaborator teardown to the owner', () => {
+  const { orchestrator, recorder, transcriber, refiner, paster, history, overlay, notifier } = makeOrchestrator()
+
+  orchestrator.destroy()
+
+  expectEqual(recorder.destroys, 0)
+  expectEqual(overlay.destroys, 0)
+  expectEqual(paster.destroys, 0)
+  // Cancellation is fine (in-flight work must stop), destruction is not.
+  expectEqual(transcriber.cancels, 0)
+  expectEqual(notifier.cancels, 0)
+})
+
+test('missing required collaborator throws at construction', () => {
+  let threw = null
+  try {
+    new ToasOrchestrator({
+      settings: {},
+      collaborators: {
+        recorderFactory: () => new FakeRecorder(),
+        transcriber: new FakeTranscriber(),
+        refiner: new FakeRefiner(),
+        paster: new FakePaster(),
+        notifier: new FakeNotifier()
+        // history intentionally missing
+      }
+    })
+  } catch (error) {
+    threw = error
+  }
+
+  expectTruthy(threw)
+  expectEqual(threw.message.includes('history'), true)
 })
 
 test('short tap discards silently and returns to idle', async () => {
@@ -134,10 +169,32 @@ test('cancellation during processing leaves no output or history', async () => {
   await pending
 
   expectEqual(recorder.starts, 1)
-  expectEqual(recorder.stops, 1)
+  expectEqual(recorder.cancels >= 1, true)
   expectEqual(transcriber.cancels >= 1, true)
   expectEqual(paster.writes, [])
   expectEqual(history.appends, [])
+  expectEqual(run.events.filter(e => e.state === 'idle' || e.state === 'error').length, 1)
+  orchestrator.destroy()
+})
+
+test('cancel before stop yields cancelled outcome, not an error', async () => {
+  const recording = { id: 'rec-5', path: '/tmp/rec-5.wav', durationMs: 4000, mimeType: 'audio/wav' }
+  const { orchestrator, recorder, paster, history, notifier, run } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) })
+  })
+
+  orchestrator.begin()
+  // Simulate the recorder learning about the cancel before stop() runs, the
+  // way AudioRecorder.cancel() sets its flag in production.
+  const pending = orchestrator.end()
+  orchestrator.cancel()
+  recorder.recording = recordingOutcomeCancelled()
+  await pending
+
+  expectEqual(paster.writes, [])
+  expectEqual(history.appends, [])
+  expectEqual(notifier.notifications, [])
+  expectEqual(run.events.filter(e => e.state === 'error').length, 0)
   expectEqual(run.events.filter(e => e.state === 'idle' || e.state === 'error').length, 1)
   orchestrator.destroy()
 })

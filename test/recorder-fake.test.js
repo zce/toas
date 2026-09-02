@@ -1,4 +1,4 @@
-import { recordingOutcomeOk, recordingOutcomeShortTap, RecorderOutcomeKind } from '../lib/recorder-outcome.js'
+import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeSizeLimit, recordingOutcomeCancelled, RecorderOutcomeKind } from '../lib/recorder-outcome.js'
 import { FakeRecorder } from './fakes.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
@@ -18,6 +18,8 @@ test('fake recorder returns its configured outcome once', async () => {
 test('outcome kinds partition the terminal states', () => {
   expectEqual(recordingOutcomeOk(recording).kind, RecorderOutcomeKind.OK)
   expectEqual(recordingOutcomeShortTap(0).kind, RecorderOutcomeKind.SHORT_TAP)
+  expectEqual(recordingOutcomeSizeLimit(recording).kind, RecorderOutcomeKind.SIZE_LIMIT)
+  expectEqual(recordingOutcomeCancelled().kind, RecorderOutcomeKind.CANCELLED)
   expectTruthy(RecorderOutcomeKind.CAPTURE_FAILURE)
 })
 

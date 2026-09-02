@@ -1,1 +1,2 @@
-# .scratch
+probe-*.mjs
+*.gresource

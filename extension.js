@@ -33,10 +33,13 @@ export default class ToasExtension extends Extension {
         onClearHistory: () => this._clearHistory(),
         onOpenPreferences: () => this._openPreferences()
       })
+      const overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
+      this._overlayCollaborators = { overlay }
+
       this._orchestrator = new ToasOrchestrator({
         settings: this._settings,
         collaborators: {
-          overlay: new ToasOverlayPresenter({ view: new ShellOverlayView() }),
+          overlay,
           history: new HistoryStore(this._settings),
           paster: new TextPaster(this._settings),
           notifier: new ShellNotifier()
@@ -60,6 +63,9 @@ export default class ToasExtension extends Extension {
       this._orchestrator?.destroy()
       this._orchestrator = null
 
+      this._overlayCollaborators?.overlay?.destroy()
+      this._overlayCollaborators = null
+
       this._indicator?.destroy()
       this._indicator = null
 
@@ -81,6 +87,11 @@ export default class ToasExtension extends Extension {
 
     this._orchestrator?.destroy()
     this._orchestrator = null
+
+    // The orchestrator drops collaborator references without destroying them;
+    // the composition root owns their teardown.
+    this._overlayCollaborators?.overlay?.destroy()
+    this._overlayCollaborators = null
 
     this._indicator?.destroy()
     this._indicator = null
