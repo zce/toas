@@ -6,6 +6,7 @@ import GLib from 'gi://GLib'
 import System from 'system'
 
 const SHELL_ONLY = new Set([
+  'confirm-dialog.js',
   'indicator.js',
   'input.js',
   'notifier.js',

@@ -60,3 +60,9 @@
   icon-size: 16px;
   margin-right: 8px;
 }
+
+.toas-recording {
+  /* Recording state for the top-bar icon: accent-tinted red that stays
+     legible on light and dark panels. */
+  color: #e5534b;
+}
