@@ -12,6 +12,7 @@ function makeOrchestrator ({
   overlay = new FakeOverlay(),
   notifier = new FakeNotifier(),
   settings = {},
+  privacy = { enabled: false },
   recorderFactory = null
 } = {}) {
   const run = new class RunSpy {
@@ -28,12 +29,13 @@ function makeOrchestrator ({
       refiner,
       paster,
       overlay,
-      notifier
+      notifier,
+      privacy
     },
     onStateChanged: (state, message) => run.onState(state, message)
   })
 
-  return { orchestrator, recorder, transcriber, refiner, paster, history, overlay, notifier, run }
+  return { orchestrator, recorder, transcriber, refiner, paster, history, overlay, notifier, privacy, run }
 }
 
 test('orchestrator accepts injected collaborators', () => {
@@ -294,6 +296,86 @@ test('double stop is idempotent: second end() is a no-op', async () => {
 
   expectEqual(recorder.stops, 1)
   expectEqual(paster.writes.length, 1)
+  orchestrator.destroy()
+})
+
+test('private voice input inserts text but keeps no history or recording', async () => {
+  const recording = { id: 'rec-priv-1', path: '/tmp/rec-priv-1.wav', durationMs: 3000, mimeType: 'audio/wav' }
+  const { orchestrator, paster, history, overlay, run } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    privacy: { enabled: true }
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  // Output still lands; nothing is retained.
+  expectEqual(paster.writes, ['HELLO'])
+  expectEqual(history.appends, [])
+  expectEqual(history.discarded, [recording])
+  expectEqual(run.events.filter(e => e.state === 'error').length, 0)
+  expectEqual(overlay.destroys, 0)
+  orchestrator.destroy()
+})
+
+test('private voice input keeps no recording when transcription fails', async () => {
+  const recording = { id: 'rec-priv-2', path: '/tmp/rec-priv-2.wav', durationMs: 3000, mimeType: 'audio/wav' }
+  const { orchestrator, paster, history, notifier } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    transcriber: new FakeTranscriber({ error: new Error('HTTP 500: provider down') }),
+    privacy: { enabled: true }
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  // Failure still notifies, but nothing is retained for a retry.
+  expectEqual(paster.writes, [])
+  expectEqual(history.appends, [])
+  expectEqual(history.discarded, [recording])
+  expectEqual(notifier.notifications.length, 1)
+  orchestrator.destroy()
+})
+
+test('switching private mode off mid-run still retains the voice input', async () => {
+  const recording = { id: 'rec-priv-3', path: '/tmp/rec-priv-3.wav', durationMs: 3000, mimeType: 'audio/wav' }
+  const { orchestrator, paster, history, privacy } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) })
+  })
+
+  privacy.enabled = false
+  orchestrator.begin()
+  // The run was snapshotted as non-private, so flipping the switch on while
+  // processing must not retroactively discard it.
+  privacy.enabled = true
+  await orchestrator.end()
+
+  expectEqual(paster.writes, ['HELLO'])
+  expectEqual(history.appends.length, 1)
+  expectEqual(history.discarded, [])
+  orchestrator.destroy()
+})
+
+test('switching private mode on mid-run still discards the voice input', async () => {
+  const recording = { id: 'rec-priv-4', path: '/tmp/rec-priv-4.wav', durationMs: 3000, mimeType: 'audio/wav' }
+  const { orchestrator, history, overlay, privacy } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    transcriber: new FakeTranscriber({ delayMs: 30 })
+  })
+
+  privacy.enabled = true
+  orchestrator.begin()
+  // The overlay decoration rides the snapshot: it was set at begin() and is
+  // not flipped by the live switch afterwards.
+  expectEqual(overlay.privateFlags.at(-1), true)
+  // The run was snapshotted as private, so turning it off mid-processing
+  // cannot retroactively retain it — nor redecorate the overlay.
+  privacy.enabled = false
+  await orchestrator.end()
+
+  expectEqual(history.appends, [])
+  expectEqual(history.discarded, [recording])
+  expectEqual(overlay.privateFlags.at(-1), true)
   orchestrator.destroy()
 })
 

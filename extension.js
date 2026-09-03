@@ -38,6 +38,10 @@ export default class ToasExtension extends Extension {
       this._historyRepository = new HistoryRepository(history)
       this._historyClipboard = St.Clipboard.get_default()
 
+      // Session-level privacy state; deliberately not persisted so a restart
+      // always returns to normal retention.
+      this._privacy = { enabled: false }
+
       this._indicator = new ToasIndicator({
         onToggle: () => {
           if (this._guardReadyToRecord()) { this._orchestrator?.toggle() }
@@ -48,7 +52,8 @@ export default class ToasExtension extends Extension {
         onCopySession: entry => this._copySession(entry, notifier),
         onRetrySession: entry => this._retrySession(entry, notifier),
         onCanRetrySession: entry =>
-          this._historyRepository.resolveAudio(entry).available
+          this._historyRepository.resolveAudio(entry).available,
+        onPrivateModeChanged: enabled => this._setPrivateMode(enabled)
       })
       const overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
       this._overlayCollaborators = { overlay }
@@ -60,7 +65,8 @@ export default class ToasExtension extends Extension {
           overlay,
           history,
           paster: new TextPaster(this._settings),
-          notifier
+          notifier,
+          privacy: this._privacy
         },
         onStateChanged: (state, message) => this._indicator?.render(state, message)
       })
@@ -132,6 +138,8 @@ export default class ToasExtension extends Extension {
     }
 
     Main.wm.removeKeybinding('push-to-talk')
+
+    this._privacy = null
 
     this._orchestrator?.destroy()
     this._orchestrator = null
@@ -230,6 +238,15 @@ export default class ToasExtension extends Extension {
         return GLib.SOURCE_REMOVE
       }
     )
+  }
+
+  _setPrivateMode (enabled) {
+    if (!this._privacy) { return }
+
+    this._privacy.enabled = Boolean(enabled)
+    // Only the panel icon reflects the live switch; the overlay decoration
+    // rides the run snapshot, driven solely by the orchestrator.
+    this._indicator?.setPrivateMode(enabled)
   }
 
   _clearHistory () {

@@ -59,6 +59,16 @@ captured only during an explicit recording and uploaded only after you stop.
 Voice input text and retained recordings are kept locally for history and retry, bounded by
 your retention settings and removable from the top-bar menu.
 
+For a zero-retention tier, turn on **Private mode** from the top-bar menu. New voice inputs
+are transcribed, refined, and inserted as usual, but nothing is written to history and each
+recording is deleted as soon as processing finishes — including recordings from failed
+attempts, which are not retained for retry while Private mode is on. The switch is
+session-only: it resets when you log out or the extension restarts.
+
+Private mode changes only what `toas` keeps on your disk. It does not change what is
+uploaded: recordings still go to your configured transcription service, so read the next
+paragraph with the switch on or off.
+
 **After upload:** your chosen provider's policy applies. `toas` sends completed audio to
 the transcription endpoint you configure; optional Refine sends transcript text to its
 own endpoint. Retention, training, logging, and data residency are determined by those
@@ -231,6 +241,9 @@ was captured.
 Recent voice inputs are listed directly in the top-bar menu. Expand a row to copy its text
 or retry a failed voice input whose recording is still retained. Retry reprocesses the
 stored recording and appends the attempt to history without pasting.
+
+The `Private mode` switch above the list suspends retention for new voice inputs; existing
+history stays visible and `Clear History` keeps working while it is on.
 
 History is stored under:
 
