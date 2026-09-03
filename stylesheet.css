@@ -121,7 +121,7 @@
    so the same class on the overlay cannot dim the whole overlay. */
 .toas-status-icon.toas-private,
 .panel-button.toas-private {
-  opacity: 0.45;
+  opacity: 0.8;
 }
 
 /* A private voice input decorates the overlay itself: accent border plus a

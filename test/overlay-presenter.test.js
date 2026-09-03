@@ -139,4 +139,6 @@ test('repeated setPrivate calls delegate only on change', () => {
   presenter.setPrivate(false)
   expectEqual(view.privateFlags.length, 2)
   presenter.destroy()
-})await run()
+})
+
+await run()
