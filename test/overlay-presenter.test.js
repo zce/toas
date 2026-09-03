@@ -6,6 +6,7 @@ class FakeOverlayView {
     this.renders = []
     this.visibility = []
     this.spinners = []
+    this.privateFlags = []
     this.hidden = false
     this.shown = false
     this.hideCalls = 0
@@ -29,6 +30,7 @@ class FakeOverlayView {
   hide () { this.hideCalls++ }
   setLevel (level) { this.level = level }
   resetLevels () { this.resetCalls++ }
+  setPrivate (enabled) { this.privateFlags.push(enabled) }
   destroy () { this.destroyed++ }
 }
 
@@ -107,4 +109,34 @@ test('destroy clears pending timers and tears down the view', async () => {
   expectEqual(view.hideCalls, 0)
 })
 
-await run()
+test('private mode is delegated to the view without a text label', () => {
+  const view = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view })
+
+  presenter.render('recording')
+  expectEqual(view.renders.at(-1).message, '')
+
+  // The presenter forwards the run snapshot; the view owns the decoration.
+  presenter.setPrivate(true)
+  expectEqual(view.privateFlags.at(-1), true)
+  expectEqual(view.renders.at(-1).message, '')
+
+  presenter.setPrivate(false)
+  expectEqual(view.privateFlags.at(-1), false)
+  presenter.destroy()
+})
+
+test('repeated setPrivate calls delegate only on change', () => {
+  const view = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view })
+
+  presenter.setPrivate(true)
+  expectEqual(view.privateFlags.length, 1)
+
+  presenter.setPrivate(true)
+  expectEqual(view.privateFlags.length, 1)
+
+  presenter.setPrivate(false)
+  expectEqual(view.privateFlags.length, 2)
+  presenter.destroy()
+})await run()

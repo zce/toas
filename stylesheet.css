@@ -115,3 +115,24 @@
 .toas-recording:focus {
   box-shadow: inset 0 0 0 100px #d61f2d;
 }
+
+/* Private mode dims the panel icon so the zero-retention state stays visible
+   without competing with the recording indicator. Scoped to the panel button
+   so the same class on the overlay cannot dim the whole overlay. */
+.toas-status-icon.toas-private,
+.panel-button.toas-private {
+  opacity: 0.45;
+}
+
+/* A private voice input decorates the overlay itself: accent border plus a
+   shield beside the microphone. No text label. St CSS reliably supports a
+   single box-shadow value, so the inset ring replaces the usual drop shadow. */
+.toas-overlay.toas-private {
+  /*border-color: -st-accent-color;*/
+  box-shadow: inset 0 0 5px 1px st-transparentize(-st-accent-color, 0.0001);
+}
+
+.toas-private-icon {
+  icon-size: 12px;
+  color: st-transparentize(-st-accent-fg-color, 0.6);
+}

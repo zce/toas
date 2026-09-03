@@ -23,3 +23,11 @@ _Avoid_: Recent voice inputs, session history
 **History item**:
 A saved voice-input result or processing attempt shown in history.
 _Avoid_: Session
+
+**Private mode**:
+A session-only top-bar switch that suspends local retention for new voice inputs: no history records are written and each recording is deleted once processing finishes. Transcription, refine, and output still run, and uploads are unchanged.
+_Avoid_: Incognito, Do not track
+
+**Private voice input**:
+A voice input started while Private mode is on. It is snapshotted as private at start, so flipping the switch mid-processing does not change what that run retains.
+_Avoid_: Anonymous voice input

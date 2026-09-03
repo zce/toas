@@ -70,6 +70,9 @@ test('retry runs transcription on retained audio without a recorder', async () =
   expectEqual(attempt.output, 'RETRIED TEXT')
   expectEqual(attempt.audio, null)
 
+  // A retry is never decorated as private, even with the switch on.
+  expectEqual(orchestrator._overlay.privateFlags, [false])
+
   // Original record untouched.
   expectEqual(repo.get('orig-1').status, 'error')
   orchestrator.destroy()

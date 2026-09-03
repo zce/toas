@@ -145,6 +145,7 @@ export class FakeOverlay {
     this.levels = []
     this.resets = 0
     this.destroys = 0
+    this.privateFlags = []
   }
 
   render (state, message = '') {
@@ -153,6 +154,7 @@ export class FakeOverlay {
 
   setLevel (level) { this.levels.push(level) }
   resetLevels () { this.resets++ }
+  setPrivate (enabled) { this.privateFlags.push(enabled) }
   destroy () { this.destroys++ }
 }
 
