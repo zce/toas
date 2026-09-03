@@ -249,6 +249,9 @@ test('cancellation during processing leaves no output or history', async () => {
 
   orchestrator.begin()
   const pending = orchestrator.end()
+  // The transcribing stage starts only after the recorder stops; cancelling
+  // before that is a different scenario (covered by the test below).
+  await new Promise(resolve => setTimeout(resolve, 5))
   expectEqual(run.events.some(e => e.state === 'transcribing'), true)
   orchestrator.cancel()
   await pending
