@@ -356,7 +356,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       wrap: true
     })
     securityNote.add_css_class('caption')
-    securityNote.add_css_class('dim-label')
+    securityNote.add_css_class('dimmed')
     securityNote.add_css_class('toas-group-note')
     processingGroup.add(securityNote)
 
