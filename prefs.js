@@ -591,7 +591,6 @@ function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
       label: title,
       xalign: 0
     })
-    caption.add_css_class('caption')
     caption.add_css_class('toas-multiline-caption')
     box.append(caption)
   }
