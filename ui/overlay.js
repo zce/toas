@@ -100,7 +100,8 @@ export class ToasOverlayPresenter {
 
 const STATE_LABELS = {
   processing: 'Processing…',
-  outputting: 'Inserting…'
+  outputting: 'Inserting…',
+  copying: 'Copying…'
 }
 
 // Shell side of the overlay: owns St/Clutter actors and GNOME Shell imports.
