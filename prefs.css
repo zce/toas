@@ -14,7 +14,7 @@
 }
 
 .toas-multiline-row:focus-within .toas-multiline-caption {
-  color: @accent_color;
+  color: var(--accent-color);
 }
 
 .toas-multiline-row textview text {
