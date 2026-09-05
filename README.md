@@ -156,7 +156,8 @@ On first enable, a one-time notice explains the shortcut and discloses that audi
 uploaded to your configured voice-processing provider while voice input text and some
 recordings are kept on disk. Recording is blocked until a provider API key is configured.
 Each provider group includes a `Test connection` button that sends a short silent sample
-through the exact processing path a real voice input uses.
+(primary) or a fixed one-line text (refine) through the exact request shape a real voice
+input uses for that role.
 
 ## Configure
 
@@ -165,8 +166,8 @@ The default is the speed-first recommendation:
 
 ```text
 provider  = qwen
-model     = qwen3-asr-flash
-endpoint  = https://dashscope.aliyuncs.com/... (provider default)
+model     = qwen-audio-3.0-asr-flash
+endpoint  = https://dashscope.aliyuncs.com/... (routed by model; override optional)
 ```
 
 MiMo (`mimo-v2.5-asr`) is the alternative primary. Provider keys can also come from the

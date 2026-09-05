@@ -604,6 +604,71 @@ test('no-text primary response is a safe failure category', async () => {
   expectEqual(threw.category, 'no-text')
 })
 
+test('ASR silence answer (400, no words) is no-text, not a service error', async () => {
+  // Verified live: the asr3 services reject valid-but-silent audio with
+  // HTTP 400 ASR_RESPONSE_HAVE_NO_WORDS. The round trip succeeded — the
+  // clip has no speech — so it must surface as no-text, not service.
+  const transport = new FakeTransport({
+    responses: [{
+      status: 400,
+      headers: {},
+      body: encodeBody({
+        request_id: 'req-400',
+        code: 'CLIENT_ERROR',
+        message: 'ASR_RESPONSE_HAVE_NO_WORDS'
+      })
+    }]
+  })
+  let threw = null
+  try {
+    await runKernel({
+      config: {
+        primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen-audio-3.0-asr-flash' } },
+        refine: { enabled: false }
+      },
+      audio: AUDIO,
+      context: CONTEXT,
+      secrets: SECRETS,
+      runtime: runtimeFor(transport),
+      signal: null
+    })
+  } catch (error) {
+    threw = error
+  }
+
+  expectTruthy(threw)
+  expectEqual(threw.category, 'no-text')
+})
+
+test('other 400 answers stay service-category errors', async () => {
+  const transport = new FakeTransport({
+    responses: [{
+      status: 400,
+      headers: {},
+      body: encodeBody({ code: 'CLIENT_ERROR', message: 'InvalidParameter' })
+    }]
+  })
+  let threw = null
+  try {
+    await runKernel({
+      config: {
+        primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen-audio-3.0-asr-flash' } },
+        refine: { enabled: false }
+      },
+      audio: AUDIO,
+      context: CONTEXT,
+      secrets: SECRETS,
+      runtime: runtimeFor(transport),
+      signal: null
+    })
+  } catch (error) {
+    threw = error
+  }
+
+  expectTruthy(threw)
+  expectEqual(threw.category, 'service')
+})
+
 // --- Cancellation -------------------------------------------------------------
 
 class AbortNow {

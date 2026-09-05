@@ -6,9 +6,9 @@ import Gtk from 'gi://Gtk'
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
 
 import { providers as providerRegistry } from './lib/kernel/providers/registry.js'
-import { process as kernelProcess, processingError, secretKey } from './lib/kernel/process.js'
+import { secretKey } from './lib/kernel/process.js'
 import { ConfigService } from './lib/host/config-service.js'
-import { SoupHttpTransport } from './lib/host/soup-http-transport.js'
+import { runConnectionTest } from './lib/host/connection-check.js'
 // Numeric values of the schema enums in declaration order; get_enum returns
 // numbers, not nicks. Kept next to the schema they mirror.
 const PRIMARY_PROVIDER_VALUES = ['qwen', 'mimo']
@@ -269,7 +269,6 @@ export default class ToasPreferences extends ExtensionPreferences {
       margin_bottom: 6,
       child: instructionsView
     })
-    instructionsScroller.add_css_class('card')
 
     // The schema default is the single source of the template; anything the
     // user saved replaces it.
@@ -283,7 +282,7 @@ export default class ToasPreferences extends ExtensionPreferences {
     // The enable switch carries refine-enabled directly; while off, the
     // nested settings stay collapsed and inaccessible.
     const refineExpander = new Adw.ExpanderRow({
-      title: 'Refine (optional)',
+      title: 'Refine',
       subtitle: 'Applies your instructions to the primary text with a second service. Disable for literal dictation.',
       show_enable_switch: true,
       enable_expansion: settings.get_boolean('refine-enabled')
@@ -392,12 +391,24 @@ export default class ToasPreferences extends ExtensionPreferences {
       hexpand: true
     })
     contextView.add_css_class('inline')
+    // The group has no boxed list of its own, so the text view needs its own
+    // region; the card is the region, not a nested decoration.
+    const contextScroller = new Gtk.ScrolledWindow({
+      hscrollbar_policy: Gtk.PolicyType.NEVER,
+      vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+      min_content_height: 120,
+      max_content_height: 220,
+      margin_top: 6,
+      margin_bottom: 6,
+      child: contextView
+    })
+    contextScroller.add_css_class('card')
     contextBuffer.connect('changed', () => {
       const [start, end] = contextBuffer.get_bounds()
       settings.set_string('context', contextBuffer.get_text(start, end, false))
     })
     contextBuffer.set_text(settings.get_string('context'), -1)
-    contextGroup.add(contextView)
+    contextGroup.add(contextScroller)
 
     const securityGroup = new Adw.PreferencesGroup({
       title: 'Security',
@@ -553,7 +564,12 @@ function buildConnectionRow ({ settings, role, label, description }) {
     setStatus('Testing…')
 
     try {
-      await runConnectionTest({ settings, role })
+      const configService = new ConfigService({ settings, providers: providerRegistry })
+      try {
+        await runConnectionTest({ configService, providers: providerRegistry, role })
+      } finally {
+        configService.destroy()
+      }
       setStatus('✓ Connection works')
     } catch (error) {
       setStatus(`✗ ${error.message ?? 'Could not reach the service'}`)
@@ -564,75 +580,4 @@ function buildConnectionRow ({ settings, role, label, description }) {
   })
 
   return { row, rebind: () => setStatus(description) }
-}
-
-// Connection test: resolves the current settings into the same Config shape
-// production uses, then runs the real Provider Processor through the real
-// Kernel and a short-timeout Soup transport. No probe endpoint, no duplicated
-// payload code, and no history/output side effects.
-async function runConnectionTest ({ settings, role }) {
-  const configService = new ConfigService({ settings, providers: providerRegistry })
-  const config = configService.snapshotConfig()
-  const secrets = configService.snapshotSecrets()
-
-  if (role === 'refine' && !config.refine.enabled) {
-    throw processingError('configuration', 'Enable Refine first.')
-  }
-
-  // Both roles go through the same Kernel path with a harmless input: a
-  // silent WAV exercises the real audio request shape; fixed text exercises
-  // the real refine request shape.
-  const audio = role === 'primary'
-    ? { kind: 'audio', base64: silenceWavBase64(16000), mimeType: 'audio/wav', durationMs: 250 }
-    : { kind: 'text', text: 'Reply with OK.' }
-
-  const transport = new SoupHttpTransport({ timeoutMs: 20000 })
-  try {
-    await kernelProcess({
-      config,
-      audio,
-      context: { text: '' },
-      secrets,
-      runtime: { transport, clock: { now: () => 0 } },
-      signal: null
-    })
-  } catch (error) {
-    // A valid round trip with no speech means the endpoint answered with the
-    // expected response shape: connectivity success.
-    if (error.category === 'no-text') { return }
-    throw error
-  } finally {
-    transport.destroy()
-  }
-}
-
-// 0.25 s of silence, 16 kHz mono 16-bit, wrapped in a minimal WAV header.
-function silenceWavBase64 (sampleRate) {
-  const durationSeconds = 0.25
-  const sampleCount = Math.floor(sampleRate * durationSeconds)
-  const dataBytes = sampleCount * 2
-
-  const header = new ArrayBuffer(44)
-  const view = new DataView(header)
-  const writeAscii = (offset, text) => {
-    for (let i = 0; i < text.length; i++) { view.setUint8(offset + i, text.charCodeAt(i)) }
-  }
-
-  writeAscii(0, 'RIFF')
-  view.setUint32(4, 36 + dataBytes, true)
-  writeAscii(8, 'WAVE')
-  writeAscii(12, 'fmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * 2, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
-  writeAscii(36, 'data')
-  view.setUint32(40, dataBytes, true)
-
-  const wav = new Uint8Array(44 + dataBytes)
-  wav.set(new Uint8Array(header), 0)
-  return GLib.base64_encode(wav)
 }
