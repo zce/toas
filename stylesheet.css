@@ -21,7 +21,7 @@
 
 .toas-status {
   max-width: 320px;
-  font-family: "Maple Mono";
+  /* font-family: Monospace; */
   font-size: 14px;
   font-weight: 500;
   opacity: 0.8;
@@ -76,12 +76,14 @@
   border: 3px solid transparent;
   border-radius: 999px;
   color: -st-accent-fg-color;
-  box-shadow: inset 0 0 0 100px -st-accent-color;
+  box-shadow: inset 0 0 0 100px #af2325;
+  /* box-shadow: inset 0 0 0 100px -st-accent-color; */
 }
 
 .toas-recording:hover,
 .toas-recording:focus {
-  box-shadow: inset 0 0 0 100px st-lighten(-st-accent-color, 8%);
+  box-shadow: inset 0 0 0 100px st-lighten(#af2325, 8%);
+  /* box-shadow: inset 0 0 0 100px st-lighten(-st-accent-color, 8%); */
 }
 
 /* --- History menu (lib/ui/indicator.js) ------------------------------------- */
