@@ -4,7 +4,7 @@ import {
   recordingOutcomeShortTap,
   recordingOutcomeCaptureFailure,
   RecorderOutcomeError
-} from '../recorder-outcome.js'
+} from '../lib/audio.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 test('ok outcome carries the recording', () => {

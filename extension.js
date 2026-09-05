@@ -8,23 +8,21 @@ import St from 'gi://St'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
+import { HistoryRepository, HistoryStore, extractText } from './lib/history.js'
+import { OnboardingManager } from './lib/onboarding.js'
+import { ToasOrchestrator } from './lib/orchestrator.js'
+import { TextPaster } from './lib/output.js'
+import { KernelRunner } from './kernel/runner.js'
+import { ConfirmDialog } from './ui/dialog.js'
 import { ToasIndicator } from './ui/indicator.js'
-import { ToasOrchestrator } from './orchestrator.js'
-import { ToasOverlayPresenter } from './ui/overlay-presenter.js'
-import { ShellOverlayView } from './ui/shell-overlay-view.js'
 import { ShellNotifier } from './ui/notifier.js'
-import { TextPaster } from './input.js'
-import { HistoryStore } from './history.js'
-import { HistoryRepository } from './history-repository.js'
-import { OnboardingManager } from './onboarding.js'
-import { ConfirmDialog } from './ui/confirm-dialog.js'
-import { KernelRunner } from './kernel-runner.js'
-import { extractText } from './history-format.js'
+import { ShellOverlayView, ToasOverlayPresenter } from './ui/overlay.js'
+
 const PTT_MOD_MASK =
-    Clutter.ModifierType.CONTROL_MASK |
-    Clutter.ModifierType.SHIFT_MASK |
-    Clutter.ModifierType.MOD1_MASK |
-    Clutter.ModifierType.SUPER_MASK
+  Clutter.ModifierType.CONTROL_MASK |
+  Clutter.ModifierType.SHIFT_MASK |
+  Clutter.ModifierType.MOD1_MASK |
+  Clutter.ModifierType.SUPER_MASK
 
 const PTT_POLL_INTERVAL_MS = 40
 
@@ -92,7 +90,7 @@ export default class ToasExtension extends Extension {
         this._confirmDialog = new ConfirmDialog({
           title: 'Clear your words?',
           description: 'Your words and retained recordings will be ' +
-                        'permanently deleted. This cannot be undone.',
+            'permanently deleted. This cannot be undone.',
           confirmLabel: 'Clear',
           onConfirm: () => this._doClearHistory()
         })

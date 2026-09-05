@@ -58,4 +58,4 @@ These names come from `docs/adr/0001-processing-kernel.md` and are used consiste
 - **Config**: the persisted product configuration for primary processing and optional Refine.
 - **Plan**: the ephemeral one- or two-Step execution derived from Config.
 - **Trace**: the safe per-call record of the physical Steps that actually ran.
-- **HttpTransport**: the Host-owned HTTP seam (`soup-http-transport.js`); Providers never import Soup or `fetch`.
+- **HttpTransport**: the Host-owned HTTP seam (`lib/transport.js`); Providers never import Soup or `fetch`.

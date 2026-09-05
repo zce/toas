@@ -1,4 +1,4 @@
-import { formatRelativeTime, formatDuration, previewText } from '../history-format.js'
+import { formatRelativeTime, formatDuration, previewText } from '../lib/history.js'
 import { test, expectEqual, run } from './harness.js'
 
 test('relative time buckets', () => {

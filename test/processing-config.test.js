@@ -3,7 +3,7 @@ import {
   normalizeProcessingConfig,
   readProcessingConfig,
   writeProcessingConfig
-} from '../processing-config.js'
+} from '../lib/config.js'
 import { providers } from '../kernel/providers/registry.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
