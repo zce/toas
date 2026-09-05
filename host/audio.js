@@ -8,26 +8,20 @@ import GLib from 'gi://GLib'
 // mono s16 stays fixed. Higher rates produce larger uploads and hit the
 // recording size cap sooner (see MAX_PCM_BYTES below).
 export const AUDIO_QUALITY_PRESETS = {
+  minimum: { sampleRate: 8000 },
+  low: { sampleRate: 12000 },
   standard: { sampleRate: 16000 },
-  high: { sampleRate: 48000 },
-  balanced: { sampleRate: 24000 }
+  high: { sampleRate: 24000 },
+  maximum: { sampleRate: 48000 }
 }
 
 // Sample rate used when the stored quality value predates the setting or is
 // otherwise unknown; matches the format every existing recording uses.
 export const DEFAULT_SAMPLE_RATE = AUDIO_QUALITY_PRESETS.standard.sampleRate
 
-// Numeric values of the org.gnome.shell.extensions.toas.AudioQuality enum
-// in declaration order; get_enum returns these numbers, not nicks.
-const QUALITY_BY_ENUM_VALUE = [
-  AUDIO_QUALITY_PRESETS.standard,
-  AUDIO_QUALITY_PRESETS.high,
-  AUDIO_QUALITY_PRESETS.balanced
-]
-
 export function resolveSampleRate (settings) {
-  const quality = settings.get_enum?.('audio-quality') ?? 0
-  const preset = QUALITY_BY_ENUM_VALUE[quality] ?? AUDIO_QUALITY_PRESETS.standard
+  const quality = settings.get_string?.('audio-quality') ?? 'standard'
+  const preset = AUDIO_QUALITY_PRESETS[quality] ?? AUDIO_QUALITY_PRESETS.standard
   return preset.sampleRate
 }
 
