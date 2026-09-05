@@ -5,6 +5,7 @@ import GLib from 'gi://GLib'
 import System from 'system'
 
 const SHELL_ONLY = new Set([
+  'host/input.js',
   'host/output.js',
   'ui/dialog.js',
   'ui/indicator.js',

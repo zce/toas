@@ -1,8 +1,10 @@
 import Clutter from 'gi://Clutter'
+import GLib from 'gi://GLib'
 import GObject from 'gi://GObject'
 import Pango from 'gi://Pango'
 import St from 'gi://St'
 
+import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 
@@ -96,6 +98,27 @@ export class ToasIndicator extends PanelMenu.Button {
     })
 
     this.render('idle')
+  }
+
+  addToPanel (uuid) {
+    Main.panel.addToStatusArea(uuid, this)
+    this._positionIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      this._positionIdleId = 0
+      this._positionNextToKeyboard()
+      return GLib.SOURCE_REMOVE
+    })
+  }
+
+  _positionNextToKeyboard () {
+    const indicator = this.container
+    const keyboard = Main.panel.statusArea.keyboard?.container
+
+    if (!indicator || !keyboard) { return }
+
+    const parent = keyboard.get_parent()
+    if (!parent || indicator.get_parent() !== parent) { return }
+
+    parent.set_child_below_sibling(indicator, keyboard)
   }
 
   _onButtonPress (event) {
@@ -211,6 +234,11 @@ export class ToasIndicator extends PanelMenu.Button {
   }
 
   destroy () {
+    if (this._positionIdleId) {
+      GLib.source_remove(this._positionIdleId)
+      this._positionIdleId = 0
+    }
+
     this._onToggle = null
     this._onClearHistory = null
     this._onOpenPreferences = null
