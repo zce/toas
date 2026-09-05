@@ -81,7 +81,7 @@
     </key>
 
     <key name="primary-model" type="s">
-      <default>'qwen3-asr-flash'</default>
+      <default>'fun-asr-flash-2026-06-15'</default>
       <summary>Primary model</summary>
       <description>Model name for primary processing</description>
     </key>

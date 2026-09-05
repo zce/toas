@@ -25,9 +25,9 @@ path as a real voice input.
 dconf write /org/gnome/shell/extensions/toas/primary-provider "'qwen'"
 
 # Model (leave as default unless you know the exact model id)
-# Verified: qwen-audio-3.0-asr-flash (default), fun-asr-flash-2026-06-15,
+# Verified: fun-asr-flash-2026-06-15 (default), qwen-audio-3.0-asr-flash,
 #           qwen3-asr-flash-2026-02-10
-dconf write /org/gnome/shell/extensions/toas/primary-model "'qwen-audio-3.0-asr-flash'"
+dconf write /org/gnome/shell/extensions/toas/primary-model "'fun-asr-flash-2026-06-15'"
 
 # Optional: override the provider's default endpoint (rarely needed).
 # Empty routes by model: audio-3.0/fun-asr use the DashScope native ASR
@@ -102,8 +102,8 @@ Priority: dconf stored value → environment variable → missing.
 ### Qwen (default, recommended)
 
 - Primary processing only
-- Model: `qwen-audio-3.0-asr-flash` (default; also verified:
-  `fun-asr-flash-2026-06-15`, `qwen3-asr-flash-2026-02-10`)
+- Model: `fun-asr-flash-2026-06-15` (default; also verified:
+  `qwen-audio-3.0-asr-flash`, `qwen3-asr-flash-2026-02-10`)
 - Fast mixed Chinese/English technical dictation; supports free-text Context
   as recognition bias. The endpoint routes by model: DashScope native ASR for
   audio-3.0/fun-asr, OpenAI-compatible for versioned qwen3 models.

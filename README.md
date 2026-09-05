@@ -166,7 +166,7 @@ The default is the speed-first recommendation:
 
 ```text
 provider  = qwen
-model     = qwen-audio-3.0-asr-flash
+model     = fun-asr-flash-2026-06-15
 endpoint  = https://dashscope.aliyuncs.com/... (routed by model; override optional)
 ```
 

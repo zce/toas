@@ -171,7 +171,7 @@ export default class ToasPreferences extends ExtensionPreferences {
     const primaryProviderId = PRIMARY_PROVIDER_VALUES[settings.get_enum('primary-provider')] ?? 'qwen'
     const primaryProvider = providerRegistry.get(primaryProviderId)
     const primaryModelDefault = primaryProvider?.manifest?.primary?.fields
-      ?.find(f => f.key === 'model')?.default ?? 'qwen3-asr-flash'
+      ?.find(f => f.key === 'model')?.default ?? 'fun-asr-flash-2026-06-15'
 
     const providerRow = new Adw.ComboRow({
       title: 'Primary provider',
