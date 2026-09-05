@@ -10,11 +10,16 @@
 }
 
 .toas-multiline-row .toas-multiline-caption {
+  margin: 10px 12px 2px;
   color: alpha(currentColor, 0.65);
 }
 
 .toas-multiline-row:focus-within .toas-multiline-caption {
   color: @accent_color;
+}
+
+.toas-multiline-row textview text {
+  padding: 4px 12px 10px;
 }
 
 /* Small preference editors do not need GTK's scroll-edge shadows. They are
