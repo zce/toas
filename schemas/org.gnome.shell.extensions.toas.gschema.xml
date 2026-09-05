@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <enum id='org.gnome.shell.extensions.toas.AudioQuality'>
-    <value nick='standard' value='0'/>
-    <value nick='high' value='1'/>
-    <value nick='balanced' value='2'/>
+    <value nick='minimum' value='0'/>
+    <value nick='low' value='1'/>
+    <value nick='standard' value='2'/>
+    <value nick='high' value='3'/>
+    <value nick='maximum' value='4'/>
   </enum>
 
   <schema id="org.gnome.shell.extensions.toas" path="/org/gnome/shell/extensions/toas/">
