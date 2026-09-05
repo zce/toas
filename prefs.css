@@ -1,25 +1,30 @@
-/* toas Preferences styles (GTK4 CSS, loaded by the prefs process).
-   The Shell extension itself runs in a different process and uses
-   stylesheet.css (St CSS); the two dialects are not interchangeable. */
+/* GTK4/libadwaita styles for the extension Preferences process. */
 
-/* Multiline entry rows: the PreferencesRow is the input surface; the
-   TextView stays fully transparent so no second card/border/background
-   appears inside the row. Height comes from the ScrolledWindow's
-   min/max-content-height, not from CSS. */
+/* Multiline entry rows follow Adw.EntryRow's visual model: the row is the
+   surface, while TextView/ScrolledWindow remain visually transparent. */
 .toas-multiline-row textview,
 .toas-multiline-row textview text,
 .toas-multiline-row scrolledwindow {
   background: transparent;
-}
-
-.toas-multiline-row scrolledwindow {
   border: none;
 }
 
-/* Small embedded editors do not need scroll-edge indicators; the row's
-   own rounded corners are the region. */
+.toas-multiline-row .toas-multiline-caption {
+  color: alpha(currentColor, 0.65);
+}
+
+.toas-multiline-row:focus-within .toas-multiline-caption {
+  color: @accent_color;
+}
+
+/* Small preference editors do not need GTK's scroll-edge shadows. They are
+   especially distracting inside the boxed-list surface. */
 .toas-multiline-row scrolledwindow undershoot,
 .toas-multiline-row scrolledwindow overshoot {
   background: none;
   box-shadow: none;
+}
+
+.toas-group-note {
+  margin: 8px 12px 0;
 }
