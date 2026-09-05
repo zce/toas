@@ -166,6 +166,68 @@ test('qwen to mimo: separate refine runs the configured provider in order', asyn
 
 // --- Acceptance 3: MiMo -> OpenAI ---------------------------------------------
 
+test('mimo refine endpoint that already carries the path is never double-appended', async () => {
+  // Endpoints copied from other tools or older versions may be full request
+  // URLs; the provider must send to them exactly once.
+  const transport = new FakeTransport({
+    responses: [
+      dashscopeResponse('raw transcript'),
+      chatResponse('refined text')
+    ]
+  })
+  await runKernel({
+    config: {
+      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+      refine: {
+        enabled: true,
+        execution: 'separate',
+        provider: 'mimo',
+        endpoint: 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions',
+        values: { model: 'mimo-text-model' },
+        instructions: 'Refine without changing meaning.',
+        onError: 'fallback'
+      }
+    },
+    audio: AUDIO,
+    context: CONTEXT,
+    secrets: SECRETS,
+    runtime: runtimeFor(transport),
+    signal: null
+  })
+
+  expectEqual(transport.requests[1].url, 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions')
+})
+
+test('mimo refine endpoint with trailing slashes gets a single path appended', async () => {
+  const transport = new FakeTransport({
+    responses: [
+      dashscopeResponse('raw transcript'),
+      chatResponse('refined text')
+    ]
+  })
+  await runKernel({
+    config: {
+      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+      refine: {
+        enabled: true,
+        execution: 'separate',
+        provider: 'mimo',
+        endpoint: 'https://token-plan-cn.xiaomimimo.com/v1/',
+        values: { model: 'mimo-text-model' },
+        instructions: 'Refine without changing meaning.',
+        onError: 'fallback'
+      }
+    },
+    audio: AUDIO,
+    context: CONTEXT,
+    secrets: SECRETS,
+    runtime: runtimeFor(transport),
+    signal: null
+  })
+
+  expectEqual(transport.requests[1].url, 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions')
+})
+
 test('mimo to openai: cross-provider composition with no special casing', async () => {
   const transport = new FakeTransport({
     responses: [chatResponse('mimo primary'), chatResponse('openai refined')]
