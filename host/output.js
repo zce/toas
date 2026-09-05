@@ -60,6 +60,21 @@ export class TextPaster {
     this._targetWindow = null
   }
 
+  // Read-only snapshot source for run-scoped UI placement. This deliberately
+  // does not mutate the paste target, which remains captured when recording
+  // ends immediately before processing starts.
+  getFocusedMonitorIndex () {
+    try {
+      const monitorIndex = global.display.focus_window?.get_monitor?.()
+      return Number.isInteger(monitorIndex) && monitorIndex >= 0
+        ? monitorIndex
+        : null
+    } catch {
+      // A disappearing focus window must never make voice input fail.
+      return null
+    }
+  }
+
   // Captures the currently focused window as the paste target.
   captureFocusedWindow () {
     this._targetWindow = global.display.focus_window
