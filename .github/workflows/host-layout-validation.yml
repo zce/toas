@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   transform:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'chore: run host layout validation'
+    if: github.event_name == 'push' && github.event.head_commit.message == 'run host layout validation'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
