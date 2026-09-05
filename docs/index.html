@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#101310">
+    <meta name="theme-color" content="#0d110e">
     <meta name="description" content="Push-to-talk voice input for GNOME. Hold a shortcut, speak, release, and keep moving.">
     <link rel="canonical" href="https://toas.cc/">
     <meta property="og:type" content="website">
@@ -28,7 +28,7 @@
         </a>
         <nav aria-label="Main navigation">
           <a href="#how">How it works</a>
-          <a href="#providers">Providers</a>
+          <a href="#setup">Setup</a>
           <a href="#privacy">Privacy</a>
           <a href="#install">Install</a>
           <a href="https://github.com/zce/toas" target="_blank" rel="noreferrer">GitHub ↗</a>
@@ -38,27 +38,64 @@
 
     <main id="main">
       <section class="hero" id="top">
-        <div class="shell hero-copy">
-          <p class="eyebrow"><span></span> Voice input for GNOME</p>
-          <h1>Talk once.<br>Keep moving.</h1>
-          <p class="lede">
-            <strong>toas</strong> is push-to-talk voice input for your desktop. Hold a shortcut,
-            speak naturally, then release. Your words are transcribed, optionally refined,
-            and inserted into the app you are already using.
-          </p>
-          <div class="hero-actions">
-            <a class="button primary" href="#install">Install toas</a>
-            <a class="button secondary" href="https://github.com/zce/toas" target="_blank" rel="noreferrer">View source ↗</a>
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="shell hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span></span> Voice input for GNOME</p>
+            <h1>Talk once.<br><em>Keep moving.</em></h1>
+            <p class="lede">
+              <strong>toas</strong> is push-to-talk voice input for your desktop. Hold a shortcut,
+              speak naturally, then release. Your words are transcribed, optionally refined,
+              and inserted into the app you are already using.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="#install">Install toas</a>
+              <a class="button secondary" href="#demo">Watch the demo ↓</a>
+            </div>
+            <div class="compat" aria-label="Compatibility">
+              <span>Fedora</span><span>GNOME 49 / 50</span><span>Wayland</span><span>PipeWire</span>
+            </div>
           </div>
-          <div class="compat" aria-label="Compatibility">
-            <span>Fedora</span><span>GNOME 49 / 50</span><span>Wayland</span><span>PipeWire</span>
+
+          <div class="hero-product" aria-label="Illustration of toas transcribing into an editor" role="img">
+            <div class="product-window">
+              <div class="product-topbar">
+                <span>09:41</span>
+                <strong>Workbench</strong>
+                <span class="topbar-icons">● ▮▮</span>
+              </div>
+              <div class="product-body">
+                <aside>
+                  <strong>notes</strong>
+                  <i class="active"></i><i></i><i></i><i class="short"></i>
+                </aside>
+                <div class="editor">
+                  <div class="editor-tab"><span></span> release-notes.md</div>
+                  <div class="editor-lines">
+                    <p><small>01</small><b># Next release</b></p>
+                    <p><small>02</small>&nbsp;</p>
+                    <p><small>03</small>- keep the workflow small</p>
+                    <p><small>04</small>- make provider setup obvious</p>
+                    <p class="typing"><small>05</small>ship the simplest thing that works<span></span></p>
+                  </div>
+                </div>
+              </div>
+              <div class="voice-overlay">
+                <div class="mic-ring">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.25a2.5 2.5 0 0 0-2.5 2.5v3.5a2.5 2.5 0 0 0 5 0v-3.5A2.5 2.5 0 0 0 10 3.25ZM5 9.25a5 5 0 0 0 10 0M10 14.25v2.5M7 16.75h6" /></svg>
+                </div>
+                <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="overlay-copy"><small>toas</small><strong>Listening…</strong></div>
+              </div>
+            </div>
+            <div class="shortcut"><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Space</kbd></div>
           </div>
         </div>
       </section>
 
-      <section class="demo" aria-labelledby="demo-title">
+      <section class="demo" id="demo" aria-labelledby="demo-title">
         <div class="shell narrow">
-          <div class="section-heading">
+          <div class="section-heading centered">
             <p class="kicker">The whole idea</p>
             <h2 id="demo-title">Speak where you type.</h2>
             <p>One shortcut, one small overlay, and then you are back where you started.</p>
@@ -102,33 +139,57 @@
         </div>
       </section>
 
-      <section class="section providers" id="providers">
-        <div class="shell provider-layout">
-          <div>
-            <p class="kicker">Bring your provider</p>
-            <h2>Choose the quality, speed, and cost that fit you.</h2>
+      <section class="section setup" id="setup">
+        <div class="shell setup-layout">
+          <div class="setup-copy">
+            <p class="kicker">Your setup</p>
+            <h2>Choose the stack that fits you.</h2>
             <p class="body-copy">
               Provider setup lives in GNOME Preferences. Pick a transcription service, add its API key,
-              and optionally enable Refine. Context appears when the selected provider can use it.
+              optionally enable Refine, and add Context when the selected provider supports it.
             </p>
-          </div>
 
-          <div class="provider-list">
-            <div class="provider-row">
+            <div class="provider-summary">
               <div>
                 <small>Transcription</small>
                 <strong>Qwen <em>recommended</em></strong>
+                <span>or MiMo</span>
               </div>
-              <span>or MiMo</span>
-            </div>
-            <div class="provider-row">
               <div>
                 <small>Optional Refine</small>
                 <strong>MiMo</strong>
+                <span>OpenAI · OpenAI-compatible</span>
               </div>
-              <span>OpenAI · OpenAI-compatible</span>
             </div>
-            <p class="provider-note">Exact models, endpoints, and advanced fields stay in Preferences so the website does not become a second configuration source.</p>
+            <p class="provider-note">The homepage shows the shape of setup; exact models, endpoints, and advanced fields remain in Preferences.</p>
+          </div>
+
+          <div class="preferences-card" role="img" aria-label="Illustration of the current toas preferences">
+            <div class="preferences-titlebar">
+              <span class="window-mark"><i></i><i></i><i></i></span>
+              <strong>toas Preferences</strong>
+              <span></span>
+            </div>
+            <div class="preferences-content">
+              <div class="pref-group">
+                <div class="pref-heading"><strong>Voice Input</strong><small>Hold the shortcut to record, then release to process.</small></div>
+                <div class="pref-row"><span>Shortcut</span><b class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Space</kbd></b></div>
+                <div class="pref-row"><span>Insert automatically</span><i class="toggle"><b></b></i></div>
+              </div>
+
+              <div class="pref-group">
+                <div class="pref-heading"><strong>Processing</strong><small>Audio is sent to the selected provider after recording.</small></div>
+                <div class="pref-row"><span>Transcription provider</span><b>Qwen <i class="chevron">⌄</i></b></div>
+                <div class="pref-row"><span>Model</span><b>fun-asr-flash-2026-06-15 <i class="chevron">⌄</i></b></div>
+                <div class="pref-row"><span>Test connection</span><b class="status"><i></i> Ready</b></div>
+                <div class="pref-row refine-row"><span><b>Refine</b><small>Improve the transcript with additional instructions.</small></span><i class="toggle"><b></b></i></div>
+              </div>
+
+              <div class="pref-group context-group">
+                <div class="pref-heading"><strong>Context</strong><small>Names, terms, and background sent to providers that support context.</small></div>
+                <div class="context-box">GNOME, Wayland, GJS, OpenCode, GitHub…</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -145,14 +206,17 @@
 
           <div class="privacy-points">
             <article>
+              <span>01</span>
               <h3>No background listening</h3>
               <p>Audio is captured only while you explicitly record and uploaded only after you stop.</p>
             </article>
             <article>
+              <span>02</span>
               <h3>Your provider, its policy</h3>
               <p>Completed audio goes to your transcription provider. Optional Refine sends transcript text to its configured provider.</p>
             </article>
             <article>
+              <span>03</span>
               <h3>Local history, your control</h3>
               <p>History and retained recordings stay local. Private mode disables retention for new voice inputs during the session.</p>
             </article>
@@ -168,7 +232,7 @@
             <p>Install the extension, open Preferences, choose a transcription provider, and add its API key.</p>
           </div>
           <div class="command-card">
-            <div class="command-label">Fedora + GNOME 49 / 50</div>
+            <div class="command-label"><span><i></i> shell / command</span><span>Fedora + GNOME 49 / 50</span></div>
             <pre><code>curl -fsSL https://toas.cc/install.sh | bash</code></pre>
             <p>Requires <code>curl</code>, <code>tar</code>, Wayland, PipeWire, and <code>pw-record</code>.</p>
           </div>
