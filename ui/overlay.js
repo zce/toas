@@ -1,11 +1,13 @@
-import Pango from 'gi://Pango'
-import Clutter from 'gi://Clutter'
-import St from 'gi://St'
-
+let Pango = null
+let Clutter = null
+let St = null
 let Spinner = null
 let Main = null
 try {
-  ({ Spinner } = await import('resource:///org/gnome/shell/ui/animation.js'))
+  Pango = (await import('gi://Pango')).default
+  Clutter = (await import('gi://Clutter')).default
+  St = (await import('gi://St')).default
+  ;({ Spinner } = await import('resource:///org/gnome/shell/ui/animation.js'))
   Main = await import('resource:///org/gnome/shell/ui/main.js')
 } catch {
   // The presenter remains importable for headless tests outside GNOME Shell.
@@ -120,7 +122,7 @@ const OVERLAY_BOTTOM_MARGIN = 112
 
 export class ShellOverlayView {
   constructor () {
-    if (!Spinner || !Main) {
+    if (!Pango || !Clutter || !St || !Spinner || !Main) {
       throw new Error('ShellOverlayView requires the GNOME Shell runtime')
     }
 
