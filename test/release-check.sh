@@ -12,6 +12,9 @@ done
 for path in extension.js prefs.js prefs.css stylesheet.css metadata.json; do
   [ -f "$path" ] || { echo "missing $path"; rc=1; }
 done
+for path in lib uninstall.sh; do
+  [ ! -e "$path" ] || { echo "unexpected legacy path: $path"; rc=1; }
+done
 [ "$rc" -eq 0 ] && echo "ok"
 
 step "Schema compiles strictly"
@@ -26,7 +29,7 @@ gjs -m test/imports.test.js >/dev/null 2>&1 && echo "ok" || { echo "FAILED"; rc=
 step "Metadata"
 gjs -m test/metadata.test.js >/dev/null 2>&1 && echo "ok" || { echo "FAILED"; rc=1; }
 
-step "Full test suite"
+step "Headless test suite"
 ./test/run-all.sh >/dev/null 2>&1 && echo "ok" || { echo "FAILED"; rc=1; }
 
 echo

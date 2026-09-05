@@ -59,6 +59,7 @@ const removedPaths = [
   'orchestrator.js',
   'onboarding.js',
   'kernel-runner.js',
+  'uninstall.sh',
   'ui/overlay-presenter.js',
   'ui/shell-overlay-view.js',
   'ui/confirm-dialog.js'
