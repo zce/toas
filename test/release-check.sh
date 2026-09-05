@@ -6,7 +6,7 @@ rc=0
 step() { echo; echo "== $1"; }
 
 step "Package content"
-for path in kernel kernel/providers ui schemas; do
+for path in host kernel kernel/providers ui schemas; do
   [ -d "$path" ] || { echo "missing $path"; rc=1; }
 done
 for path in extension.js prefs.js prefs.css stylesheet.css metadata.json; do

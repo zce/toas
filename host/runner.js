@@ -6,10 +6,10 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-import { process as runKernel } from './kernel/process.js'
-import { providers as registry } from './kernel/providers/registry.js'
-import { SoupHttpTransport } from './soup-http-transport.js'
-import { ConfigService } from './config-service.js'
+import { ConfigService } from './config.js'
+import { SoupHttpTransport } from './transport.js'
+import { process as runKernel } from '../kernel/process.js'
+import { providers as registry } from '../kernel/providers/registry.js'
 
 Gio._promisify(
   Gio.File.prototype,

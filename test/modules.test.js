@@ -5,11 +5,11 @@ import GLib from 'gi://GLib'
 import System from 'system'
 
 const SHELL_ONLY = new Set([
-  'input.js',
-  'ui/confirm-dialog.js',
+  'host/output.js',
+  'ui/dialog.js',
   'ui/indicator.js',
   'ui/notifier.js',
-  'ui/shell-overlay-view.js'
+  'ui/overlay.js'
 ])
 
 function listModules (directory, prefix = '') {
@@ -39,28 +39,8 @@ function listModules (directory, prefix = '') {
 }
 
 const root = GLib.get_current_dir()
-const rootModules = [
-  'orchestrator.js',
-  'audio.js',
-  'audio-quality.js',
-  'attempt-signal.js',
-  'config-service.js',
-  'connection-check.js',
-  'history.js',
-  'history-format.js',
-  'history-repository.js',
-  'input.js',
-  'kernel-runner.js',
-  'onboarding.js',
-  'output-strategy.js',
-  'processing-config.js',
-  'recorder-outcome.js',
-  'soup-http-transport.js',
-  'window-role.js'
-].map(relative => ({ relative, path: `${root}/${relative}` }))
-
 const modules = [
-  ...rootModules,
+  ...listModules(`${root}/host`, 'host/'),
   ...listModules(`${root}/kernel`, 'kernel/'),
   ...listModules(`${root}/ui`, 'ui/')
 ]

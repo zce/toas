@@ -1,12 +1,118 @@
+let Pango = null
+let Clutter = null
+let St = null
+let Spinner = null
+let Main = null
+try {
+  Pango = (await import('gi://Pango')).default
+  Clutter = (await import('gi://Clutter')).default
+  St = (await import('gi://St')).default
+  ;({ Spinner } = await import('resource:///org/gnome/shell/ui/animation.js'))
+  Main = await import('resource:///org/gnome/shell/ui/main.js')
+} catch {
+  // The presenter remains importable for headless tests outside GNOME Shell.
+}
+
+// The overlay presenter owns the state machine and delegates all St/Clutter
+// work to an injected view. ShellOverlayView below owns the Shell wiring.
+
+const ERROR_HIDE_MS = 2400
+
+export class ToasOverlayPresenter {
+  constructor ({ view, hideDelay = ERROR_HIDE_MS } = {}) {
+    this._view = view
+    this._hideDelay = hideDelay
+    this._timer = null
+    this._generation = 0
+    this._private = false
+  }
+
+  // Wire-through so the composition root does not need the raw view.
+  setOnCancelRequested (handler) {
+    this._view.setOnCancelRequested?.(handler)
+  }
+
+  get view () {
+    return this._view
+  }
+
+  setPrivate (enabled) {
+    const next = Boolean(enabled)
+    if (this._private === next) { return }
+
+    this._private = next
+    // The view decorates the overlay through its own style class and shield
+    // icon. The flag rides the run snapshot, not the live switch: the
+    // orchestrator sets it per run so a mid-run switch never decorates a
+    // non-private run.
+    this._view.setPrivate?.(next)
+  }
+
+  render (state, message = '') {
+    this._generation++
+    this._clearTimer()
+
+    if (state === 'idle') {
+      // Keep whatever is on screen so the fade-out stays continuous: tearing
+      // children down first would flash an empty pill or a lone spinner.
+      // hideOnStop removes the spinner as part of the same transition.
+      this._view.stopSpinner()
+      this._view.hide()
+      return
+    }
+
+    const recording = state === 'recording'
+    const error = state === 'error'
+    const label = STATE_LABELS[state] ?? ''
+
+    this._view.render(state, error ? (message || 'Voice input failed') : label)
+    // Errors carry their message in the label slot even though they have no
+    // STATE_LABELS entry; without the error check the pill would show empty.
+    this._view.setVisible(recording, error, error || label !== '')
+
+    if (!recording && !error) { this._view.startSpinner() } else { this._view.stopSpinner() }
+
+    this._view.show()
+
+    if (error) {
+      const generation = this._generation
+      this._timer = setTimeout(() => {
+        this._timer = null
+        if (generation === this._generation) {
+          this._view.hide()
+        }
+      }, this._hideDelay)
+    }
+  }
+
+  setLevel (level) {
+    this._view.setLevel(level)
+  }
+
+  resetLevels () {
+    this._view.resetLevels?.()
+  }
+
+  destroy () {
+    this._clearTimer()
+    this._view.destroy?.()
+  }
+
+  _clearTimer () {
+    if (this._timer) {
+      clearTimeout(this._timer)
+      this._timer = null
+    }
+  }
+}
+
+const STATE_LABELS = {
+  processing: 'Processing…',
+  outputting: 'Inserting…'
+}
+
 // Shell side of the overlay: owns St/Clutter actors and GNOME Shell imports.
-// The presenter (overlay-presenter.js) drives it through the view interface.
-
-import Pango from 'gi://Pango'
-import Clutter from 'gi://Clutter'
-import St from 'gi://St'
-
-import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
-import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+// The presenter drives it through the view interface.
 
 const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
@@ -16,6 +122,10 @@ const OVERLAY_BOTTOM_MARGIN = 112
 
 export class ShellOverlayView {
   constructor () {
+    if (!Pango || !Clutter || !St || !Spinner || !Main) {
+      throw new Error('ShellOverlayView requires the GNOME Shell runtime')
+    }
+
     this._levels = Array(BAR_COUNT).fill(0)
 
     this._actor = new St.BoxLayout({

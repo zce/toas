@@ -1,6 +1,6 @@
-import { ToasOrchestrator } from '../orchestrator.js'
+import { ToasOrchestrator } from '../host/orchestrator.js'
 import { FakeRecorder, FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeCaptureFailure, recordingOutcomeCancelled } from '../recorder-outcome.js'
+import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeCaptureFailure, recordingOutcomeCancelled } from '../host/audio.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 function makeOrchestrator ({  recorder = new FakeRecorder(),

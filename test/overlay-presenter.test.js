@@ -1,4 +1,4 @@
-import { ToasOverlayPresenter } from '../ui/overlay-presenter.js'
+import { ToasOverlayPresenter } from '../ui/overlay.js'
 import { test, expectEqual, run } from './harness.js'
 
 class FakeOverlayView {

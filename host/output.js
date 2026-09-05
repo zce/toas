@@ -1,14 +1,67 @@
-import Clutter from 'gi://Clutter'
-import GLib from 'gi://GLib'
-import St from 'gi://St'
+let Clutter = null
+let GLib = null
+let St = null
+let Main = null
+try {
+  Clutter = (await import('gi://Clutter')).default
+  GLib = (await import('gi://GLib')).default
+  St = (await import('gi://St')).default
+  Main = await import('resource:///org/gnome/shell/ui/main.js')
+} catch {
+  // Pure output helpers remain importable outside the Shell process.
+}
 
-import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+const TERMINAL_HINTS = [
+  'ptyxis',
+  'ghostty',
+  'gnome-terminal',
+  'gnome-terminal-server',
+  'kgx',
+  'console',
+  'konsole',
+  'alacritty',
+  'kitty',
+  'wezterm',
+  'foot',
+  'tilix'
+]
 
-import { selectOutputMethod } from './output-strategy.js'
-import { isTerminalWindow } from './window-role.js'
+export function isTerminalWindow (window) {
+  if (!window) { return false }
+
+  const identifiers = [
+    window.get_wm_class?.(),
+    window.get_wm_class_instance?.(),
+    window.get_gtk_application_id?.(),
+    window.get_sandboxed_app_id?.()
+  ]
+    .filter(Boolean)
+    .map(value => value.toLowerCase())
+
+  return identifiers.some(identifier =>
+    TERMINAL_HINTS.some(hint => identifier.includes(hint))
+  )
+}
+
+export function selectOutputMethod ({ text, autoPaste, directInputAvailable }) {
+  if (
+    autoPaste &&
+    directInputAvailable &&
+    !text.includes('\n') &&
+    !text.includes('\r')
+  ) {
+    return 'direct'
+  }
+
+  return 'clipboard'
+}
 
 export class TextPaster {
   constructor (settings) {
+    if (!Clutter || !GLib || !St || !Main) {
+      throw new Error('TextPaster requires the GNOME Shell runtime')
+    }
+
     this._settings = settings
     this._clipboard = St.Clipboard.get_default()
     this._keyboard = Clutter.get_default_backend()
@@ -81,8 +134,8 @@ export class TextPaster {
 
     if (
       this._settings.get_boolean('restore-clipboard') &&
-            originalText !== null &&
-            originalText !== text
+      originalText !== null &&
+      originalText !== text
     ) {
       await delay(450)
       if (this._cancelled) { return }

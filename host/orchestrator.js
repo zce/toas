@@ -1,9 +1,13 @@
 import GLib from 'gi://GLib'
 
-import { AudioRecorder } from './audio.js'
-import { DEFAULT_SAMPLE_RATE, resolveSampleRate } from './audio-quality.js'
-import { RecorderOutcomeError, RecorderOutcomeKind } from './recorder-outcome.js'
-import { AttemptSignal } from './attempt-signal.js'
+import {
+  AudioRecorder,
+  DEFAULT_SAMPLE_RATE,
+  RecorderOutcomeError,
+  RecorderOutcomeKind,
+  resolveSampleRate
+} from './audio.js'
+import { AttemptSignal } from './transport.js'
 
 export class ToasOrchestrator {
   constructor ({
@@ -34,14 +38,14 @@ export class ToasOrchestrator {
 
     if (missing.length > 0) {
       throw new Error(
-                `ToasOrchestrator requires collaborators: ${missing.join(', ')}`
+        `ToasOrchestrator requires collaborators: ${missing.join(', ')}`
       )
     }
 
     this._recorderFactory =
-            collaborators.recorderFactory ??
-            ((directory, onLevel, onError, sampleRate) =>
-              new AudioRecorder(directory, onLevel, onError, sampleRate))
+      collaborators.recorderFactory ??
+      ((directory, onLevel, onError, sampleRate) =>
+        new AudioRecorder(directory, onLevel, onError, sampleRate))
 
     // Focus-mismatch notices share the notifier seam.
     if (this._output.setOnFocusMismatch && this._notifier) {
@@ -355,7 +359,7 @@ export class ToasOrchestrator {
       return true
     } catch (historyError) {
       console.error(
-                `[toas] Could not save history: ${historyError.message}`
+        `[toas] Could not save history: ${historyError.message}`
       )
       return false
     }

@@ -6,7 +6,7 @@ import St from 'gi://St'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 
-import { formatDuration, formatRelativeTime, previewText } from '../history-format.js'
+import { formatDuration, formatRelativeTime, previewText } from '../host/history.js'
 
 export class ToasIndicator extends PanelMenu.Button {
   static {
