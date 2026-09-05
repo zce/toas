@@ -4,7 +4,6 @@
 
 import Clutter from 'gi://Clutter'
 import GObject from 'gi://GObject'
-import St from 'gi://St'
 
 import * as Dialog from 'resource:///org/gnome/shell/ui/dialog.js'
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js'

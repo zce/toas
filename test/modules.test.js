@@ -1,52 +1,76 @@
-// Module-level smoke check: every lib module must parse and, where it has no
-// Shell-only imports, load headlessly. Shell-only modules are listed in
-// SHELL_ONLY and only parse-checked (their imports fail outside the Shell).
+// Module smoke check for runtime modules.
+
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import System from 'system'
 
 const SHELL_ONLY = new Set([
-  'confirm-dialog.js',
-  'history-browser.js',
-  'indicator.js',
-  'input.js',
-  'notifier.js',
-  'shell-overlay-view.js'
+  'host/input.js',
+  'host/output.js',
+  'ui/dialog.js',
+  'ui/indicator.js',
+  'ui/notifier.js',
+  'ui/overlay.js'
 ])
 
-const libDir = Gio.File.new_for_path(GLib.get_current_dir() + '/lib')
-const enumerator = libDir.enumerate_children(
-  'standard::name',
-  Gio.FileQueryInfoFlags.NONE,
-  null
-)
-const files = []
-let info
-while ((info = enumerator.next_file(null)) !== null) {
-  if (info.get_name().endsWith('.js')) { files.push(info.get_name()) }
+function listModules (directory, prefix = '') {
+  const result = []
+  const dir = Gio.File.new_for_path(directory)
+  const children = dir.enumerate_children(
+    'standard::name,standard::type',
+    Gio.FileQueryInfoFlags.NONE,
+    null
+  )
+  try {
+    let info
+    while ((info = children.next_file(null))) {
+      const name = info.get_name()
+      const path = `${directory}/${name}`
+      const relative = `${prefix}${name}`
+      if (info.get_file_type() === Gio.FileType.DIRECTORY) {
+        result.push(...listModules(path, `${relative}/`))
+      } else if (name.endsWith('.js')) {
+        result.push({ path, relative })
+      }
+    }
+  } finally {
+    children.close(null)
+  }
+  return result
 }
-enumerator.close(null)
-files.sort()
+
+const root = GLib.get_current_dir()
+const modules = [
+  ...listModules(`${root}/host`, 'host/'),
+  ...listModules(`${root}/kernel`, 'kernel/'),
+  ...listModules(`${root}/ui`, 'ui/')
+]
 
 let failed = 0
-for (const name of files) {
-  const path = `${libDir.get_path()}/${name}`
+
+for (const { relative, path } of modules) {
   try {
     await import(`file://${path}`)
-    print(`ok (loads)   - lib/${name}`)
+    print(`ok (loads) - ${relative}`)
   } catch (error) {
     const message = String(error?.message ?? error)
-    const shellOnly = message.includes('resource:///org/gnome/shell') ||
-            message.includes('Typelib')
+    const environmentOnly =
+      message.includes('resource:///org/gnome/shell') ||
+      message.includes('Typelib') ||
+      message.includes('Requiring Shell')
 
-    if (SHELL_ONLY.has(name) && shellOnly) {
-      print(`ok (shell-only, parsed) - lib/${name}`)
+    if (SHELL_ONLY.has(relative) && environmentOnly) {
+      print(`ok (shell-only, parsed) - ${relative}`)
     } else {
       failed++
-      print(`FAIL - lib/${name}: ${message}`)
+      print(`FAIL - ${relative}: ${message}`)
     }
   }
 }
 
-print(failed > 0 ? `\n${failed} module(s) failed` : '\nall modules load')
-if (failed > 0) { System.exit(1) }
+if (failed > 0) {
+  print(`\n${failed} module(s) failed`)
+  System.exit(1)
+}
+
+print('\nall runtime modules load')

@@ -33,78 +33,58 @@ export class FakeRecorder {
   }
 }
 
-export class FakeTranscriber {
-  constructor ({ text = 'hello', error = null, delayMs = 0 } = {}) {
+// Stand-in for the Host-side Kernel collaborator: same process(recording,
+// signal) seam the orchestrator calls in production. delayMs simulates
+// in-flight network work so cancellation tests can interrupt mid-attempt.
+export class FakeKernel {
+  constructor ({ text = 'hello', error = null, warning = null, trace = null, delayMs = 0 } = {}) {
     this.text = text
     this.error = error
+    this.warning = warning
+    this.trace = trace
     this.delayMs = delayMs
     this.calls = []
-    this.cancels = 0
+    this.receivedSignals = []
   }
 
-  get model () { return 'fake-asr-model' }
-  get endpoint () { return 'https://fake.example/endpoint' }
-  get language () { return 'auto' }
-
-  async transcribe (recording, model) {
-    this.calls.push({ recording, model })
+  async run (recording, signal) {
+    this.calls.push({ recording, signal })
+    this.receivedSignals.push(signal)
     if (this.delayMs) { await new Promise(resolve => setTimeout(resolve, this.delayMs)) }
     if (this.error) { throw this.error }
+
     return {
       text: this.text,
-      model,
-      endpoint: this.endpoint,
-      language: this.language,
-      finishReason: 'stop',
-      usage: null,
-      responseModel: 'fake-asr-model',
-      responseId: 'fake-id'
+      trace: this.trace ?? [{
+        role: 'primary',
+        provider: 'fake',
+        model: 'fake-model',
+        input: 'audio',
+        text: this.text,
+        status: 'ok',
+        elapsedMs: 100,
+        context: [],
+        usage: null,
+        requestId: null,
+        responseId: 'fake-id'
+      }],
+      warning: this.warning
     }
   }
-
-  cancel () { this.cancels++ }
-  destroy () {}
-}
-
-export class FakeRefiner {
-  constructor ({ error = null, text = null } = {}) {
-    this.error = error
-    this.refinedText = text
-    this.calls = []
-    this.cancels = 0
-  }
-
-  get enabled () { return true }
-  get model () { return 'fake-refine-model' }
-  get endpoint () { return 'https://fake.example/refine' }
-
-  async refine (transcript, model) {
-    this.calls.push({ transcript, model })
-    if (this.error) { throw this.error }
-    return {
-      text: this.refinedText ?? transcript.toUpperCase(),
-      ran: true,
-      reason: null,
-      model,
-      endpoint: this.endpoint,
-      finishReason: 'stop',
-      usage: null,
-      responseModel: 'fake-refine-model',
-      responseId: 'fake-id'
-    }
-  }
-
-  cancel () { this.cancels++ }
-  destroy () {}
 }
 
 export class FakePaster {
   constructor ({ delayMs = 0 } = {}) {
     this.delayMs = delayMs
     this.writes = []
+    this.capturedWindows = []
     this.cancels = 0
     this.destroys = 0
     this.resolveWrite = null
+  }
+
+  captureFocusedWindow () {
+    this.capturedWindows.push(`capture-${this.capturedWindows.length}`)
   }
 
   async write (text) {

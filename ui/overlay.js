@@ -1,13 +1,110 @@
-// Shell side of the overlay: owns St/Clutter actors and GNOME Shell imports.
-// The presenter (overlay-presenter.js) drives it through the view interface.
-
-import GLib from 'gi://GLib'
 import Pango from 'gi://Pango'
 import Clutter from 'gi://Clutter'
 import St from 'gi://St'
 
 import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+
+// The overlay presenter owns the state machine and delegates all St/Clutter
+// work to an injected view. ShellOverlayView below owns the Shell wiring.
+
+const ERROR_HIDE_MS = 2400
+
+export class ToasOverlayPresenter {
+  constructor ({ view, hideDelay = ERROR_HIDE_MS } = {}) {
+    this._view = view
+    this._hideDelay = hideDelay
+    this._timer = null
+    this._generation = 0
+    this._private = false
+  }
+
+  // Wire-through so the composition root does not need the raw view.
+  setOnCancelRequested (handler) {
+    this._view.setOnCancelRequested?.(handler)
+  }
+
+  get view () {
+    return this._view
+  }
+
+  setPrivate (enabled) {
+    const next = Boolean(enabled)
+    if (this._private === next) { return }
+
+    this._private = next
+    // The view decorates the overlay through its own style class and shield
+    // icon. The flag rides the run snapshot, not the live switch: the
+    // orchestrator sets it per run so a mid-run switch never decorates a
+    // non-private run.
+    this._view.setPrivate?.(next)
+  }
+
+  render (state, message = '') {
+    this._generation++
+    this._clearTimer()
+
+    if (state === 'idle') {
+      // Keep whatever is on screen so the fade-out stays continuous: tearing
+      // children down first would flash an empty pill or a lone spinner.
+      // hideOnStop removes the spinner as part of the same transition.
+      this._view.stopSpinner()
+      this._view.hide()
+      return
+    }
+
+    const recording = state === 'recording'
+    const error = state === 'error'
+    const label = STATE_LABELS[state] ?? ''
+
+    this._view.render(state, error ? (message || 'Voice input failed') : label)
+    // Errors carry their message in the label slot even though they have no
+    // STATE_LABELS entry; without the error check the pill would show empty.
+    this._view.setVisible(recording, error, error || label !== '')
+
+    if (!recording && !error) { this._view.startSpinner() } else { this._view.stopSpinner() }
+
+    this._view.show()
+
+    if (error) {
+      const generation = this._generation
+      this._timer = setTimeout(() => {
+        this._timer = null
+        if (generation === this._generation) {
+          this._view.hide()
+        }
+      }, this._hideDelay)
+    }
+  }
+
+  setLevel (level) {
+    this._view.setLevel(level)
+  }
+
+  resetLevels () {
+    this._view.resetLevels?.()
+  }
+
+  destroy () {
+    this._clearTimer()
+    this._view.destroy?.()
+  }
+
+  _clearTimer () {
+    if (this._timer) {
+      clearTimeout(this._timer)
+      this._timer = null
+    }
+  }
+}
+
+const STATE_LABELS = {
+  processing: 'Processing…',
+  outputting: 'Inserting…'
+}
+
+// Shell side of the overlay: owns St/Clutter actors and GNOME Shell imports.
+// The presenter drives it through the view interface.
 
 const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
@@ -18,6 +115,7 @@ const OVERLAY_BOTTOM_MARGIN = 112
 export class ShellOverlayView {
   constructor () {
     this._levels = Array(BAR_COUNT).fill(0)
+    this._compositingHeld = false
 
     this._actor = new St.BoxLayout({
       style_class: 'toas-overlay',
@@ -57,13 +155,12 @@ export class ShellOverlayView {
     this._status.get_clutter_text().set_single_line_mode(true)
 
     this._spinner = new Spinner(16, { hideOnStop: true })
-    this._spinner.style_class = 'toas-spinner'
 
     this._closeButton = new St.Button({
       style_class: 'toas-close-button icon-button',
       child: new St.Icon({
         icon_name: 'window-close-symbolic',
-        icon_size: 10
+        style_class: 'toas-close-icon'
       }),
       visible: false,
       y_align: Clutter.ActorAlign.CENTER
@@ -88,9 +185,9 @@ export class ShellOverlayView {
     this._actor.add_child(this._status)
     this._actor.add_child(this._closeButton)
 
-    // Do not use trackFullscreen: LayoutManager owns and rewrites the
-    // visibility of tracked actors whenever overview visibility changes.
-    Main.layoutManager.addChrome(this._actor)
+    // This is transient system feedback, so keep it above application windows.
+    // Do not use trackFullscreen: tracked actors are hidden in fullscreen.
+    Main.layoutManager.addTopChrome(this._actor)
 
     this._monitorsChangedId = Main.layoutManager.connect(
       'monitors-changed',
@@ -152,6 +249,8 @@ export class ShellOverlayView {
     // A new recording can start while the previous hide animation is still
     // running. Stop it so the stale onStopped callback cannot hide this run.
     this._actor.remove_all_transitions()
+    this._acquireCompositing()
+
     if (this._actor.visible) {
       this._actor.opacity = 255
       return
@@ -169,7 +268,10 @@ export class ShellOverlayView {
 
   hide () {
     this._closeButton.visible = false
-    if (!this._actor.visible) { return }
+    if (!this._actor.visible) {
+      this._releaseCompositing()
+      return
+    }
 
     this._actor.ease({
       opacity: 0,
@@ -179,6 +281,7 @@ export class ShellOverlayView {
         // Only hide if nothing re-showed during the transition.
         if (this._actor && this._actor.opacity === 0) {
           this._actor.hide()
+          this._releaseCompositing()
         }
       }
     })
@@ -198,7 +301,9 @@ export class ShellOverlayView {
       const height = Math.round(
         BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
       )
-      bar.set_style(`height: ${height}px;`)
+      // Height is per-frame audio data; it is layout state, not styling.
+      // Setting it directly avoids a CSS parse per bar on every frame.
+      bar.height = height
     })
   }
 
@@ -215,12 +320,27 @@ export class ShellOverlayView {
     this._actor.set_position(x, y)
   }
 
+  _acquireCompositing () {
+    if (this._compositingHeld) { return }
+
+    global.compositor.disable_unredirect()
+    this._compositingHeld = true
+  }
+
+  _releaseCompositing () {
+    if (!this._compositingHeld) { return }
+
+    global.compositor.enable_unredirect()
+    this._compositingHeld = false
+  }
+
   destroy () {
     this._spinner?.stop()
     this._onCancelRequested = null
 
     // Kill any in-flight ease before tearing down the chrome actor.
     this._actor?.remove_all_transitions()
+    this._releaseCompositing()
 
     if (this._monitorsChangedId) { Main.layoutManager.disconnect(this._monitorsChangedId) }
 

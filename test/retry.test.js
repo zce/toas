@@ -1,6 +1,6 @@
-import { ToasOrchestrator } from '../lib/orchestrator.js'
-import { FakeRecorder, FakeTranscriber, FakeRefiner, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import { recordingOutcomeOk } from '../lib/recorder-outcome.js'
+import { ToasOrchestrator } from '../host/orchestrator.js'
+import { FakeRecorder, FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
+import { recordingOutcomeOk } from '../host/audio.js'
 import { test, expectEqual, run } from './harness.js'
 
 const recording = { id: 'orig-1', path: '/tmp/orig-1.wav', durationMs: 3000, mimeType: 'audio/wav' }
@@ -29,14 +29,13 @@ function makeRepo (entries = []) {
   return repo
 }
 
-function makeOrchestrator ({ repo, transcriber, refiner }) {
+function makeOrchestrator ({ repo, kernel }) {
   return new ToasOrchestrator({
     settings: {},
     collaborators: {
       recorderFactory: () => new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
       history: new FakeHistory(),
-      transcriber,
-      refiner,
+      kernel: kernel ?? new FakeKernel(),
       paster: new FakePaster(),
       overlay: new FakeOverlay(),
       notifier: new FakeNotifier()
@@ -51,13 +50,10 @@ test('retry runs transcription on retained audio without a recorder', async () =
     { id: 'orig-1', status: 'error', audio: 'recordings/orig-1.wav', durationMs: 3000 }
   ])
   const recorder = new FakeRecorder()
-  const transcriber = new FakeTranscriber({ text: 'retried text' })
   const paster = new FakePaster()
   const orchestrator = makeOrchestrator({
     repo,
-    transcriber,
-    refiner: new FakeRefiner({ text: 'RETRIED TEXT' }),
-    recorder
+    kernel: new FakeKernel({ text: 'retried text' })
   })
 
   const attempt = await orchestrator.retry(repo.get('orig-1'))
@@ -67,7 +63,7 @@ test('retry runs transcription on retained audio without a recorder', async () =
   expectEqual(attempt.status, 'ok')
   expectEqual(attempt.attemptOf, 'orig-1')
   expectEqual(attempt.attemptNumber, 1)
-  expectEqual(attempt.output, 'RETRIED TEXT')
+  expectEqual(attempt.text, 'retried text')
   expectEqual(attempt.audio, null)
 
   // A retry is never decorated as private, even with the switch on.
@@ -84,8 +80,7 @@ test('retry failure appends a linked error attempt, original preserved', async (
   ])
   const orchestrator = makeOrchestrator({
     repo,
-    transcriber: new FakeTranscriber({ error: new Error('still unauthorized') }),
-    refiner: new FakeRefiner()
+    kernel: new FakeKernel({ error: new Error('still unauthorized') })
   })
 
   const attempt = await orchestrator.retry(repo.get('orig-2'))
@@ -108,8 +103,7 @@ test('retry with pruned audio returns null and does nothing', async () => {
   ])
   const orchestrator = makeOrchestrator({
     repo,
-    transcriber: new FakeTranscriber(),
-    refiner: new FakeRefiner()
+    kernel: new FakeKernel()
   })
 
   const attempt = await orchestrator.retry(repo.get('orig-3'))
@@ -124,8 +118,7 @@ test('retry is blocked while another session is active', async () => {
   ])
   const orchestrator = makeOrchestrator({
     repo,
-    transcriber: new FakeTranscriber({ delayMs: 30 }),
-    refiner: new FakeRefiner()
+    kernel: new FakeKernel({ text: 'delayed result' })
   })
 
   orchestrator.begin()

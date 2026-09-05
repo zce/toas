@@ -1,12 +1,10 @@
-import { ToasOrchestrator } from '../lib/orchestrator.js'
-import { FakeRecorder, FakeTranscriber, FakeRefiner, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeCaptureFailure, recordingOutcomeCancelled, recordingOutcomeSizeLimit } from '../lib/recorder-outcome.js'
+import { ToasOrchestrator } from '../host/orchestrator.js'
+import { FakeRecorder, FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
+import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeCaptureFailure, recordingOutcomeCancelled } from '../host/audio.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
-function makeOrchestrator ({
-  recorder = new FakeRecorder(),
-  transcriber = new FakeTranscriber(),
-  refiner = new FakeRefiner(),
+function makeOrchestrator ({  recorder = new FakeRecorder(),
+  kernel = new FakeKernel(),
   paster = new FakePaster(),
   history = new FakeHistory(),
   overlay = new FakeOverlay(),
@@ -25,8 +23,7 @@ function makeOrchestrator ({
     collaborators: {
       recorderFactory: recorderFactory ?? (() => recorder),
       history,
-      transcriber,
-      refiner,
+      kernel,
       paster,
       overlay,
       notifier,
@@ -35,7 +32,22 @@ function makeOrchestrator ({
     onStateChanged: (state, message) => run.onState(state, message)
   })
 
-  return { orchestrator, recorder, transcriber, refiner, paster, history, overlay, notifier, privacy, run }
+  return { orchestrator, recorder, kernel, paster, history, overlay, notifier, privacy, run }
+}
+
+// Small helper for tests that need to wait for a condition before asserting.
+function waitFor (predicate, timeoutMs = 2000) {
+  const startedAt = Date.now()
+  return new Promise((resolve, reject) => {
+    const check = () => {
+      if (predicate()) { return resolve() }
+      if (Date.now() - startedAt > timeoutMs) {
+        return reject(new Error('waitFor timed out'))
+      }
+      setTimeout(check, 5)
+    }
+    check()
+  })
 }
 
 test('orchestrator accepts injected collaborators', () => {
@@ -44,6 +56,28 @@ test('orchestrator accepts injected collaborators', () => {
   expectTruthy(orchestrator)
   expectEqual(recorder.starts, 0)
   orchestrator.destroy()
+})
+
+test('missing kernel collaborator throws at construction', () => {
+  let threw = null
+  try {
+    new ToasOrchestrator({
+      settings: {},
+      collaborators: {
+        recorderFactory: () => new FakeRecorder(),
+        history: new FakeHistory(),
+        paster: new FakePaster(),
+        overlay: new FakeOverlay(),
+        notifier: new FakeNotifier()
+        // kernel intentionally missing
+      }
+    })
+  } catch (error) {
+    threw = error
+  }
+
+  expectTruthy(threw)
+  expectEqual(threw.message.includes('kernel'), true)
 })
 
 test('recording quality reaches the recorder factory', () => {
@@ -75,7 +109,7 @@ test('starting a recording resets the overlay waveform', () => {
 
 test('normal session runs recording through idle with one terminal transition', async () => {
   const recording = { id: 'rec-1', path: '/tmp/rec-1.wav', durationMs: 4200, mimeType: 'audio/wav' }
-  const { orchestrator, recorder, paster, history, overlay, run } = makeOrchestrator({
+  const { orchestrator, recorder, kernel, paster, history, overlay, run } = makeOrchestrator({
     recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) })
   })
 
@@ -85,9 +119,12 @@ test('normal session runs recording through idle with one terminal transition', 
 
   expectEqual(recorder.starts, 1)
   expectEqual(recorder.stops, 1)
-  expectEqual(paster.writes, ['HELLO'])
+  expectEqual(kernel.calls.length, 1)
+  expectEqual(paster.writes, ['hello'])
   expectEqual(history.appends.length, 1)
   expectEqual(history.appends[0].status, 'ok')
+  expectEqual(history.appends[0].text, 'hello')
+  expectEqual(history.appends[0].trace[0].provider, 'fake')
   expectEqual(history.discarded, [])
   expectEqual(overlay.destroys, 0)
 
@@ -97,44 +134,61 @@ test('normal session runs recording through idle with one terminal transition', 
   orchestrator.destroy()
 })
 
-test('destroy cancels in-flight network work but leaves collaborator teardown to the owner', () => {
-  const { orchestrator, recorder, transcriber, refiner, paster, history, overlay, notifier } = makeOrchestrator()
+test('output target is captured before kernel processing starts', async () => {
+  const recording = { id: 'rec-order', path: '/tmp/rec-order.wav', durationMs: 1000, mimeType: 'audio/wav' }
+  const order = []
+  const kernel = new FakeKernel()
+  const originalRun = kernel.run.bind(kernel)
+  kernel.run = async (recordingArg, signal) => {
+    order.push('kernel')
+    return originalRun(recordingArg, signal)
+  }
+  const paster = new FakePaster()
+  paster.captureFocusedWindow = () => order.push('capture')
 
+  const { orchestrator } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    kernel,
+    paster
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  // The window focused when recording stopped is locked before any async
+  // preparation (audio loading, config snapshot) can run.
+  expectEqual(order, ['capture', 'kernel'])
   orchestrator.destroy()
-
-  expectEqual(recorder.destroys, 0)
-  expectEqual(overlay.destroys, 0)
-  expectEqual(paster.destroys, 0)
-  // In-flight HTTP work must stop; collaborators are not destroyed.
-  expectEqual(transcriber.cancels, 1)
-  expectEqual(refiner.cancels, 1)
-  expectEqual(notifier.cancels, 0)
 })
 
-test('missing required collaborator throws at construction', () => {
-  let threw = null
-  try {
-    new ToasOrchestrator({
-      settings: {},
-      collaborators: {
-        recorderFactory: () => new FakeRecorder(),
-        transcriber: new FakeTranscriber(),
-        refiner: new FakeRefiner(),
-        paster: new FakePaster(),
-        notifier: new FakeNotifier()
-        // history intentionally missing
-      }
-    })
-  } catch (error) {
-    threw = error
-  }
+test('destroy aborts in-flight kernel work but leaves collaborator teardown to the owner', async () => {
+  const recording = { id: 'rec-destroy', path: '/tmp/rec-destroy.wav', durationMs: 1000, mimeType: 'audio/wav' }
+  const { orchestrator, recorder, paster, history, overlay, notifier, kernel } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    kernel: new FakeKernel({ delayMs: 100 })
+  })
 
-  expectTruthy(threw)
-  expectEqual(threw.message.includes('history'), true)
+  orchestrator.begin()
+  const pending = orchestrator.end()
+
+  // Wait until the kernel attempt actually started, then destroy mid-flight.
+  await waitFor(() => kernel.receivedSignals.length > 0)
+  const signal = kernel.receivedSignals[0]
+  expectTruthy(signal)
+  orchestrator.destroy()
+
+  expectEqual(signal.aborted, true)
+  // destroy() finishes the run itself; the recorder it created is torn down
+  // with the attempt, while owned collaborators (overlay, paster, notifier)
+  // are left to the composition root.
+  expectEqual(overlay.destroys, 0)
+  expectEqual(paster.destroys, 0)
+  expectEqual(notifier.cancels, 0)
+  await pending.catch(() => {})
 })
 
 test('short tap discards silently and returns to idle', async () => {
-  const { orchestrator, recorder, paster, history, overlay, notifier, run } = makeOrchestrator({
+  const { orchestrator, recorder, kernel, paster, history, overlay, notifier, run } = makeOrchestrator({
     recorder: new FakeRecorder({ recording: recordingOutcomeShortTap(210) })
   })
 
@@ -142,6 +196,7 @@ test('short tap discards silently and returns to idle', async () => {
   await orchestrator.end()
 
   expectEqual(recorder.stops, 1)
+  expectEqual(kernel.calls.length, 0)
   expectEqual(paster.writes, [])
   expectEqual(history.appends, [])
   expectEqual(notifier.notifications, [])
@@ -152,7 +207,7 @@ test('short tap discards silently and returns to idle', async () => {
 })
 
 test('capture failure produces error state and notification', async () => {
-  const { orchestrator, recorder, paster, history, notifier, run } = makeOrchestrator({
+  const { orchestrator, recorder, kernel, paster, history, notifier, run } = makeOrchestrator({
     recorder: new FakeRecorder({
       recording: recordingOutcomeCaptureFailure(new Error('pw-record exited unexpectedly'))
     })
@@ -162,19 +217,20 @@ test('capture failure produces error state and notification', async () => {
   await orchestrator.end()
 
   expectEqual(recorder.stops, 1)
+  expectEqual(kernel.calls.length, 0)
   expectEqual(paster.writes, [])
   expectEqual(history.appends, [])
-  expectEqual(run.events.filter(e => e.state === 'error').length, 1, 'exactly one error state')
-  expectEqual(notifier.notifications.length, 1, 'exactly one notification')
-  expectEqual(notifier.notifications[0]?.title, 'Recording failed', 'failure notification title')
+  expectEqual(run.events.filter(e => e.state === 'error').length, 1)
+  expectEqual(notifier.notifications.length, 1)
+  expectEqual(notifier.notifications[0]?.title, 'Recording failed')
   orchestrator.destroy()
 })
 
-test('transcription failure notifies once with the error detail', async () => {
+test('processing failure notifies once with the error detail', async () => {
   const recording = { id: 'rec-4', path: '/tmp/rec-4.wav', durationMs: 3000, mimeType: 'audio/wav' }
   const { orchestrator, notifier, run } = makeOrchestrator({
     recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
-    transcriber: new FakeTranscriber({ error: new Error('HTTP 401: unauthorized') })
+    kernel: new FakeKernel({ error: Object.assign(new Error('HTTP 401: unauthorized'), { category: 'authentication' }) })
   })
 
   orchestrator.begin()
@@ -191,22 +247,20 @@ test('refine fallback notifies as a soft warning, session still succeeds', async
   const recording = { id: 'rec-6', path: '/tmp/rec-6.wav', durationMs: 3000, mimeType: 'audio/wav' }
   const { orchestrator, paster, history, notifier, run } = makeOrchestrator({
     recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
-    transcriber: new FakeTranscriber({ text: 'hello world' }),
-    refiner: new FakeRefiner({ error: new Error('refine provider down') })
+    kernel: new FakeKernel({
+      text: 'primary text',
+      warning: { type: 'refine-failed', provider: 'mimo', message: 'refine provider down' }
+    })
   })
 
   orchestrator.begin()
   await orchestrator.end()
 
-  // Session succeeds: raw transcript pasted (uppercase transform never ran),
-  // history records ok.
-  expectEqual(paster.writes, ['hello world'])
+  expectEqual(paster.writes, ['primary text'])
   expectEqual(history.appends[0].status, 'ok')
   expectEqual(run.events.filter(e => e.state === 'error').length, 0)
-
-  // But the user learns the refine stage was skipped.
   expectEqual(notifier.notifications.length, 1)
-  expectEqual(notifier.notifications[0].title, 'Inserted the raw transcript')
+  expectEqual(notifier.notifications[0].title, 'Inserted the primary result')
   orchestrator.destroy()
 })
 
@@ -221,8 +275,7 @@ test('clean success notifies nothing; cancel notifies nothing', async () => {
   success.orchestrator.destroy()
 
   const cancelled = makeOrchestrator({
-    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
-    transcriber: new FakeTranscriber({ delayMs: 30 })
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) })
   })
   cancelled.orchestrator.begin()
   const pending = cancelled.orchestrator.end()
@@ -242,23 +295,22 @@ test('clean success notifies nothing; cancel notifies nothing', async () => {
 
 test('cancellation during processing leaves no output or history', async () => {
   const recording = { id: 'rec-2', path: '/tmp/rec-2.wav', durationMs: 5000, mimeType: 'audio/wav' }
-  const { orchestrator, recorder, transcriber, paster, history, run } = makeOrchestrator({
+  const { orchestrator, recorder, paster, history, run, kernel } = makeOrchestrator({
     recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
-    transcriber: new FakeTranscriber({ delayMs: 50 })
+    kernel: new FakeKernel({ delayMs: 50 })
   })
 
   orchestrator.begin()
   const pending = orchestrator.end()
-  // The transcribing stage starts only after the recorder stops; cancelling
-  // before that is a different scenario (covered by the test below).
-  await new Promise(resolve => setTimeout(resolve, 5))
-  expectEqual(run.events.some(e => e.state === 'transcribing'), true)
+  await waitFor(() => run.events.some(e => e.state === 'processing'))
+  const signal = kernel.receivedSignals[0]
+  expectTruthy(signal)
   orchestrator.cancel()
+  expectEqual(signal.aborted, true)
   await pending
 
   expectEqual(recorder.starts, 1)
   expectEqual(recorder.cancels >= 1, true)
-  expectEqual(transcriber.cancels >= 1, true)
   expectEqual(paster.writes, [])
   expectEqual(history.appends, [])
   expectEqual(run.events.filter(e => e.state === 'idle' || e.state === 'error').length, 1)
@@ -266,14 +318,11 @@ test('cancellation during processing leaves no output or history', async () => {
 })
 
 test('cancel before stop yields cancelled outcome, not an error', async () => {
-  const recording = { id: 'rec-5', path: '/tmp/rec-5.wav', durationMs: 4000, mimeType: 'audio/wav' }
-  const { orchestrator, recorder, paster, history, notifier, run } = makeOrchestrator({
-    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) })
+  const { orchestrator, paster, history, notifier, run, recorder } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk({ id: 'rec-5', path: '/tmp/rec-5.wav', durationMs: 4000, mimeType: 'audio/wav' }) })
   })
 
   orchestrator.begin()
-  // Simulate the recorder learning about the cancel before stop() runs, the
-  // way AudioRecorder.cancel() sets its flag in production.
   const pending = orchestrator.end()
   orchestrator.cancel()
   recorder.recording = recordingOutcomeCancelled()
@@ -289,7 +338,7 @@ test('cancel before stop yields cancelled outcome, not an error', async () => {
 
 test('double stop is idempotent: second end() is a no-op', async () => {
   const recording = { id: 'rec-3', path: '/tmp/rec-3.wav', durationMs: 3000, mimeType: 'audio/wav' }
-  const { orchestrator, recorder, paster } = makeOrchestrator({
+  const { orchestrator, recorder, kernel } = makeOrchestrator({
     recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) })
   })
 
@@ -298,7 +347,7 @@ test('double stop is idempotent: second end() is a no-op', async () => {
   await orchestrator.end()
 
   expectEqual(recorder.stops, 1)
-  expectEqual(paster.writes.length, 1)
+  expectEqual(kernel.calls.length, 1)
   orchestrator.destroy()
 })
 
@@ -312,8 +361,7 @@ test('private voice input inserts text but keeps no history or recording', async
   orchestrator.begin()
   await orchestrator.end()
 
-  // Output still lands; nothing is retained.
-  expectEqual(paster.writes, ['HELLO'])
+  expectEqual(paster.writes, ['hello'])
   expectEqual(history.appends, [])
   expectEqual(history.discarded, [recording])
   expectEqual(run.events.filter(e => e.state === 'error').length, 0)
@@ -321,18 +369,17 @@ test('private voice input inserts text but keeps no history or recording', async
   orchestrator.destroy()
 })
 
-test('private voice input keeps no recording when transcription fails', async () => {
+test('private voice input keeps no recording when processing fails', async () => {
   const recording = { id: 'rec-priv-2', path: '/tmp/rec-priv-2.wav', durationMs: 3000, mimeType: 'audio/wav' }
   const { orchestrator, paster, history, notifier } = makeOrchestrator({
     recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
-    transcriber: new FakeTranscriber({ error: new Error('HTTP 500: provider down') }),
+    kernel: new FakeKernel({ error: new Error('HTTP 500: provider down') }),
     privacy: { enabled: true }
   })
 
   orchestrator.begin()
   await orchestrator.end()
 
-  // Failure still notifies, but nothing is retained for a retry.
   expectEqual(paster.writes, [])
   expectEqual(history.appends, [])
   expectEqual(history.discarded, [recording])
@@ -348,12 +395,10 @@ test('switching private mode off mid-run still retains the voice input', async (
 
   privacy.enabled = false
   orchestrator.begin()
-  // The run was snapshotted as non-private, so flipping the switch on while
-  // processing must not retroactively discard it.
   privacy.enabled = true
   await orchestrator.end()
 
-  expectEqual(paster.writes, ['HELLO'])
+  expectEqual(paster.writes, ['hello'])
   expectEqual(history.appends.length, 1)
   expectEqual(history.discarded, [])
   orchestrator.destroy()
@@ -362,17 +407,12 @@ test('switching private mode off mid-run still retains the voice input', async (
 test('switching private mode on mid-run still discards the voice input', async () => {
   const recording = { id: 'rec-priv-4', path: '/tmp/rec-priv-4.wav', durationMs: 3000, mimeType: 'audio/wav' }
   const { orchestrator, history, overlay, privacy } = makeOrchestrator({
-    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
-    transcriber: new FakeTranscriber({ delayMs: 30 })
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) })
   })
 
   privacy.enabled = true
   orchestrator.begin()
-  // The overlay decoration rides the snapshot: it was set at begin() and is
-  // not flipped by the live switch afterwards.
   expectEqual(overlay.privateFlags.at(-1), true)
-  // The run was snapshotted as private, so turning it off mid-processing
-  // cannot retroactively retain it — nor redecorate the overlay.
   privacy.enabled = false
   await orchestrator.end()
 

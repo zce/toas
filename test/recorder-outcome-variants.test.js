@@ -1,10 +1,8 @@
 import {
   RecorderOutcomeKind,
-  recordingOutcomeOk,
-  recordingOutcomeShortTap,
   recordingOutcomeSizeLimit,
   recordingOutcomeCancelled
-} from '../lib/recorder-outcome.js'
+} from '../host/audio.js'
 import { test, expectEqual, run } from './harness.js'
 
 test('size limit outcome carries a valid capped recording', () => {

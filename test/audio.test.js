@@ -1,6 +1,6 @@
 // AudioRecorder parameterization check: the configured sample rate flows
 // into capture sizing. Pure GJS + GLib; no recording is started.
-import { AudioRecorder } from '../lib/audio.js'
+import { AudioRecorder, recordingIdForNow } from '../host/audio.js'
 import { test, expectEqual, run } from './harness.js'
 
 test('recorder defaults to the standard capture rate', () => {
@@ -21,6 +21,24 @@ test('high quality preset uses 48 kHz capture sizing', () => {
 
 test('zero or invalid rate falls back to standard', () => {
   expectEqual(new AudioRecorder('/tmp/x', null, null, 0)._sampleRate, 16000)
+})
+
+test('recording ids are UTC timestamp file names', () => {
+  const id = recordingIdForNow()
+  // Compact ISO 8601 with milliseconds: 20260905T132500123.
+  expectEqual(/^\d{8}T\d{6}\d{3}$/.test(id), true)
+  expectEqual(id.length, 18)
+})
+
+test('ids differ across different milliseconds', () => {
+  const a = recordingIdForNow()
+  // Recording starts are serial and always many milliseconds apart; the
+  // guarantee is one id per millisecond, not per call. Advance past the
+  // current millisecond so the second id is a genuinely different moment.
+  const t = Date.now()
+  while (Date.now() <= t) { /* spin to the next millisecond */ }
+  const b = recordingIdForNow()
+  expectEqual(a === b, false)
 })
 
 await run()

@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 12 — 2026-09-05
+
+- Replaced the fixed transcription/refinement pipeline with a provider-neutral processing kernel: Qwen (recommended), MiMo, and OpenAI providers, cross-provider refine combinations, and shared per-provider credentials.
+- Added optional separate Refine with configurable instructions and fallback/abort failure behavior. Refine is configured inside the Voice Processing group and shares per-provider credentials with primary processing.
+- Added Context: free text the user composes (terms, background, names), sent verbatim to providers that support it. No automatic desktop, editor, clipboard, or file inspection.
+- Preferences, connection tests, and history were rebuilt on the new architecture; history now stores final text and a per-call Trace. Context settings appear only when an active role consumes them.
+
 ## Version 11 — 2026-09-03
 
 - Added session-only **Private mode** for new voice inputs.

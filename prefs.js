@@ -3,20 +3,39 @@ import Gdk from 'gi://Gdk'
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk'
-import Soup from 'gi://Soup?version=3.0'
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
-import { resolveRefineConfig, resolveSampleRate, resolveTranscriptionConfig } from './lib/effective-config.js'
 
-// Inline shortcut capture, modeled on Clipboard Indicator: a frameless button
-// enters capture mode via Gtk.EventControllerKey; Escape cancels, Backspace
-// disables, any other combination is normalized and saved.
-function buildShortcutButton (settings) {
-  const button = new Gtk.Button({ has_frame: false })
+import {
+  ConfigService,
+  providerIdsFor,
+  readProcessingConfig,
+  runConnectionTest,
+  writeProcessingConfig
+} from './host/config.js'
+import { providers as providerRegistry } from './kernel/providers/registry.js'
+import { secretKey, prepareResolveInput } from './kernel/process.js'
 
-  const setLabelFromSettings = () => {
-    const value = settings.get_strv('push-to-talk')[0]
-    button.set_label(value || 'Disabled')
+const REFINE_ON_ERROR_VALUES = ['fallback', 'abort']
+
+function buildShortcutControl (settings) {
+  const label = new Adw.ShortcutLabel({
+    disabled_text: 'Disabled'
+  })
+  const button = new Gtk.Button({
+    valign: Gtk.Align.CENTER,
+    child: label
+  })
+  button.add_css_class('flat')
+
+  const showShortcut = () => {
+    label.accelerator = settings.get_strv('push-to-talk')[0] || ''
+    label.disabled_text = 'Disabled'
+  }
+
+  const showPrompt = text => {
+    label.accelerator = ''
+    label.disabled_text = text
   }
 
   let editing = false
@@ -33,7 +52,7 @@ function buildShortcutButton (settings) {
       GLib.source_remove(debounceId)
       debounceId = 0
     }
-    setLabelFromSettings()
+    showShortcut()
   }
 
   button.connect('clicked', () => {
@@ -43,7 +62,7 @@ function buildShortcutButton (settings) {
     }
 
     editing = true
-    button.set_label('Press a key combination…')
+    showPrompt('Press shortcut…')
 
     controller = new Gtk.EventControllerKey()
     button.add_controller(controller)
@@ -68,7 +87,6 @@ function buildShortcutButton (settings) {
         }
       }
 
-      // Bare modifier presses are not valid accelerators.
       const bareModifiers = [
         Gdk.KEY_Shift_L, Gdk.KEY_Shift_R,
         Gdk.KEY_Control_L, Gdk.KEY_Control_R,
@@ -77,18 +95,19 @@ function buildShortcutButton (settings) {
         Gdk.KEY_Meta_L, Gdk.KEY_Meta_R
       ]
       if (bareModifiers.includes(keyval)) {
-        button.set_label('Add a regular key to the modifier…')
+        showPrompt('Add a key…')
         return Gdk.EVENT_STOP
       }
 
       const accelerator = Gtk.accelerator_name_with_keycode(null, keyval, keycode, mask)
       if (!accelerator || !Gtk.accelerator_valid(keyval, mask)) {
-        button.set_label('That combination cannot be used…')
+        showPrompt('Invalid shortcut')
         return Gdk.EVENT_STOP
       }
-      button.set_label(accelerator)
 
-      // Small debounce so modifier taps settle before saving.
+      label.accelerator = accelerator
+      label.disabled_text = ''
+
       debounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
         debounceId = 0
         settings.set_strv('push-to-talk', [accelerator])
@@ -100,7 +119,7 @@ function buildShortcutButton (settings) {
     })
   })
 
-  setLabelFromSettings()
+  showShortcut()
   return button
 }
 
@@ -108,556 +127,616 @@ export default class ToasPreferences extends ExtensionPreferences {
   fillPreferencesWindow (window) {
     const settings = this.getSettings()
 
+    loadPrefsCss(this.path)
+    window.search_enabled = false
+
     const page = new Adw.PreferencesPage({
       title: 'toas',
       icon_name: 'audio-input-microphone-symbolic'
     })
 
+    // --- Voice Input ---------------------------------------------------------
+
     const inputGroup = new Adw.PreferencesGroup({
-      title: 'Push-to-Talk',
-      description: 'Hold the shortcut, speak, then release the modifiers to finish.'
+      title: 'Voice Input',
+      description: 'Hold the shortcut to record, then release to process.'
     })
 
-    const shortcutRow = new Adw.ActionRow({
-      title: 'Shortcut',
-      subtitle: 'Click the button, then press the combination. Escape cancels; Backspace clears.'
+    const shortcutControl = buildShortcutControl(settings)
+    const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' })
+    shortcutRow.add_suffix(shortcutControl)
+    shortcutRow.activatable_widget = shortcutControl
+
+    const autoInsert = new Adw.SwitchRow({
+      title: 'Insert automatically',
+      subtitle: 'Insert the result into the focused app; otherwise copy it to the clipboard.'
     })
-    shortcutRow.add_suffix(buildShortcutButton(settings))
+    settings.bind('auto-paste', autoInsert, 'active', Gio.SettingsBindFlags.DEFAULT)
 
     const restoreClipboard = new Adw.SwitchRow({
-      title: 'Restore text clipboard',
-      subtitle: 'Restore the previous clipboard text after auto-paste.'
+      title: 'Restore clipboard',
+      subtitle: 'Restore the previous clipboard text after insertion.'
     })
-    settings.bind(
-      'restore-clipboard',
-      restoreClipboard,
-      'active',
-      Gio.SettingsBindFlags.DEFAULT
-    )
-
-    const autoPaste = new Adw.SwitchRow({
-      title: 'Paste automatically',
-      subtitle: 'Paste the result into the focused application. Off copies it to the clipboard only, so you paste it yourself.'
-    })
-    settings.bind(
-      'auto-paste',
-      autoPaste,
-      'active',
-      Gio.SettingsBindFlags.DEFAULT
-    )
+    settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
+    settings.bind('auto-paste', restoreClipboard, 'visible', Gio.SettingsBindFlags.GET)
 
     inputGroup.add(shortcutRow)
-    inputGroup.add(autoPaste)
+    inputGroup.add(autoInsert)
     inputGroup.add(restoreClipboard)
 
-    const recordingGroup = new Adw.PreferencesGroup({
-      title: 'Recording',
-      description: 'Capture format for new recordings. Existing history keeps its format.'
+    // --- Processing ----------------------------------------------------------
+
+    const processingGroup = new Adw.PreferencesGroup({
+      title: 'Processing',
+      description: 'Audio is sent to the selected provider after recording.'
     })
 
-    const qualityModel = Gtk.StringList.new([
-      'Standard · 16 kHz',
-      'Balanced · 24 kHz',
-      'High · 48 kHz'
-    ])
-    const qualityValues = [0, 2, 1]
-    const qualitySelector = new Gtk.DropDown({
-      model: qualityModel,
-      valign: Gtk.Align.CENTER,
-      width_request: 190
-    })
-    qualitySelector.selected = Math.max(
-      0,
-      qualityValues.indexOf(settings.get_enum('audio-quality'))
-    )
+    const processingConfig = readProcessingConfig(settings, providerRegistry)
+    const saveProcessingConfig = () => writeProcessingConfig(settings, processingConfig)
+    const providerLabel = id => providerRegistry.get(id)?.manifest?.label ?? id
+    const primaryProviderIds = providerIdsFor(providerRegistry, 'audio')
+    const refineProviderIds = providerIdsFor(providerRegistry, 'text', true)
+    const primaryProviderId = () => primaryProviderIds[providerRow.selected] ?? primaryProviderIds[0]
+    const refineProviderId = () => refineProviderIds[refineProviderRow.selected] ?? refineProviderIds[0]
 
-    const qualityRow = new Adw.ActionRow({
-      title: 'Audio quality',
-      subtitle: 'Standard: ~13 min cap · Balanced: ~9 min · High: ~4 min.'
-    })
-    qualityRow.add_suffix(qualitySelector)
-    qualitySelector.connect('notify::selected', () => {
-      settings.set_enum(
-        'audio-quality',
-        qualityValues[qualitySelector.selected] ?? 0
-      )
+    const providerRow = new Adw.ComboRow({
+      title: 'Transcription provider',
+      model: Gtk.StringList.new(primaryProviderIds.map(providerLabel)),
+      selected: Math.max(0, primaryProviderIds.indexOf(processingConfig.primary.provider))
     })
 
-    recordingGroup.add(qualityRow)
-
-    const historyGroup = new Adw.PreferencesGroup({
-      title: 'History',
-      description: 'Your words and some recordings are kept on this device. Manage them from the top-bar menu.'
-    })
-    const historyLimit = new Adw.SpinRow({
-      title: 'History items to keep',
-      subtitle: 'Keeps this many recent items.',
-      adjustment: new Gtk.Adjustment({
-        lower: 1,
-        upper: 1000,
-        step_increment: 1,
-        page_increment: 10,
-        value: settings.get_uint('history-limit')
-      }),
-      digits: 0,
-      numeric: true
-    })
-    historyLimit.connect('notify::value', () => {
-      settings.set_uint('history-limit', Math.round(historyLimit.value))
-    })
-    const recordingsLimit = new Adw.SpinRow({
-      title: 'Recordings to keep',
-      subtitle: 'Keeps the audio file for this many recent items. Older items keep their text but lose the recording.',
-      adjustment: new Gtk.Adjustment({
-        lower: 1,
-        upper: 1000,
-        step_increment: 1,
-        page_increment: 10,
-        value: settings.get_uint('recording-limit')
-      }),
-      digits: 0,
-      numeric: true
-    })
-    recordingsLimit.connect('notify::value', () => {
-      settings.set_uint(
-        'recording-limit',
-        Math.round(recordingsLimit.value)
-      )
-    })
-    historyGroup.add(historyLimit)
-    historyGroup.add(recordingsLimit)
-
-    const transcriptionGroup = new Adw.PreferencesGroup({
-      title: 'Transcription',
-      description: 'Your recording is sent to this service to be turned into text.'
-    })
-    transcriptionGroup.add(entry(
+    const primaryFields = dynamicFieldRows({
       settings,
-      'transcription-endpoint',
-      'Service endpoint'
-    ))
-    transcriptionGroup.add(entry(settings, 'transcription-model', 'Model'))
-    transcriptionGroup.add(entry(
-      settings,
-      'transcription-language',
-      'Language',
-      'Optional language code, for example en or zh. Leave empty for automatic detection.'
-    ))
-    transcriptionGroup.add(passwordEntry(
-      settings,
-      'transcription-api-key',
-      'API key',
-      'Also read from TOAS_TRANSCRIPTION_API_KEY when left empty.'
-    ))
+      providers: providerRegistry,
+      providerIds: primaryProviderIds,
+      providerId: primaryProviderId,
+      input: 'audio',
+      config: processingConfig,
+      save: saveProcessingConfig,
+      selection: processingConfig.primary
+    })
 
-    const testRow = buildTestConnectionRow(settings)
-    transcriptionGroup.add(testRow.row)
+    const primaryTestRow = buildConnectionRow({ settings, role: 'primary' })
 
-    const refineGroup = new Adw.PreferencesGroup({
+    const refineProviderRow = new Adw.ComboRow({
+      title: 'Provider',
+      model: Gtk.StringList.new(refineProviderIds.map(providerLabel)),
+      selected: Math.max(0, refineProviderIds.indexOf(processingConfig.refine.provider))
+    })
+
+    const refineFields = dynamicFieldRows({
+      settings,
+      providers: providerRegistry,
+      providerIds: refineProviderIds,
+      providerId: refineProviderId,
+      input: 'text',
+      config: processingConfig,
+      save: saveProcessingConfig,
+      selection: processingConfig.refine
+    })
+
+    const instructionsRow = textAreaValueRow('Instructions', {
+      text: processingConfig.refine.instructions,
+      onChanged: text => {
+        processingConfig.refine.instructions = text
+        saveProcessingConfig()
+      },
+      minHeight: 120,
+      maxHeight: 260
+    })
+
+    const refineOnErrorRow = new Adw.ComboRow({
+      title: 'On refine failure',
+      model: Gtk.StringList.new(['Use transcription', 'Fail voice input']),
+      selected: Math.max(0, REFINE_ON_ERROR_VALUES.indexOf(processingConfig.refine.onError))
+    })
+
+    const refineTestRow = buildConnectionRow({ settings, role: 'refine' })
+
+    const refineExpander = new Adw.ExpanderRow({
       title: 'Refine',
-      description: 'Cleans up the raw transcript before it is inserted. If it fails, the raw transcript is used.'
+      subtitle: 'Improve the transcript with additional instructions.',
+      show_enable_switch: true,
+      enable_expansion: processingConfig.refine.enabled
     })
 
-    const refineEnabled = new Adw.SwitchRow({
-      title: 'Enable Refine',
-      subtitle: 'Disable for literal dictation.'
+    refineExpander.add_row(refineProviderRow)
+    refineFields.selectionRows.forEach(row => refineExpander.add_row(row))
+    refineFields.providerRows.forEach(row => refineExpander.add_row(row))
+    refineExpander.add_row(instructionsRow)
+    refineExpander.add_row(refineOnErrorRow)
+    refineExpander.add_row(refineTestRow.row)
+
+    const advancedExpander = new Adw.ExpanderRow({ title: 'Advanced' })
+    primaryFields.advancedRows.forEach(row => advancedExpander.add_row(row))
+    refineFields.advancedRows.forEach(row => advancedExpander.add_row(row))
+
+    const refineWarning = new Adw.Banner({ title: '' })
+
+    // Context is product-owned free text and only appears when an active
+    // selection can consume it. The group already labels the field, so this
+    // uses the standalone multiline variant without an internal caption.
+    const contextGroup = new Adw.PreferencesGroup({
+      title: 'Context',
+      description: 'Names, terms, and background sent to providers that support context.'
     })
-    settings.bind(
-      'refine-enabled',
-      refineEnabled,
-      'active',
-      Gio.SettingsBindFlags.DEFAULT
-    )
-
-    const refineWarning = new Adw.ActionRow({ title: 'Refine is not active' })
-    refineWarning.add_css_class('warning')
-    refineGroup.add(refineEnabled)
-    refineGroup.add(refineWarning)
-    const refineEndpoint = entry(
-      settings,
-      'refine-endpoint',
-      'Service endpoint',
-      'Example: https://example.com/v1/chat/completions'
-    )
-    const refineModel = entry(settings, 'refine-model', 'Model')
-    const refineApiKey = passwordEntry(
-      settings,
-      'refine-api-key',
-      'API key',
-      'Also read from TOAS_REFINE_API_KEY, then OPENAI_API_KEY, when left empty.'
-    )
-    const refineTestRow = buildRefineTestConnectionRow(settings)
-    const refineDetails = [
-      refineEndpoint,
-      refineModel,
-      refineApiKey,
-      refineTestRow.row
-    ]
-    refineDetails.forEach(row => refineGroup.add(row))
-    const refinePromptGroup = new Adw.PreferencesGroup({
-      title: 'Refine Instructions',
-      description: 'Tell the model how to edit your transcript. Paragraphs, lists, and code formatting are kept when pasted.'
+    const contextRow = textAreaRow(settings, 'context', {
+      minHeight: 140,
+      maxHeight: 260
     })
-    refinePromptGroup.add(textArea(
-      settings,
-      'refine-system-prompt'
-    ))
+    contextGroup.add(contextRow)
 
-    const securityGroup = new Adw.PreferencesGroup({
-      title: 'Security',
-      description: 'Keys entered here are stored in plain text by your system settings. To keep keys out of that storage, leave the fields empty and set the environment variables before logging in.'
-    })
+    const applyContextVisibility = () => {
+      let used = resolvedCapabilities(processingConfig.primary, processingConfig, providerRegistry)?.context
+      if (refineExpander.enable_expansion) {
+        used = used || resolvedCapabilities(processingConfig.refine, processingConfig, providerRegistry)?.context
+      }
+      contextGroup.visible = Boolean(used)
+    }
 
-    const updateRefineState = () => {
-      const refine = resolveRefineConfig(settings)
-      refineDetails.forEach(row => { row.visible = refine.enabled })
-      refinePromptGroup.visible = refine.enabled
-
+    const applyRefineWarning = () => {
+      const model = String(processingConfig.refine.values.model || '').trim()
       const missing = []
-      if (!refine.model.value) { missing.push('a model') }
-      if (!refine.apiKey.present) { missing.push('an API key') }
+      if (!model) { missing.push('a model') }
+      if (!refineFields.secretsPresent()) {
+        missing.push(`${providerLabel(refineProviderId())} API key`)
+      }
 
-      if (refine.enabled && missing.length > 0) {
-        refineWarning.visible = true
-        refineWarning.subtitle =
-                `Missing ${missing.join(' and ')}. Until then recordings keep the ` +
-                'raw transcript without polishing.'
-      } else {
-        refineWarning.visible = false
+      refineWarning.revealed = refineExpander.enable_expansion && missing.length > 0
+      if (refineWarning.revealed) {
+        refineWarning.title = `Refine needs ${missing.join(' and ')}`
       }
     }
 
-    const settingsChangedId = settings.connect('changed', updateRefineState)
-    refineEnabled.connect('notify::active', updateRefineState)
-    updateRefineState()
-    window.connect('destroy', () => {
-      settings.disconnect(settingsChangedId)
+    const syncProcessingVisibility = () => {
+      // Provider configuration is shared by provider id. If transcription and
+      // Refine use the same service, show endpoint/key once instead of making
+      // the product architecture look duplicated to the user.
+      refineFields.setProviderFieldsVisible(
+        refineExpander.enable_expansion && refineProviderId() !== primaryProviderId()
+      )
+      advancedExpander.visible =
+        primaryFields.hasVisibleAdvanced() || refineFields.hasVisibleAdvanced()
+    }
+
+    providerRow.connect('notify::selected', () => {
+      const nextId = primaryProviderId()
+      processingConfig.primary.provider = nextId
+      processingConfig.primary.values = { ...(providerRegistry.get(nextId)?.manifest?.defaults?.audio || {}) }
+      saveProcessingConfig()
+      primaryFields.refresh()
+      primaryTestRow.resetStatus()
+      syncProcessingVisibility()
+      applyContextVisibility()
+      applyRefineWarning()
     })
 
+    refineProviderRow.connect('notify::selected', () => {
+      const nextId = refineProviderId()
+      processingConfig.refine.provider = nextId
+      processingConfig.refine.values = { ...(providerRegistry.get(nextId)?.manifest?.defaults?.text || {}) }
+      saveProcessingConfig()
+      refineFields.refresh()
+      refineTestRow.resetStatus()
+      syncProcessingVisibility()
+      applyContextVisibility()
+      applyRefineWarning()
+    })
+
+    refineOnErrorRow.connect('notify::selected', () => {
+      processingConfig.refine.onError =
+        REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
+      saveProcessingConfig()
+    })
+
+    refineExpander.connect('notify::enable-expansion', () => {
+      processingConfig.refine.enabled = refineExpander.enable_expansion
+      saveProcessingConfig()
+      syncProcessingVisibility()
+      applyContextVisibility()
+      applyRefineWarning()
+    })
+
+    primaryFields.onChange(() => {
+      applyContextVisibility()
+      applyRefineWarning()
+    })
+    refineFields.onChange(() => {
+      applyContextVisibility()
+      applyRefineWarning()
+    })
+
+    processingGroup.add(providerRow)
+    primaryFields.selectionRows.forEach(row => processingGroup.add(row))
+    primaryFields.providerRows.forEach(row => processingGroup.add(row))
+    processingGroup.add(primaryTestRow.row)
+    processingGroup.add(refineExpander)
+    processingGroup.add(advancedExpander)
+    processingGroup.add(refineWarning)
+
+    const securityNote = new Gtk.Label({
+      label: 'API keys entered here are stored as plain text in GNOME settings. Environment variables can be used instead.',
+      xalign: 0,
+      wrap: true
+    })
+    securityNote.add_css_class('caption')
+    securityNote.add_css_class('dimmed')
+    securityNote.add_css_class('toas-group-note')
+    processingGroup.add(securityNote)
+
+    // --- Recording & History -------------------------------------------------
+
+    const localGroup = new Adw.PreferencesGroup({
+      title: 'Recording & History',
+      description: 'Recording quality and local retention.'
+    })
+
+    const qualityValues = ['minimum', 'low', 'standard', 'high', 'maximum']
+    const qualityRow = new Adw.ComboRow({
+      title: 'Audio quality',
+      model: Gtk.StringList.new([
+        'Minimum · 8 kHz · ~26 min',
+        'Low · 12 kHz · ~17 min',
+        'Standard · 16 kHz · ~13 min',
+        'High · 24 kHz · ~9 min',
+        'Maximum · 48 kHz · ~4 min'
+      ]),
+      selected: Math.max(0, qualityValues.indexOf(settings.get_string('audio-quality')))
+    })
+    qualityRow.connect('notify::selected', () => {
+      settings.set_string('audio-quality', qualityValues[qualityRow.selected] ?? 'standard')
+    })
+
+    localGroup.add(qualityRow)
+    localGroup.add(spinRow(settings, 'history-limit', 'History entries', 1, 1000))
+    localGroup.add(spinRow(settings, 'recording-limit', 'Saved recordings', 1, 1000))
+
     page.add(inputGroup)
-    page.add(recordingGroup)
-    page.add(historyGroup)
-    page.add(transcriptionGroup)
-    page.add(refineGroup)
-    page.add(refinePromptGroup)
-    page.add(securityGroup)
+    page.add(processingGroup)
+    page.add(contextGroup)
+    page.add(localGroup)
     window.add(page)
+
+    syncProcessingVisibility()
+    applyContextVisibility()
+    applyRefineWarning()
   }
 }
 
-function entry (settings, key, title, tooltip = '') {
-  const row = new Adw.EntryRow({
-    title,
-    text: settings.get_string(key)
-  })
+// Build rows from Provider manifests while keeping product UI concerns out of
+// Providers. Selection fields and shared Provider fields are returned
+// separately so Preferences can present them according to the user's task.
+function dynamicFieldRows ({ settings, providers, providerIds, providerId, input, config, save, selection }) {
+  const changed = []
+  const controls = []
+  let refreshing = false
+  let providerFieldsVisible = true
 
-  if (tooltip) { row.set_tooltip_text(tooltip) }
+  const emitChanged = () => changed.forEach(handler => handler())
+  const appliesToInput = field =>
+    field.inputs === undefined || field.inputs.includes(input)
 
-  row.connect('changed', () => {
-    settings.set_string(key, row.text)
-  })
+  for (const id of providerIds) {
+    const provider = providers.get(id)
+    if (!provider) { continue }
 
+    for (const field of provider.manifest.fields || []) {
+      if (field.type === 'secret') {
+        const control = secretRow({
+          settings,
+          providerId: id,
+          fieldKey: field.key,
+          title: field.label
+        })
+        control.onChange(emitChanged)
+        controls.push({
+          id,
+          field,
+          scope: 'provider',
+          advanced: false,
+          kind: 'secret',
+          row: control.row,
+          control
+        })
+        continue
+      }
+
+      const advanced = field.type === 'url' && Object.hasOwn(field, 'default')
+      const row = new Adw.EntryRow({
+        title: advanced ? `${provider.manifest.label} ${field.label}` : field.label
+      })
+      row.connect('changed', () => {
+        if (refreshing || providerId() !== id) { return }
+        const target = (config.providers[id] ??= {})
+        target[field.key] = row.get_text()
+        save()
+        emitChanged()
+      })
+      controls.push({ id, field, scope: 'provider', advanced, kind: 'value', row })
+    }
+
+    for (const field of (provider.manifest.selectionFields || []).filter(appliesToInput)) {
+      const control = selectionFieldControl(field, value => {
+        if (refreshing || providerId() !== id) { return }
+        selection.values[field.key] = value
+        save()
+        emitChanged()
+      })
+      controls.push({ id, field, scope: 'selection', advanced: false, kind: 'selection', ...control })
+    }
+  }
+
+  const refresh = () => {
+    refreshing = true
+    const currentId = providerId()
+    const providerValues = config.providers[currentId] || {}
+
+    for (const item of controls) {
+      item.row.visible = item.id === currentId &&
+        (item.scope === 'selection' || providerFieldsVisible)
+
+      if (item.id !== currentId) { continue }
+
+      if (item.kind === 'value') {
+        const target = item.scope === 'provider' ? providerValues : selection.values
+        const value = target[item.field.key] ?? item.field.default ?? ''
+        if (item.row.get_text() !== String(value)) {
+          item.row.set_text(String(value))
+        }
+      } else if (item.kind === 'selection') {
+        const value = selection.values[item.field.key] ?? item.field.default ?? ''
+        item.setValue(String(value))
+      }
+    }
+    refreshing = false
+  }
+
+  const selectionRows = controls
+    .filter(item => item.scope === 'selection')
+    .map(item => item.row)
+  const providerRows = controls
+    .filter(item => item.scope === 'provider' && !item.advanced)
+    .map(item => item.row)
+  const advancedRows = controls
+    .filter(item => item.advanced)
+    .map(item => item.row)
+
+  refresh()
+
+  return {
+    selectionRows,
+    providerRows,
+    advancedRows,
+    refresh,
+    setProviderFieldsVisible: visible => {
+      providerFieldsVisible = visible
+      refresh()
+    },
+    hasVisibleAdvanced: () => advancedRows.some(row => row.visible),
+    secretsPresent: () => controls
+      .filter(item => item.id === providerId() && item.kind === 'secret')
+      .every(item => item.control.hasValue()),
+    onChange: handler => changed.push(handler)
+  }
+}
+
+function selectionFieldControl (field, onChanged) {
+  if (Array.isArray(field.choices) && field.choices.length > 0) {
+    const row = new Adw.ComboRow({
+      title: field.label,
+      model: Gtk.StringList.new(field.choices.map(choice => choice.label ?? choice.value))
+    })
+    row.connect('notify::selected', () => {
+      const choice = field.choices[row.selected]
+      if (choice) { onChanged(String(choice.value)) }
+    })
+    return {
+      row,
+      setValue: value => {
+        const index = field.choices.findIndex(choice => String(choice.value) === value)
+        row.selected = Math.max(0, index)
+      }
+    }
+  }
+
+  const row = new Adw.EntryRow({ title: field.label })
+  row.connect('changed', () => onChanged(row.get_text()))
+  return {
+    row,
+    setValue: value => {
+      if (row.get_text() !== value) { row.set_text(value) }
+    }
+  }
+}
+
+// Capabilities depend on the resolved selection, not credentials. Providers
+// report them alongside credential issues, so this probe needs no secrets.
+function resolvedCapabilities (selection, config, providers) {
+  const provider = providers.get(selection.provider)
+  const { providerValues } = prepareResolveInput(
+    provider.manifest.fields || [],
+    selection.provider,
+    config.providers[selection.provider] || {}
+  )
+  return provider.resolve({ providerValues, values: selection.values, secretPresence: {} }).capabilities
+}
+
+function textAreaValueRow (title, { text = '', onChanged, minHeight = 92, maxHeight = 200 } = {}) {
+  const { row, buffer } = buildTextAreaRow({ title, minHeight, maxHeight })
+  buffer.set_text(text, -1)
+  buffer.connect('changed', () => onChanged(buffer.text))
   return row
 }
 
-// "Test connection" row: sends one tiny generated-WAV request through the same
-// effective configuration as production and reports the outcome inline.
-Gio._promisify(
-  Soup.Session.prototype,
-  'send_and_read_async',
-  'send_and_read_finish'
-)
+function textAreaRow (settings, key, { defaultText = '', minHeight = 92, maxHeight = 180 } = {}) {
+  const { row, buffer } = buildTextAreaRow({ minHeight, maxHeight })
+  const stored = settings.get_string(key)
+  buffer.set_text(stored || defaultText, -1)
+  settings.bind(key, buffer, 'text', Gio.SettingsBindFlags.DEFAULT)
+  return row
+}
 
-function buildTestConnectionRow (settings) {
-  const button = new Gtk.Button({ valign: Gtk.Align.CENTER })
-  button.set_label('Test connection')
+// Two visual forms share one editor implementation: embedded rows carry a
+// compact field caption, while standalone rows rely on their surrounding
+// PreferencesGroup for identity and render as a pure text area.
+function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
+  const row = new Adw.PreferencesRow({
+    activatable: false,
+    selectable: false
+  })
+  row.add_css_class('toas-multiline-row')
+  if (!title) { row.add_css_class('toas-multiline-standalone') }
 
-  const description = 'Sends a short silent sample to check endpoint, key, and model.'
+  const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })
+  row.set_child(box)
+
+  if (title) {
+    const caption = new Gtk.Label({
+      label: title,
+      xalign: 0
+    })
+    caption.add_css_class('toas-multiline-caption')
+    box.append(caption)
+  }
+
+  const buffer = new Gtk.TextBuffer()
+  const view = new Gtk.TextView({
+    buffer,
+    wrap_mode: Gtk.WrapMode.WORD_CHAR,
+    accepts_tab: false,
+    hexpand: true
+  })
+
+  const scrolled = new Gtk.ScrolledWindow({
+    hscrollbar_policy: Gtk.PolicyType.NEVER,
+    vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+    min_content_height: minHeight,
+    max_content_height: maxHeight,
+    propagate_natural_height: true,
+    child: view
+  })
+  box.append(scrolled)
+
+  return { row, buffer }
+}
+
+function loadPrefsCss (path) {
+  const provider = new Gtk.CssProvider()
+  provider.load_from_path(`${path}/prefs.css`)
+  Gtk.StyleContext.add_provider_for_display(
+    Gdk.Display.get_default(),
+    provider,
+    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+  )
+}
+
+function spinRow (settings, key, title, lower, upper) {
+  const row = new Adw.SpinRow({
+    title,
+    adjustment: new Gtk.Adjustment({
+      lower,
+      upper,
+      step_increment: 1,
+      page_increment: 10,
+      value: settings.get_uint(key)
+    }),
+    digits: 0,
+    numeric: true
+  })
+  row.connect('notify::value', () => {
+    settings.set_uint(key, Math.round(row.value))
+  })
+  return row
+}
+
+// Secrets are stored only in provider-secrets. Empty means the Provider can
+// fall back to its declared environment variables; environment values are
+// never copied into the UI.
+function secretRow ({ settings, providerId, fieldKey, title }) {
+  const entry = new Adw.PasswordEntryRow({ title })
+  const envIcon = new Gtk.Image({
+    icon_name: 'emblem-ok-symbolic',
+    tooltip_text: 'Using an environment variable'
+  })
+  entry.add_suffix(envIcon)
+
+  const changeHandlers = []
+
+  const readStored = () => {
+    const map = settings.get_value('provider-secrets').deep_unpack()
+    return map[secretKey(providerId, fieldKey)] ?? ''
+  }
+
+  const updateEnvIndicator = () => {
+    envIcon.visible = !readStored() && envFallbackPresent(providerId, fieldKey)
+  }
+
+  const writeStored = value => {
+    const map = settings.get_value('provider-secrets').deep_unpack()
+    const key = secretKey(providerId, fieldKey)
+    if (value) { map[key] = value } else { delete map[key] }
+    settings.set_value('provider-secrets', new GLib.Variant('a{ss}', map))
+    updateEnvIndicator()
+    changeHandlers.forEach(handler => handler())
+  }
+
+  entry.text = readStored()
+  updateEnvIndicator()
+
+  entry.connect('changed', () => {
+    writeStored(entry.get_text().trim())
+  })
+
+  return {
+    row: entry,
+    hasValue: () => Boolean(readStored() || envFallbackPresent(providerId, fieldKey)),
+    onChange: handler => changeHandlers.push(handler)
+  }
+}
+
+function envFallbackPresent (providerId, fieldKey) {
+  const provider = providerRegistry.get(providerId)
+  const field = (provider?.manifest?.fields ?? []).find(f => f.key === fieldKey)
+  return (field?.env ?? []).some(name => Boolean(GLib.getenv(name)?.trim()))
+}
+
+function buildConnectionRow ({ settings, role }) {
+  const description = 'Verify the current settings.'
+  const button = new Gtk.Button({
+    valign: Gtk.Align.CENTER,
+    label: 'Test'
+  })
   const row = new Adw.ActionRow({
     title: 'Connection',
     subtitle: description
   })
   row.add_suffix(button)
+  row.activatable_widget = button
 
   let busy = false
-
-  const setStatus = text => {
-    row.subtitle = text || description
-  }
+  const setStatus = text => { row.subtitle = text || description }
 
   button.connect('clicked', async () => {
     if (busy) { return }
-
-    const config = resolveTranscriptionConfig(settings)
-    if (!config.ready) {
-      setStatus('Add an API key first.')
-      return
-    }
-
     busy = true
-    button.set_sensitive(false)
+    button.sensitive = false
     setStatus('Testing…')
 
     try {
-      await probeTranscriptionEndpoint(config, settings)
-      setStatus('✓ Connection works')
+      const configService = new ConfigService({ settings, providers: providerRegistry })
+      try {
+        await runConnectionTest({ configService, providers: providerRegistry, role })
+      } finally {
+        configService.destroy()
+      }
+      setStatus('Connection works')
     } catch (error) {
-      setStatus(`✗ ${describeProbeFailure(error)}`)
-    } finally {
-      busy = false
-      button.set_sensitive(true)
-    }
-  })
-
-  return { row, button }
-}
-
-function buildRefineTestConnectionRow (settings) {
-  const button = new Gtk.Button({
-    label: 'Test connection',
-    valign: Gtk.Align.CENTER
-  })
-  const description = 'Sends a short text request to check endpoint, key, and model.'
-  const row = new Adw.ActionRow({
-    title: 'Connection',
-    subtitle: description
-  })
-  row.add_suffix(button)
-
-  let busy = false
-  button.connect('clicked', async () => {
-    if (busy) { return }
-
-    const config = resolveRefineConfig(settings)
-    if (!config.model.value || !config.apiKey.present) {
-      row.subtitle = 'Add a model and API key first.'
-      return
-    }
-
-    busy = true
-    button.sensitive = false
-    row.subtitle = 'Testing…'
-    try {
-      await probeRefineEndpoint(config, settings)
-      row.subtitle = '✓ Connection works'
-    } catch (error) {
-      row.subtitle = `✗ ${describeProbeFailure(error)}`
+      setStatus(error.message ?? 'Could not reach the service')
     } finally {
       busy = false
       button.sensitive = true
     }
   })
 
-  return { row, button }
-}
-
-// One non-streaming request with a 0.25 s silent WAV payload. Success requires
-// the same assistant-message shape the production client consumes.
-async function probeTranscriptionEndpoint (config, settings) {
-  const message = Soup.Message.new('POST', config.endpoint.value)
-  message.get_request_headers().append('Authorization', `Bearer ${readTranscriptionKey(settings)}`)
-  message.set_request_body_from_bytes(
-    'application/json',
-    new GLib.Bytes(new TextEncoder().encode(JSON.stringify({
-      model: config.model.value,
-      messages: [{
-        role: 'user',
-        content: [{
-          type: 'input_audio',
-          input_audio: { data: `data:audio/wav;base64,${silenceWavBase64(resolveSampleRate(settings))}` }
-        }]
-      }],
-      asr_options: { language: config.language },
-      stream: false
-    })))
-  )
-
-  const session = new Soup.Session()
-  session.timeout = 20
-
-  const bytes = await session.send_and_read_async(
-    message,
-    GLib.PRIORITY_DEFAULT,
-    null
-  )
-
-  const status = message.get_status()
-  if (status < 200 || status >= 300) {
-    const body = new TextDecoder().decode(bytes.get_data()).slice(0, 160)
-    const error = new Error(`HTTP ${status}`)
-    error.httpStatus = status
-    error.responseBody = body
-    throw error
-  }
-
-  validateProbeResponse(message, bytes)
-}
-
-async function probeRefineEndpoint (config, settings) {
-  const message = Soup.Message.new('POST', config.endpoint.value)
-  message.get_request_headers().append(
-    'Authorization',
-    `Bearer ${readRefineKey(settings)}`
-  )
-  message.set_request_body_from_bytes(
-    'application/json',
-    new GLib.Bytes(new TextEncoder().encode(JSON.stringify({
-      model: config.model.value,
-      messages: [{ role: 'user', content: 'Reply with OK.' }],
-      stream: false
-    })))
-  )
-
-  const session = new Soup.Session()
-  session.timeout = 20
-  const bytes = await session.send_and_read_async(
-    message,
-    GLib.PRIORITY_DEFAULT,
-    null
-  )
-  validateProbeResponse(message, bytes)
-}
-
-function validateProbeResponse (message, bytes) {
-  const status = message.get_status()
-  if (status < 200 || status >= 300) {
-    const error = new Error(`HTTP ${status}`)
-    error.httpStatus = status
-    error.responseBody = new TextDecoder()
-      .decode(bytes.get_data())
-      .slice(0, 160)
-    throw error
-  }
-
-  try {
-    const parsed = JSON.parse(new TextDecoder().decode(bytes.get_data()))
-    const content = parsed?.choices?.[0]?.message?.content
-    if (typeof content !== 'string' || !content.trim()) { throw new Error() }
-  } catch {
-    const error = new Error('Response was not valid JSON')
-    error.invalidJson = true
-    throw error
-  }
-}
-
-function readTranscriptionKey (settings) {
-  const userValue = settings.get_user_value('transcription-api-key')
-    ? settings.get_string('transcription-api-key').trim()
-    : ''
-  if (userValue) { return userValue }
-
-  const envValue = GLib.getenv('TOAS_TRANSCRIPTION_API_KEY')
-  if (envValue && envValue.trim()) { return envValue.trim() }
-
-  return ''
-}
-
-function readRefineKey (settings) {
-  const userValue = settings.get_user_value('refine-api-key')
-    ? settings.get_string('refine-api-key').trim()
-    : ''
-  return userValue ||
-    GLib.getenv('TOAS_REFINE_API_KEY')?.trim() ||
-    GLib.getenv('OPENAI_API_KEY')?.trim() ||
-    ''
-}
-
-function describeProbeFailure (error) {
-  if (error?.httpStatus === 401 || error?.httpStatus === 403) {
-    return 'Key rejected — check the API key.'
-  }
-  if (error?.httpStatus === 404) {
-    return 'Endpoint or model not found — check both spellings.'
-  }
-  if (error?.httpStatus === 429) {
-    return 'Rate limited — the key works, but requests are throttled.'
-  }
-  if (error?.httpStatus) {
-    return `HTTP ${error.httpStatus} — the endpoint responded with an error.`
-  }
-  if (error?.invalidJson) {
-    return 'The endpoint did not return Chat Completions JSON.'
-  }
-  return 'Could not reach the endpoint — check the URL and connection.'
-}
-
-// 0.25 s of silence at the currently selected sample rate, mono 16-bit,
-// wrapped in a minimal WAV header. The probe uses the same format real
-// recordings will be sent in.
-function silenceWavBase64 (sampleRate) {
-  const durationSeconds = 0.25
-  const sampleCount = Math.floor(sampleRate * durationSeconds)
-  const dataBytes = sampleCount * 2
-
-  const header = new ArrayBuffer(44)
-  const view = new DataView(header)
-  const writeAscii = (offset, text) => {
-    for (let i = 0; i < text.length; i++) { view.setUint8(offset + i, text.charCodeAt(i)) }
-  }
-
-  writeAscii(0, 'RIFF')
-  view.setUint32(4, 36 + dataBytes, true)
-  writeAscii(8, 'WAVE')
-  writeAscii(12, 'fmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * 2, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
-  writeAscii(36, 'data')
-  view.setUint32(40, dataBytes, true)
-
-  const wav = new Uint8Array(44 + dataBytes)
-  wav.set(new Uint8Array(header), 0)
-  return GLib.base64_encode(wav)
-}
-
-function passwordEntry (settings, key, title, tooltip = '') {
-  const row = new Adw.PasswordEntryRow({
-    title,
-    text: settings.get_string(key)
-  })
-
-  if (tooltip) { row.set_tooltip_text(tooltip) }
-
-  row.connect('changed', () => {
-    settings.set_string(key, row.text)
-  })
-
-  return row
-}
-
-function textArea (settings, key) {
-  const textView = new Gtk.TextView({
-    wrap_mode: Gtk.WrapMode.WORD_CHAR,
-    top_margin: 12,
-    bottom_margin: 12,
-    left_margin: 18,
-    right_margin: 18,
-    hexpand: true,
-    vexpand: true
-  })
-
-  textView.add_css_class('inline')
-
-  const buffer = textView.get_buffer()
-  buffer.text = settings.get_string(key)
-
-  buffer.connect('changed', () => {
-    settings.set_string(key, buffer.text)
-  })
-
-  const scroller = new Gtk.ScrolledWindow({
-    hscrollbar_policy: Gtk.PolicyType.NEVER,
-    vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
-    min_content_height: 220,
-    max_content_height: 220,
-    child: textView
-  })
-
-  scroller.add_css_class('card')
-
-  return scroller
+  return { row, resetStatus: () => setStatus(description) }
 }

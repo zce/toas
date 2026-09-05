@@ -33,12 +33,12 @@ export class OnboardingManager {
   }
 
   // Returns true when the user was warned and preferences were opened.
-  guardUnconfigured (transcriptionReady) {
-    if (transcriptionReady) { return false }
+  guardUnconfigured (primaryReady) {
+    if (primaryReady) { return false }
 
     this._notifier.notify(
       'toas is not configured yet',
-      'Add your transcription API key in Preferences before recording.'
+      'Add your provider API key in Preferences before recording.'
     )
     this._onOpenPreferences?.()
     return true

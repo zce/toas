@@ -1,0 +1,43 @@
+/* GTK4/libadwaita styles for the extension Preferences process. */
+
+/* Multiline editors use the row as their visual surface. */
+.toas-multiline-row textview,
+.toas-multiline-row textview text,
+.toas-multiline-row scrolledwindow {
+  background: transparent;
+  border: none;
+}
+
+/* Embedded multiline labels are normal field titles. Let libadwaita provide
+   the regular foreground color and use the system accent only for focus. */
+.toas-multiline-row .toas-multiline-caption {
+  margin: 10px 12px 2px;
+}
+
+.toas-multiline-row:focus-within .toas-multiline-caption {
+  color: var(--accent-color);
+}
+
+/* Padding belongs on the TextView widget, not its internal `text` CSS node.
+   This keeps the insertion point and rendered text on the same 12px baseline
+   as the field caption and ordinary preference rows. */
+.toas-multiline-row textview {
+  padding: 4px 12px 10px;
+}
+
+/* Standalone editors do not need an internal field label, so their content
+   gets balanced vertical padding while keeping the same horizontal baseline. */
+.toas-multiline-row.toas-multiline-standalone textview {
+  padding: 10px 12px;
+}
+
+/* Small preference editors do not need GTK's scroll-edge shadows. */
+.toas-multiline-row scrolledwindow undershoot,
+.toas-multiline-row scrolledwindow overshoot {
+  background: none;
+  box-shadow: none;
+}
+
+.toas-group-note {
+  margin: 8px 12px 0;
+}

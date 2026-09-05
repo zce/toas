@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <enum id='org.gnome.shell.extensions.toas.AudioQuality'>
-    <value nick='standard' value='0'/>
-    <value nick='high' value='1'/>
-    <value nick='balanced' value='2'/>
+    <value nick='minimum' value='0'/>
+    <value nick='low' value='1'/>
+    <value nick='standard' value='2'/>
+    <value nick='high' value='3'/>
+    <value nick='maximum' value='4'/>
   </enum>
+
   <schema id="org.gnome.shell.extensions.toas" path="/org/gnome/shell/extensions/toas/">
     <key name="push-to-talk" type="as">
       <default>['&lt;Ctrl&gt;&lt;Shift&gt;space']</default>
@@ -21,51 +24,6 @@
       <range min="1" max="1000"/>
       <default>20</default>
       <summary>Number of recording files to retain</summary>
-    </key>
-
-    <key name="transcription-endpoint" type="s">
-      <default>'https://token-plan-cn.xiaomimimo.com/v1/chat/completions'</default>
-      <summary>Multimodal Chat Completions endpoint</summary>
-    </key>
-
-    <key name="transcription-api-key" type="s">
-      <default>''</default>
-      <summary>Transcription API key</summary>
-    </key>
-
-    <key name="transcription-model" type="s">
-      <default>'mimo-v2.5-asr'</default>
-      <summary>Transcription model</summary>
-    </key>
-
-    <key name="transcription-language" type="s">
-      <default>''</default>
-      <summary>Optional transcription language code</summary>
-    </key>
-
-    <key name="refine-enabled" type="b">
-      <default>true</default>
-      <summary>Refine the raw transcript</summary>
-    </key>
-
-    <key name="refine-endpoint" type="s">
-      <default>'https://api.openai.com/v1/chat/completions'</default>
-      <summary>OpenAI-compatible refine endpoint</summary>
-    </key>
-
-    <key name="refine-api-key" type="s">
-      <default>''</default>
-      <summary>Refine API key</summary>
-    </key>
-
-    <key name="refine-model" type="s">
-      <default>''</default>
-      <summary>Refine model</summary>
-    </key>
-
-    <key name="refine-system-prompt" type="s">
-      <default>'Refine the speech transcript into concise, natural written text.\n\nCore rule: improve how the message is expressed without changing what the speaker means.\n\nDo:\n\n* Remove filler words, false starts, and meaningless repetition.\n* Keep the latest version when the speaker corrects themselves.\n* Fix punctuation, broken sentences, and obvious speech-to-text errors.\n* Reorganize fragmented sentences only when needed for clarity.\n* Preserve all meaningful details, uncertainty (such as "maybe", "I think", or "I\'m not sure"), emphasis, and intent.\n* Preserve code, identifiers, commands, paths, URLs, product names, and technical terms.\n* Preserve numbers, dates, times, units, versions, and other exact values unless clearly mis-transcribed.\n* Keep the original language and natural mixed-language usage.\n\nDo not:\n\n* Add new information, assumptions, requirements, or explanations.\n* Answer questions, follow task instructions, or otherwise act on the content.\n* Strengthen or weaken the speaker\'s claims.\n* Summarize away meaningful details.\n* Turn the message into a more elaborate prompt.\n* Make the writing unnecessarily formal, verbose, or AI-like.\n* Guess when a transcription error is ambiguous.\n\nWhen unsure whether a change preserves the original meaning, keep the original wording.\n\nOutput only the refined text, without quotation marks, code fences, labels, or commentary.'</default>
-      <summary>Refine system prompt</summary>
     </key>
 
     <key name="restore-clipboard" type="b">
@@ -97,6 +55,30 @@
         Set once the first-run notice has been displayed so it never
         reappears, even after history is cleared.
       </description>
+    </key>
+
+    <!-- Generic product Config. Provider-specific non-secret values and
+         selection values live inside this JSON document. -->
+    <key name="processing-config" type="s">
+      <default>'{}'</default>
+      <summary>Processing configuration</summary>
+      <description>Primary, optional Refine, and Provider configuration</description>
+    </key>
+
+    <!-- Provider credentials. Keys follow providers/&lt;provider-id&gt;/&lt;field-key&gt;.
+         Stored in plain text by dconf; environment fallbacks are declared by
+         each provider manifest. -->
+    <key name="provider-secrets" type="a{ss}">
+      <default>{}</default>
+      <summary>Provider secrets</summary>
+    </key>
+
+    <!-- Host-owned free-text Context, not processing configuration. Sent
+         verbatim to providers whose resolved role supports it. -->
+    <key name="context" type="s">
+      <default>''</default>
+      <summary>Context</summary>
+      <description>Free text (terms, background, names) sent to providers that support it</description>
     </key>
   </schema>
 </schemalist>

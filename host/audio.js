@@ -1,13 +1,73 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-import {
-  recordingOutcomeOk,
-  recordingOutcomeShortTap,
-  recordingOutcomeSizeLimit,
-  recordingOutcomeCaptureFailure,
-  recordingOutcomeCancelled
-} from './recorder-outcome.js'
+// Effective configuration resolution for audio quality. Pure data: no GI
+// dependencies in this section.
+
+// Recording quality presets. The preset chooses the capture sample rate;
+// mono s16 stays fixed. Higher rates produce larger uploads and hit the
+// recording size cap sooner (see MAX_PCM_BYTES below).
+export const AUDIO_QUALITY_PRESETS = {
+  minimum: { sampleRate: 8000 },
+  low: { sampleRate: 12000 },
+  standard: { sampleRate: 16000 },
+  high: { sampleRate: 24000 },
+  maximum: { sampleRate: 48000 }
+}
+
+// Sample rate used when the stored quality value predates the setting or is
+// otherwise unknown; matches the format every existing recording uses.
+export const DEFAULT_SAMPLE_RATE = AUDIO_QUALITY_PRESETS.standard.sampleRate
+
+export function resolveSampleRate (settings) {
+  const quality = settings.get_string?.('audio-quality') ?? 'standard'
+  const preset = AUDIO_QUALITY_PRESETS[quality] ?? AUDIO_QUALITY_PRESETS.standard
+  return preset.sampleRate
+}
+
+// Structured recorder outcomes. A recording ends for exactly one reason;
+// callers classify outcomes instead of parsing error message strings.
+
+export const RecorderOutcomeKind = {
+  OK: 'ok',
+  SHORT_TAP: 'short-tap',
+  SIZE_LIMIT: 'size-limit',
+  CAPTURE_FAILURE: 'capture-failure',
+  CANCELLED: 'cancelled'
+}
+
+export function recordingOutcomeOk (recording) {
+  return { kind: RecorderOutcomeKind.OK, recording, error: null }
+}
+
+export function recordingOutcomeShortTap (durationMs) {
+  return {
+    kind: RecorderOutcomeKind.SHORT_TAP,
+    recording: null,
+    error: null,
+    durationMs
+  }
+}
+
+export function recordingOutcomeSizeLimit (recording) {
+  return { kind: RecorderOutcomeKind.SIZE_LIMIT, recording, error: null }
+}
+
+export function recordingOutcomeCaptureFailure (error) {
+  return { kind: RecorderOutcomeKind.CAPTURE_FAILURE, recording: null, error }
+}
+
+export function recordingOutcomeCancelled () {
+  return { kind: RecorderOutcomeKind.CANCELLED, recording: null, error: null }
+}
+
+export class RecorderOutcomeError extends Error {
+  constructor (outcome) {
+    super(outcome.error?.message ?? 'Recording failed')
+    this.name = 'RecorderOutcomeError'
+    this.outcome = outcome
+  }
+}
 
 Gio._promisify(
   Gio.InputStream.prototype,
@@ -17,9 +77,21 @@ Gio._promisify(
 
 const DEFAULT_CHUNK_MS = 100
 const BYTES_PER_SAMPLE = 2
-const DEFAULT_SAMPLE_RATE = 16000
 // 24 MB of PCM16: the memory/upload safety cap, independent of quality.
 const MAX_PCM_BYTES = 24 * 1024 * 1024
+
+// Recording id: the capture start time as a UTC timestamp string. It is
+// also the file name — recordings are strictly serial, so start times never
+// collide, and a lexical sort of the directory sorts by recency. The
+// filename-safe shape is compact ISO 8601 with milliseconds:
+// YYYYMMDDTHHMMSSmmm (20260905T062638123).
+export function recordingIdForNow () {
+  const now = new Date()
+  const pad = (n, w = 2) => String(n).padStart(w, '0')
+  return `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}` +
+    `T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}` +
+    `${pad(now.getUTCMilliseconds(), 3)}`
+}
 
 export class AudioRecorder {
   constructor (recordingsDirectory, onLevel, onError, sampleRate = DEFAULT_SAMPLE_RATE) {
@@ -44,19 +116,19 @@ export class AudioRecorder {
       [
         pwRecord,
         '--raw',
-                `--rate=${this._sampleRate}`,
-                '--channels=1',
-                '--format=s16',
-                '-'
+        `--rate=${this._sampleRate}`,
+        '--channels=1',
+        '--format=s16',
+        '-'
       ],
       Gio.SubprocessFlags.STDOUT_PIPE |
-            Gio.SubprocessFlags.STDERR_SILENCE
+        Gio.SubprocessFlags.STDERR_SILENCE
     )
 
-    const id = GLib.uuid_string_random()
+    const id = recordingIdForNow()
     this._path = GLib.build_filenamev([
       this._recordingsDirectory,
-            `${id}.wav`
+      `${id}.wav`
     ])
     this._id = id
     this._limitReached = false
