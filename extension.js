@@ -71,13 +71,12 @@ export default class ToasExtension extends Extension {
         onOpenPreferences: () => this._openPreferences(),
         hasExistingHistory: () => history.readEntries().length > 0
       })
-      this._onboarding.maybeShowOnboarding()
+      this._onboarding.maybeShowOnboarding(kernelRunner.configService.primaryReady())
 
       try {
         this._confirmDialog = new ConfirmDialog({
-          title: 'Clear your words?',
-          description: 'Your words and retained recordings will be ' +
-            'permanently deleted. This cannot be undone.',
+          title: 'Clear local history?',
+          description: 'Delete saved text and recordings from this device. This cannot be undone.',
           confirmLabel: 'Clear',
           onConfirm: () => this._doClearHistory()
         })

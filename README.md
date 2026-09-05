@@ -272,8 +272,8 @@ was captured.
 
 ## History
 
-Recent voice inputs are listed directly in the top-bar menu. Expand a row to copy its text
-or retry a failed voice input whose recording is still retained.
+Recent voice inputs are listed directly in the top-bar menu. Each row has a copy action;
+failed voice inputs also offer retry while their recording is still retained.
 
 Retry reprocesses the stored recording and appends the attempt to history without pasting.
 
