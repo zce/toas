@@ -158,14 +158,14 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const providerLabel = id => providerRegistry.get(id)?.manifest?.label ?? id
     const primaryCapabilities = id =>
-      Boolean(providerRegistry.get(id)?.manifest?.processing?.capabilities?.context)
+      Boolean(providerRegistry.get(id)?.manifest?.primary?.capabilities?.context)
     const refineCapabilities = id =>
       Boolean(providerRegistry.get(id)?.manifest?.refine?.capabilities?.context)
 
     // Primary provider + model + credential, driven by the provider manifests.
     const primaryProviderId = PRIMARY_PROVIDER_VALUES[settings.get_enum('primary-provider')] ?? 'qwen'
     const primaryProvider = providerRegistry.get(primaryProviderId)
-    const primaryModelDefault = primaryProvider?.manifest?.processing?.fields
+    const primaryModelDefault = primaryProvider?.manifest?.primary?.fields
       ?.find(f => f.key === 'model')?.default ?? 'qwen3-asr-flash'
 
     const providerRow = new Adw.ComboRow({
@@ -329,7 +329,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       settings.set_enum('primary-provider', PRIMARY_PROVIDER_VALUES.indexOf(nextId))
 
       const nextProvider = providerRegistry.get(nextId)
-      const nextModel = nextProvider?.manifest?.processing?.fields
+      const nextModel = nextProvider?.manifest?.primary?.fields
         ?.find(f => f.key === 'model')?.default ?? ''
       settings.set_string('primary-model', nextModel)
       modelEntry.set_text(nextModel)

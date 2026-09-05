@@ -271,25 +271,29 @@ or credentials. See `docs/adr/0001-processing-kernel.md`.
 
 ### Qwen primary request (DashScope)
 
-The WAV recording is embedded as a Base64 Data URL in a DashScope
-multimodal-generation request. Authentication uses the standard
-`Authorization: Bearer <key>` header.
+The WAV recording is embedded as a Base64 Data URL. Authentication uses the
+standard `Authorization: Bearer <key>` header. The default model
+`qwen-audio-3.0-asr-flash` (and `fun-asr-flash-2026-06-15`) uses the
+DashScope native ASR endpoint, where Context rides as an `input_text` part
+before the audio:
 
 ```json
 {
-  "model": "qwen3-asr-flash",
+  "model": "qwen-audio-3.0-asr-flash",
   "input": {
     "messages": [
-      {"role": "system", "content": [{"text": "<your Context text, verbatim>"}]},
-      {"role": "user", "content": [{"audio": "data:audio/wav;base64,..."}]}
+      {"role": "user", "content": [{"type": "input_text", "text": "<your Context text, verbatim>"}]},
+      {"role": "user", "content": [{"type": "input_audio", "input_audio": {"data": "data:audio/wav;base64,..."}}]}
     ]
   },
-  "parameters": {"asr_options": {"enable_itn": true}}
+  "parameters": {"format": "wav"}
 }
 ```
 
-The system message is present only when Context text is configured, and
-carries your text verbatim.
+The context part is present only when Context text is configured, and
+carries your text verbatim. Versioned qwen3 models (`qwen3-asr-flash-2026-02-10`)
+instead use the OpenAI-compatible endpoint with the Context as a system
+message.
 
 ### Refine behavior
 

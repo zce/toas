@@ -54,6 +54,21 @@ function chatResponse (text, extra = {}) {
 }
 
 // DashScope response shape (qwen): output.choices[0].message.content.
+function asr3Response (text, extra = {}) {
+  return {
+    status: 200,
+    headers: {},
+    body: encodeBody({
+      request_id: 'req-asr3',
+      output: {
+        output: { sentence: { text } },
+        text
+      },
+      ...extra
+    })
+  }
+}
+
 function dashscopeResponse (text, extra = {}) {
   return {
     status: 200,
@@ -800,6 +815,99 @@ test('provider behavior is identical through an interchangeable transport', asyn
 
   expectEqual(result.text, 'same text')
   expectEqual(other.requests.length, 1)
+})
+
+// --- Qwen model/protocol routing -------------------------------------------------
+
+test('qwen audio-3.0 and fun-asr route to the asr3 endpoint and context part', async () => {
+  for (const model of ['qwen-audio-3.0-asr-flash', 'fun-asr-flash-2026-06-15']) {
+    const transport = new FakeTransport({
+      responses: [asr3Response('asr3 text')]
+    })
+    const result = await runKernel({
+      config: {
+        primary: { provider: 'qwen', endpoint: null, values: { model } },
+        refine: { enabled: false }
+      },
+      audio: AUDIO,
+      context: CONTEXT,
+      secrets: SECRETS,
+      runtime: runtimeFor(transport),
+      signal: null
+    })
+
+    expectEqual(transport.requests.length, 1)
+    expectEqual(transport.requests[0].url,
+      'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
+    const body = transport.requests[0].body
+    // Context rides as an input_text part before the audio part.
+    expectEqual(body.input.messages.length, 2)
+    expectEqual(body.input.messages[0].content[0].type, 'input_text')
+    expectEqual(body.input.messages[0].content[0].text, CONTEXT.text)
+    expectEqual(body.input.messages[1].content[0].type, 'input_audio')
+    expectEqual(body.parameters.format, 'wav')
+    expectEqual(result.text, 'asr3 text')
+  }
+})
+
+test('qwen3 versioned model routes to the compatible-mode endpoint', async () => {
+  const transport = new FakeTransport({
+    responses: [{
+      status: 200,
+      headers: {},
+      body: encodeBody({
+        choices: [{ message: { content: 'compat text' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 5 }
+      })
+    }]
+  })
+  const result = await runKernel({
+    config: {
+      primary: {
+        provider: 'qwen',
+        endpoint: null,
+        values: { model: 'qwen3-asr-flash-2026-02-10' }
+      },
+      refine: { enabled: false }
+    },
+    audio: AUDIO,
+    context: CONTEXT,
+    secrets: SECRETS,
+    runtime: runtimeFor(transport),
+    signal: null
+  })
+
+  expectEqual(transport.requests.length, 1)
+  expectEqual(transport.requests[0].url,
+    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions')
+  const body = transport.requests[0].body
+  // OpenAI-compatible shape: system context + input_audio, no input wrapper.
+  expectEqual(body.messages[0].role, 'system')
+  expectEqual(body.messages[0].content, CONTEXT.text)
+  expectEqual(body.messages[1].content[0].type, 'input_audio')
+  expectEqual(body.asr_options.enable_itn, true)
+  expectEqual(result.text, 'compat text')
+})
+
+test('unknown qwen models stay conservative and use the native endpoint', async () => {
+  const transport = new FakeTransport({ responses: [dashscopeResponse('fallback text')] })
+  const result = await runKernel({
+    config: {
+      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen-unknown-model' } },
+      refine: { enabled: false }
+    },
+    audio: AUDIO,
+    context: CONTEXT,
+    secrets: SECRETS,
+    runtime: runtimeFor(transport),
+    signal: null
+  })
+
+  expectEqual(transport.requests[0].url,
+    'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
+  // No context part: the unknown model declares no Context capability.
+  expectEqual(transport.requests[0].body.input.messages.length, 1)
+  expectEqual(result.text, 'fallback text')
 })
 
 await run()

@@ -166,6 +166,7 @@ test('every referenced lib export is imported or locally defined', () => {
     const body = source.split('\n').filter(line => !/^\s*import\b/.test(line)).join('\n')
     const code = body.split('\n')
       .filter(line => !line.trim().startsWith('//'))
+      .filter(line => !line.trim().startsWith('*'))
       .join('\n')
 
     for (const { name, definedIn } of inventory) {
@@ -174,6 +175,10 @@ test('every referenced lib export is imported or locally defined', () => {
       // example the setting key "refine-on-error") is not treated as a
       // reference to an exported symbol.
     const noStrings = code.replace(/'[^']*'|"[^"]*"|`[^`]*`/g, "''")
+      // JSDoc type references ({@link X}, @typedef, @property {?X}) name
+      // types, not runtime symbols.
+      .replace(/\{@link\s+\w+(?:\([^)]*\))?\}/g, '()')
+      .replace(/@property\s+\{[^}]*\}/g, 'x')
       // Property access (entry.error) and object literal keys are not free
       // references to an exported symbol.
       .replace(/\.\w+/g, '')

@@ -56,7 +56,7 @@ export class FakeKernel {
     return {
       text: this.text,
       trace: this.trace ?? [{
-        role: 'processing',
+        role: 'primary',
         provider: 'fake',
         model: 'fake-model',
         input: 'audio',
