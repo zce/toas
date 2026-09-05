@@ -1,5 +1,6 @@
 import Adw from 'gi://Adw'
 import Gdk from 'gi://Gdk'
+import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk'
 
@@ -134,21 +135,15 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const autoPaste = new Adw.SwitchRow({
       title: 'Paste automatically',
-      subtitle: 'Paste the result into the focused application. Off copies it to the clipboard only.',
-      active: settings.get_boolean('auto-paste')
+      subtitle: 'Paste the result into the focused application. Off copies it to the clipboard only.'
     })
-    autoPaste.connect('notify::active', () => {
-      settings.set_boolean('auto-paste', autoPaste.active)
-    })
+    settings.bind('auto-paste', autoPaste, 'active', Gio.SettingsBindFlags.DEFAULT)
 
     const restoreClipboard = new Adw.SwitchRow({
       title: 'Restore text clipboard',
-      subtitle: 'Restore the previous clipboard text after auto-paste.',
-      active: settings.get_boolean('restore-clipboard')
+      subtitle: 'Restore the previous clipboard text after auto-paste.'
     })
-    restoreClipboard.connect('notify::active', () => {
-      settings.set_boolean('restore-clipboard', restoreClipboard.active)
-    })
+    settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
 
     inputGroup.add(shortcutRow)
     inputGroup.add(autoPaste)
@@ -249,37 +244,20 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Sends a short fixed text through the same refine path as a real voice input.'
     })
 
-    const refineWarning = new Adw.ActionRow({ title: 'Refine is not active' })
-    refineWarning.add_css_class('warning')
-
-    // Refine Instructions live inside the expander: they only matter when
-    // refine is part of voice processing.
-    const instructionsBuffer = new Gtk.TextBuffer()
-    const instructionsView = new Gtk.TextView({
-      buffer: instructionsBuffer,
-      wrap_mode: Gtk.WrapMode.WORD_CHAR,
-      hexpand: true,
-      vexpand: true
-    })
-    instructionsView.add_css_class('toas-inline-text')
-    const instructionsScroller = new Gtk.ScrolledWindow({
-      hscrollbar_policy: Gtk.PolicyType.NEVER,
-      vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
-      min_content_height: 180,
-      max_content_height: 220,
-      margin_top: 6,
-      margin_bottom: 6,
-      child: instructionsView
-    })
-
-    // The schema default is the single source of the template; anything the
-    // user saved replaces it.
+    // The schema default is the single source of the instruction template;
+    // anything the user saved replaces it.
     const defaultInstructions = settings.get_default_value('refine-instructions')?.unpack?.() ?? ''
-    instructionsBuffer.connect('changed', () => {
-      const [start, end] = instructionsBuffer.get_bounds()
-      settings.set_string('refine-instructions', instructionsBuffer.get_text(start, end, false))
+
+    const refineWarning = new Adw.Banner({ title: '' })
+
+    // Refine Instructions: a PreferencesRow whose whole surface is the
+    // input, EntryRow's design language at multiline scale. The persistent
+    // compact title keeps the field identifiable once text fills the row.
+    const instructionsRow = textAreaRow(settings, 'refine-instructions', 'Refine instructions', {
+      defaultText: defaultInstructions,
+      minHeight: 84,
+      maxHeight: 200
     })
-    instructionsBuffer.set_text(settings.get_string('refine-instructions') || defaultInstructions, -1)
 
     // The enable switch carries refine-enabled directly; while off, the
     // nested settings stay collapsed and inaccessible.
@@ -295,8 +273,7 @@ export default class ToasPreferences extends ExtensionPreferences {
     refineExpander.add_row(refineSecretRow.row)
     refineExpander.add_row(refineOnErrorRow)
     refineExpander.add_row(refineTestRow.row)
-    refineExpander.add_row(refineWarning)
-    refineExpander.add_row(instructionsScroller)
+    refineExpander.add_row(instructionsRow)
 
     const applyRefineWarning = () => {
       const model = refineModelEntry.get_text().trim()
@@ -304,12 +281,13 @@ export default class ToasPreferences extends ExtensionPreferences {
       if (!model) { missing.push('a refine model') }
       if (!refineSecretRow.hasValue()) { missing.push(`a ${providerLabel(refineProviderId())} API key`) }
 
-      if (refineExpander.enable_expansion && missing.length > 0) {
-        refineWarning.visible = true
-        refineWarning.subtitle =
-          `Missing ${missing.join(' and ')}. Until then, voice inputs keep the primary text without refining.`
-      } else {
-        refineWarning.visible = false
+      // The Banner rides below the boxed list when Refine is on but its
+      // provider is incomplete; Adw.Banner carries no subtitle.
+      refineWarning.revealed =
+        refineExpander.enable_expansion && missing.length > 0
+      if (refineWarning.revealed) {
+        refineWarning.title =
+          `Missing ${missing.join(' and ')}: voice inputs keep the primary text without refining.`
       }
     }
 
@@ -372,6 +350,9 @@ export default class ToasPreferences extends ExtensionPreferences {
     processingGroup.add(primarySecretRow.row)
     processingGroup.add(primaryTestRow.row)
     processingGroup.add(refineExpander)
+    // group.add places the Banner below the group's boxed list — the
+    // natural end-of-section spot for a warning.
+    processingGroup.add(refineWarning)
 
     // Context: Host-owned free text, not provider configuration. The user
     // decides what belongs in it (terms, background, names); it is sent
@@ -382,30 +363,13 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Free text sent to providers that support it: list terms, background, names — anything that helps recognition or refinement. Kept exactly as you write it.'
     })
 
-    const contextBuffer = new Gtk.TextBuffer()
-    const contextView = new Gtk.TextView({
-      buffer: contextBuffer,
-      wrap_mode: Gtk.WrapMode.WORD_CHAR,
-      hexpand: true
+    // Context: a PreferencesRow whose whole surface is the input — same
+    // component as Refine instructions, sized for shorter content.
+    const contextRow = textAreaRow(settings, 'context', 'Context', {
+      minHeight: 84,
+      maxHeight: 160
     })
-    contextView.add_css_class('toas-inline-text')
-    // The group has no boxed list of its own, so the text view needs its own
-    // region; the card is the region, not a nested decoration.
-    const contextScroller = new Gtk.ScrolledWindow({
-      hscrollbar_policy: Gtk.PolicyType.NEVER,
-      vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
-      min_content_height: 120,
-      max_content_height: 220,
-      child: contextView
-    })
-    contextScroller.add_css_class('card')
-    contextScroller.add_css_class('toas-context-card')
-    contextBuffer.connect('changed', () => {
-      const [start, end] = contextBuffer.get_bounds()
-      settings.set_string('context', contextBuffer.get_text(start, end, false))
-    })
-    contextBuffer.set_text(settings.get_string('context'), -1)
-    contextGroup.add(contextScroller)
+    contextGroup.add(contextRow)
 
     const securityGroup = new Adw.PreferencesGroup({
       title: 'Security',
@@ -423,19 +387,14 @@ export default class ToasPreferences extends ExtensionPreferences {
       'Balanced · 24 kHz'
     ])
     const qualityValues = [0, 1, 2]
-    const qualitySelector = new Gtk.DropDown({
-      model: qualityModel,
-      valign: Gtk.Align.CENTER
-    })
-    qualitySelector.add_css_class('toas-row-dropdown')
-    qualitySelector.selected = Math.max(0, qualityValues.indexOf(settings.get_enum('audio-quality')))
-    const qualityRow = new Adw.ActionRow({
+    const qualityRow = new Adw.ComboRow({
       title: 'Audio quality',
-      subtitle: 'Standard: ~13 min cap · Balanced: ~9 min · High: ~4 min.'
+      subtitle: 'Standard: ~13 min cap · Balanced: ~9 min · High: ~4 min.',
+      model: qualityModel,
+      selected: Math.max(0, qualityValues.indexOf(settings.get_enum('audio-quality')))
     })
-    qualityRow.add_suffix(qualitySelector)
-    qualitySelector.connect('notify::selected', () => {
-      settings.set_enum('audio-quality', qualityValues[qualitySelector.selected] ?? 0)
+    qualityRow.connect('notify::selected', () => {
+      settings.set_enum('audio-quality', qualityValues[qualityRow.selected] ?? 0)
     })
     recordingGroup.add(qualityRow)
 
@@ -457,6 +416,69 @@ export default class ToasPreferences extends ExtensionPreferences {
     applyContextVisibility()
     applyRefineWarning()
   }
+}
+
+// A multiline entry in the shape of Adw.EntryRow's design model: the
+// PreferencesRow itself is the input surface — one level, no nested card.
+// A persistent compact caption keeps the field identifiable once text
+// fills the row (floating placeholders would hide a known field at
+// multiline scale). GSettings binds to GtkTextBuffer's own 'text'
+// property bidirectionally; no manual changed-listener round trips.
+// The ScrolledWindow gives natural growth up to maxHeight, then scrolls.
+function textAreaRow (settings, key, title, { defaultText = '', minHeight = 84, maxHeight = 180 } = {}) {
+  const row = new Adw.PreferencesRow({
+    activatable: false,
+    selectable: false
+  })
+  row.add_css_class('toas-multiline-row')
+
+  const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })
+  row.set_child(box)
+
+  const caption = new Gtk.Label({
+    label: title,
+    xalign: 0,
+    margin_top: 10,
+    margin_bottom: 2,
+    margin_start: 12,
+    margin_end: 12
+  })
+  caption.add_css_class('caption')
+  caption.add_css_class('dim-label')
+  box.append(caption)
+
+  const buffer = new Gtk.TextBuffer()
+  const view = new Gtk.TextView({
+    buffer,
+    wrap_mode: Gtk.WrapMode.WORD_CHAR,
+    accepts_tab: false,
+    hexpand: true,
+    top_margin: 4,
+    bottom_margin: 10,
+    left_margin: 12,
+    right_margin: 12
+  })
+  view.add_css_class('toas-multiline-text')
+
+  const scrolled = new Gtk.ScrolledWindow({
+    hscrollbar_policy: Gtk.PolicyType.NEVER,
+    vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+    has_frame: false,
+    min_content_height: minHeight,
+    max_content_height: maxHeight,
+    propagate_natural_height: true,
+    child: view
+  })
+  box.append(scrolled)
+
+  // The schema default is the fallback when nothing was ever saved; a saved
+  // value always wins. Bind after seeding so the first save writes the
+  // visible text.
+  const stored = settings.get_string(key)
+  buffer.set_text(stored || defaultText, -1)
+  settings.bind(key, buffer, 'text', Gio.SettingsBindFlags.DEFAULT)
+
+  return row
 }
 
 // Loads prefs.css for the Preferences window. The path points at the

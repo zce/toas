@@ -2,19 +2,24 @@
    The Shell extension itself runs in a different process and uses
    stylesheet.css (St CSS); the two dialects are not interchangeable. */
 
-/* Text areas that sit inside an Adw row: no card of their own, the row
-   provides the surface. CSS owns the inner padding. */
-.toas-inline-text {
-  padding: 12px 18px;
+/* Multiline entry rows: the PreferencesRow is the input surface; the
+   TextView stays fully transparent so no second card/border/background
+   appears inside the row. Height comes from the ScrolledWindow's
+   min/max-content-height, not from CSS. */
+.toas-multiline-row textview,
+.toas-multiline-row textview text,
+.toas-multiline-row scrolledwindow {
+  background: transparent;
 }
 
-/* The Context text area sits directly in a PreferencesGroup, so it needs
-   its own region: the card is the region, not a nested decoration. */
-.toas-context-card {
-  margin: 6px 0;
+.toas-multiline-row scrolledwindow {
+  border: none;
 }
 
-/* A compact dropdown that sits inside an ActionRow suffix. */
-.toas-row-dropdown {
-  min-width: 190px;
+/* Small embedded editors do not need scroll-edge indicators; the row's
+   own rounded corners are the region. */
+.toas-multiline-row scrolledwindow undershoot,
+.toas-multiline-row scrolledwindow overshoot {
+  background: none;
+  box-shadow: none;
 }
