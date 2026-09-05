@@ -172,7 +172,7 @@ test('every referenced lib export is imported or locally defined', () => {
     for (const { name, definedIn } of inventory) {
       if (definedIn === file || definedIn === file.replace('lib/', '')) { continue }
       // Strip string literals first so a name appearing inside quotes (for
-      // example the setting key "refine-on-error") is not treated as a
+      // example the setting key "processing-config") is not treated as a
       // reference to an exported symbol.
     const noStrings = code.replace(/'[^']*'|"[^"]*"|`[^`]*`/g, "''")
       // JSDoc type references ({@link X}, @typedef, @property {?X}) name

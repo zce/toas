@@ -4,6 +4,13 @@ status: accepted
 
 # Provider and processing kernel architecture
 
+> The Provider contract, Manifest shape, Config persistence, and Preferences
+> enumeration sections below are historical: they describe the original
+> role-manifest design. They are amended by
+> [ADR 0002](./0002-provider-resolved-selections.md), which replaces
+> role-centric resolution with selection-resolved resolution and per-field
+> GSettings persistence with one generic `processing-config` document.
+
 The product has one primary voice-processing operation. Refine is an optional enhancement of that operation, not an independent product. Product Config describes that user-facing model; the Kernel resolves it into an ephemeral Plan containing one or two physical Steps.
 
 This design keeps each Provider cohesive, makes cross-provider Refine a first-class operation, permits explicit integrated Refine, and keeps provider protocols independent from the GNOME Host.
@@ -660,7 +667,7 @@ Adding a Provider requires registration, its Manifest, implementation, mappings,
 
 The GNOME Host uses generic storage:
 
-- one GSettings key per Config field (`primary-provider`, `primary-model`, `primary-endpoint`, `refine-enabled`, `refine-provider`, `refine-model`, `refine-endpoint`, `refine-instructions`, `refine-on-error`), excluding all secret values;
+- one generic `processing-config` GSettings key for Product Config and non-secret Provider values (see ADR 0002);
 - `provider-secrets`: a string map containing stored Provider secrets;
 - `context`: Host-owned free-text Context, attempt input rather than Config.
 

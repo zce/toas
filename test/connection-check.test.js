@@ -10,7 +10,7 @@ import { runConnectionTest } from '../lib/host/connection-check.js'
 // The fake provider records the process() calls it receives so tests assert
 // on the exact inputs each role sends. Fresh instances per test.
 class FakeProvider {
-  constructor ({ id, roles, reply = { text: 'ok' } }) {
+  constructor ({ id, input, reply = { text: 'ok' } }) {
     this.id = id
     this.manifest = {
       label: id,
@@ -18,16 +18,15 @@ class FakeProvider {
         { key: 'endpoint', type: 'url', label: 'Endpoint', default: 'https://example.test' },
         { key: 'key', type: 'secret', label: 'API key' }
       ],
-      ...roles
+      selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
+      support: { inputs: [input], instructions: input === 'text' }
     }
+    this.input = input
     this._reply = reply
     this.calls = []
   }
 
-  resolve ({ role, providerValues, values, secretPresence }) {
-    if (!this.manifest[role]) {
-      return { config: null, capabilities: null, issues: [{ message: `${this.id} has no ${role} role` }] }
-    }
+  resolve ({ providerValues, values, secretPresence }) {
     const issues = []
     if (!secretPresence.key) { issues.push({ message: `a ${this.id} key is required` }) }
     if (!values.model) { issues.push({ message: 'a model is required' }) }
@@ -35,41 +34,31 @@ class FakeProvider {
 
     return {
       config: { endpoint: providerValues.endpoint ?? 'https://example.test', model: values.model },
-      capabilities: this.manifest[role].capabilities,
+      capabilities: {
+        inputs: [this.input],
+        instructions: this.input === 'text',
+        context: true,
+        integratedRefine: false
+      },
       issues: []
     }
   }
 
-  create (role, config, secrets, runtime) {
+  create (config, secrets, runtime) {
     const provider = this
     return {
-      role,
       async process (call) {
-        provider.calls.push({ role, ...call })
+        provider.calls.push(call)
         return { ...provider._reply }
       }
     }
   }
 }
 
-function primaryRole () {
-  return {
-    fields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
-    capabilities: { context: true, integratedRefine: false }
-  }
-}
-
-function refineRole () {
-  return {
-    fields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
-    capabilities: { context: true, integratedRefine: false }
-  }
-}
-
 function freshProviders () {
   return new Map([
-    ['primary-audio', new FakeProvider({ id: 'primary-audio', roles: { primary: primaryRole() } })],
-    ['refine-text', new FakeProvider({ id: 'refine-text', roles: { refine: refineRole() } })]
+    ['primary-audio', new FakeProvider({ id: 'primary-audio', input: 'audio' })],
+    ['refine-text', new FakeProvider({ id: 'refine-text', input: 'text' })]
   ])
 }
 
@@ -87,12 +76,12 @@ class FakeConfigService {
 
 function baseConfig ({ refineEnabled = true } = {}) {
   return {
-    primary: { provider: 'primary-audio', endpoint: null, values: { model: 'asr-1' } },
+    providers: {},
+    primary: { provider: 'primary-audio', values: { model: 'asr-1' } },
     refine: {
       enabled: refineEnabled,
       execution: 'separate',
       provider: 'refine-text',
-      endpoint: null,
       values: { model: 'refine-1' },
       instructions: 'Tidy up the text.',
       onError: 'fallback'
@@ -148,11 +137,11 @@ test('refine test refuses to run while refine is disabled', async () => {
 test('no-text from silent audio counts as a successful round trip', async () => {
   const silent = new FakeProvider({
     id: 'primary-audio',
-    roles: { primary: primaryRole() },
+    input: 'audio',
     reply: { text: '' }
   })
   const config = {
-    primary: { provider: 'primary-audio', endpoint: null, values: { model: 'asr-1' } },
+    primary: { provider: 'primary-audio', values: { model: 'asr-1' } },
     refine: { enabled: false }
   }
 

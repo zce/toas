@@ -97,7 +97,7 @@ function runtimeFor (transport) {
 
 function baseConfig ({ provider = 'qwen', refine = { enabled: false } } = {}) {
   return {
-    primary: { provider, endpoint: null, values: { model: 'qwen3-asr-flash' } },
+    primary: { provider, values: { model: 'qwen3-asr-flash' } },
     refine
   }
 }
@@ -145,13 +145,12 @@ test('qwen to mimo: separate refine runs the configured provider in order', asyn
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'mimo',
-        endpoint: null,
-        values: { model: 'mimo-text-model' },
+        values: { model: 'mimo-v2.5' },
         instructions: 'Refine without changing meaning.',
         onError: 'fallback'
       }
@@ -192,13 +191,13 @@ test('mimo refine endpoint that already carries the path is never double-appende
   })
   await runKernel({
     config: {
-      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+      providers: { mimo: { endpoint: 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions' } },
+      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'mimo',
-        endpoint: 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions',
-        values: { model: 'mimo-text-model' },
+        values: { model: 'mimo-v2.5' },
         instructions: 'Refine without changing meaning.',
         onError: 'fallback'
       }
@@ -222,13 +221,13 @@ test('mimo refine endpoint with trailing slashes gets a single path appended', a
   })
   await runKernel({
     config: {
-      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+      providers: { mimo: { endpoint: 'https://token-plan-cn.xiaomimimo.com/v1/' } },
+      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'mimo',
-        endpoint: 'https://token-plan-cn.xiaomimimo.com/v1/',
-        values: { model: 'mimo-text-model' },
+        values: { model: 'mimo-v2.5' },
         instructions: 'Refine without changing meaning.',
         onError: 'fallback'
       }
@@ -249,12 +248,11 @@ test('mimo to openai: cross-provider composition with no special casing', async 
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'mimo', endpoint: null, values: { model: 'mimo-v2.5-asr', language: 'auto' } },
+      primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr', language: 'auto' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'openai',
-        endpoint: null,
         values: { model: 'gpt-4o-mini' },
         instructions: 'Polish.',
         onError: 'abort'
@@ -281,13 +279,12 @@ test('mimo to mimo: one shared credential source, independent models', async () 
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'mimo', endpoint: null, values: { model: 'mimo-v2.5-asr' } },
+      primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'mimo',
-        endpoint: null,
-        values: { model: 'mimo-text-model' },
+        values: { model: 'mimo-v2.5' },
         instructions: 'Clean up.',
         onError: 'fallback'
       }
@@ -305,9 +302,9 @@ test('mimo to mimo: one shared credential source, independent models', async () 
   expectEqual(transport.requests[1].headers.Authorization, 'Bearer mimo-secret')
   // Independent role models.
   expectEqual(transport.requests[0].body.model, 'mimo-v2.5-asr')
-  expectEqual(transport.requests[1].body.model, 'mimo-text-model')
+  expectEqual(transport.requests[1].body.model, 'mimo-v2.5')
   expectEqual(result.trace[0].model, 'mimo-v2.5-asr')
-  expectEqual(result.trace[1].model, 'mimo-text-model')
+  expectEqual(result.trace[1].model, 'mimo-v2.5')
 })
 
 // --- Acceptance 5: Integrated refine, one call ----------------------------------
@@ -316,7 +313,7 @@ test('integrated refine on a capable provider makes exactly one call carrying in
   const transport = new FakeTransport({ responses: [chatResponse('ignored')]  })
   const result = await runKernel({
     config: {
-      primary: { provider: 'test-integrated', endpoint: null, values: { model: 'test-model' } },
+      primary: { provider: 'test-integrated', values: { model: 'test-model' } },
       refine: {
         enabled: true,
         execution: 'integrated',
@@ -347,7 +344,7 @@ test('integrated refine on an incapable provider fails validation with zero call
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
         refine: { enabled: true, execution: 'integrated', instructions: 'x' }
       },
       audio: AUDIO,
@@ -374,13 +371,12 @@ test('explicit separate runs the second provider even when primary could integra
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'test-integrated', endpoint: null, values: { model: 'test-model' } },
+      primary: { provider: 'test-integrated', values: { model: 'test-model' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'mimo',
-        endpoint: null,
-        values: { model: 'mimo-text-model' },
+        values: { model: 'mimo-v2.5' },
         instructions: 'Clean.',
         onError: 'fallback'
       }
@@ -420,7 +416,7 @@ test('empty context is valid for every execution shape', async () => {
   // Integrated shape with empty context.
   const integrated = await runKernel({
     config: {
-      primary: { provider: 'test-integrated', endpoint: null, values: { model: 'm' } },
+      primary: { provider: 'test-integrated', values: { model: 'm' } },
       refine: { enabled: true, execution: 'integrated', instructions: 'x' }
     },
     audio: AUDIO,
@@ -443,13 +439,12 @@ test('separate refine fallback returns primary text with warning and failed trac
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'mimo',
-        endpoint: null,
-        values: { model: 'm' },
+        values: { model: 'mimo-v2.5' },
         instructions: 'x',
         onError: 'fallback'
       }
@@ -480,13 +475,12 @@ test('separate refine abort fails the whole attempt', async () => {
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
         refine: {
           enabled: true,
           execution: 'separate',
           provider: 'mimo',
-          endpoint: null,
-          values: { model: 'm' },
+          values: { model: 'mimo-v2.5' },
           instructions: 'x',
           onError: 'abort'
         }
@@ -513,13 +507,12 @@ test('primary failure fails the attempt with zero refine calls', async () => {
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
         refine: {
           enabled: true,
           execution: 'separate',
           provider: 'mimo',
-          endpoint: null,
-          values: { model: 'm' },
+          values: { model: 'mimo-v2.5' },
           instructions: 'x',
           onError: 'fallback'
         }
@@ -545,7 +538,7 @@ test('invalid primary config makes zero calls before any I/O', async () => {
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', endpoint: null, values: {} },
+        primary: { provider: 'qwen', values: {} },
         refine: { enabled: false }
       },
       audio: AUDIO,
@@ -623,7 +616,7 @@ test('ASR silence answer (400, no words) is no-text, not a service error', async
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen-audio-3.0-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen-audio-3.0-asr-flash' } },
         refine: { enabled: false }
       },
       audio: AUDIO,
@@ -652,7 +645,7 @@ test('other 400 answers stay service-category errors', async () => {
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen-audio-3.0-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen-audio-3.0-asr-flash' } },
         refine: { enabled: false }
       },
       audio: AUDIO,
@@ -732,13 +725,12 @@ test('cancel during refine never converts into a fallback warning', async () => 
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
         refine: {
           enabled: true,
           execution: 'separate',
           provider: 'mimo',
-          endpoint: null,
-          values: { model: 'm' },
+          values: { model: 'mimo-v2.5' },
           instructions: 'x',
           onError: 'fallback'
         }
@@ -766,13 +758,12 @@ test('context is delivered verbatim only to roles that support it', async () => 
   await runKernel({
     config: {
       // MiMo primary supports no Context; MiMo refine supports it.
-      primary: { provider: 'mimo', endpoint: null, values: { model: 'mimo-v2.5-asr' } },
+      primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'mimo',
-        endpoint: null,
-        values: { model: 'm' },
+        values: { model: 'mimo-v2.5' },
         instructions: 'x',
         onError: 'fallback'
       }
@@ -830,13 +821,12 @@ test('trace and warnings never carry credentials or context contents', async () 
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
       refine: {
         enabled: true,
         execution: 'separate',
         provider: 'mimo',
-        endpoint: null,
-        values: { model: 'm' },
+        values: { model: 'mimo-v2.5' },
         instructions: 'confidential-instructions',
         onError: 'fallback'
       }
@@ -891,7 +881,7 @@ test('qwen audio-3.0 and fun-asr route to the asr3 endpoint and context part', a
     })
     const result = await runKernel({
       config: {
-        primary: { provider: 'qwen', endpoint: null, values: { model } },
+        primary: { provider: 'qwen', values: { model } },
         refine: { enabled: false }
       },
       audio: AUDIO,
@@ -930,7 +920,6 @@ test('qwen3 versioned model routes to the compatible-mode endpoint', async () =>
     config: {
       primary: {
         provider: 'qwen',
-        endpoint: null,
         values: { model: 'qwen3-asr-flash-2026-02-10' }
       },
       refine: { enabled: false }
@@ -954,25 +943,46 @@ test('qwen3 versioned model routes to the compatible-mode endpoint', async () =>
   expectEqual(result.text, 'compat text')
 })
 
-test('unknown qwen models stay conservative and use the native endpoint', async () => {
-  const transport = new FakeTransport({ responses: [dashscopeResponse('fallback text')] })
-  const result = await runKernel({
-    config: {
-      primary: { provider: 'qwen', endpoint: null, values: { model: 'qwen-unknown-model' } },
-      refine: { enabled: false }
-    },
-    audio: AUDIO,
-    context: CONTEXT,
-    secrets: SECRETS,
-    runtime: runtimeFor(transport),
-    signal: null
-  })
+test('unknown qwen models are rejected without guessing an invocation protocol', async () => {
+  const transport = new FakeTransport()
+  let threw = null
+  try {
+    await runKernel({
+      config: {
+        primary: { provider: 'qwen', values: { model: 'qwen-unknown-model' } },
+        refine: { enabled: false }
+      },
+      audio: AUDIO,
+      context: CONTEXT,
+      secrets: SECRETS,
+      runtime: runtimeFor(transport),
+      signal: null
+    })
+  } catch (error) { threw = error }
+  expectEqual(threw.category, 'configuration')
+  expectEqual(transport.requests.length, 0)
+})
 
-  expectEqual(transport.requests[0].url,
-    'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
-  // No context part: the unknown model declares no Context capability.
-  expectEqual(transport.requests[0].body.input.messages.length, 1)
-  expectEqual(result.text, 'fallback text')
+test('resolved input capabilities, not Provider identity, decide product suitability', async () => {
+  const transport = new FakeTransport()
+  let threw = null
+  try {
+    await runKernel({
+      config: {
+        providers: {},
+        primary: { provider: 'openai', values: { model: 'gpt-4o-mini' } },
+        refine: { enabled: false }
+      },
+      audio: AUDIO,
+      context: CONTEXT,
+      secrets: SECRETS,
+      runtime: runtimeFor(transport),
+      signal: null
+    })
+  } catch (error) { threw = error }
+  expectEqual(threw.category, 'configuration')
+  expectEqual(threw.message.includes('primary audio processing'), true)
+  expectEqual(transport.requests.length, 0)
 })
 
 await run()

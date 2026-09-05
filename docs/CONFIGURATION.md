@@ -18,43 +18,17 @@ path as a real voice input.
 
 ## Manual configuration via dconf
 
-### Primary processing
+### Processing Config
 
 ```bash
-# Provider: 'qwen' (0) or 'mimo' (1)
-dconf write /org/gnome/shell/extensions/toas/primary-provider "'qwen'"
-
-# Model (leave as default unless you know the exact model id)
-# Verified: fun-asr-flash-2026-06-15 (default), qwen-audio-3.0-asr-flash,
-#           qwen3-asr-flash-2026-02-10
-dconf write /org/gnome/shell/extensions/toas/primary-model "'fun-asr-flash-2026-06-15'"
-
-# Optional: override the provider's default endpoint (rarely needed).
-# Empty routes by model: audio-3.0/fun-asr use the DashScope native ASR
-# endpoint; qwen3 versioned models use the OpenAI-compatible endpoint.
-dconf write /org/gnome/shell/extensions/toas/primary-endpoint "''"
+# One generic JSON document. Omitted properties receive shipped defaults.
+dconf write /org/gnome/shell/extensions/toas/processing-config \
+  "'{\"providers\":{},\"primary\":{\"provider\":\"qwen\",\"values\":{\"model\":\"fun-asr-flash-2026-06-15\"}},\"refine\":{\"enabled\":true,\"execution\":\"separate\",\"provider\":\"mimo\",\"values\":{\"model\":\"mimo-v2.5\"},\"instructions\":\"Refine the text\",\"onError\":\"fallback\"}}'"
 ```
 
-### Refine (optional, separate execution)
-
-```bash
-dconf write /org/gnome/shell/extensions/toas/refine-enabled true
-
-# Provider: 'mimo' (0), 'openai' (1), or 'openai-compatible' (2)
-dconf write /org/gnome/shell/extensions/toas/refine-provider "'mimo'"
-
-dconf write /org/gnome/shell/extensions/toas/refine-model "'mimo-text-model'"
-
-# Failure behavior: 'fallback' (0) inserts the primary text when refine
-# fails; 'abort' (1) fails the whole voice input.
-dconf write /org/gnome/shell/extensions/toas/refine-on-error "'fallback'"
-
-# Optional: custom instructions (empty uses the shipped default template)
-dconf write /org/gnome/shell/extensions/toas/refine-instructions "'Refine the text'"
-```
-
-When the primary provider is `openai-compatible`, set `refine-endpoint` to
-your service base URL (for example `https://my-gateway.example/v1`).
+Provider-level non-secret values live under `providers.<provider-id>`. For
+example, configure an OpenAI-compatible service with
+`{"providers":{"openai-compatible":{"endpoint":"https://my-gateway.example/v1"}}}`.
 
 ### API keys
 
@@ -111,7 +85,8 @@ Priority: dconf stored value → environment variable → missing.
 
 ### MiMo
 
-- Primary processing (`mimo-v2.5-asr`) and refine
+- Primary processing (`mimo-v2.5-asr`) and text Refine (`mimo-v2.5` or
+  `mimo-v2.5-pro`)
 - One shared base URL and credential for both roles; independent models
 
 ### OpenAI
@@ -123,7 +98,7 @@ Priority: dconf stored value → environment variable → missing.
 ### OpenAI-compatible
 
 - Refine only, for bring-your-own endpoints
-- Requires `refine-endpoint` and a model
+- Requires a Provider `endpoint` value and a model
 
 ## Security note
 

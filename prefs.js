@@ -7,13 +7,10 @@ import Gtk from 'gi://Gtk'
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
 
 import { providers as providerRegistry } from './lib/kernel/providers/registry.js'
-import { secretKey } from './lib/kernel/process.js'
+import { secretKey, prepareResolveInput } from './lib/kernel/process.js'
 import { ConfigService } from './lib/host/config-service.js'
 import { runConnectionTest } from './lib/host/connection-check.js'
-// Numeric values of the schema enums in declaration order; get_enum returns
-// numbers, not nicks. Kept next to the schema they mirror.
-const PRIMARY_PROVIDER_VALUES = ['qwen', 'mimo']
-const REFINE_PROVIDER_VALUES = ['mimo', 'openai', 'openai-compatible']
+import { readProcessingConfig, writeProcessingConfig, providerIdsFor } from './lib/host/processing-config.js'
 const REFINE_ON_ERROR_VALUES = ['fallback', 'abort']
 
 function buildShortcutButton (settings) {
@@ -156,40 +153,30 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Your recording is sent to this service to be turned into text.'
     })
 
+    const processingConfig = readProcessingConfig(settings, providerRegistry)
+    const saveProcessingConfig = () => writeProcessingConfig(settings, processingConfig)
     const providerLabel = id => providerRegistry.get(id)?.manifest?.label ?? id
-    const primaryCapabilities = id =>
-      Boolean(providerRegistry.get(id)?.manifest?.primary?.capabilities?.context)
-    const refineCapabilities = id =>
-      Boolean(providerRegistry.get(id)?.manifest?.refine?.capabilities?.context)
-
-    // Primary provider + model + credential, driven by the provider manifests.
-    const primaryProviderId = PRIMARY_PROVIDER_VALUES[settings.get_enum('primary-provider')] ?? 'qwen'
-    const primaryProvider = providerRegistry.get(primaryProviderId)
-    const primaryModelDefault = primaryProvider?.manifest?.primary?.fields
-      ?.find(f => f.key === 'model')?.default ?? 'fun-asr-flash-2026-06-15'
+    const primaryProviderIds = providerIdsFor(providerRegistry, 'audio')
+    const refineProviderIds = providerIdsFor(providerRegistry, 'text', true)
+    const primaryProviderId = () => primaryProviderIds[providerRow.selected] ?? primaryProviderIds[0]
+    const refineProviderId = () => refineProviderIds[refineProviderRow.selected] ?? refineProviderIds[0]
 
     const providerRow = new Adw.ComboRow({
       title: 'Primary provider',
       subtitle: 'Processes your recording into text',
-      model: Gtk.StringList.new(PRIMARY_PROVIDER_VALUES.map(providerLabel)),
-      selected: Math.max(0, PRIMARY_PROVIDER_VALUES.indexOf(primaryProviderId))
+      model: Gtk.StringList.new(primaryProviderIds.map(providerLabel)),
+      selected: Math.max(0, primaryProviderIds.indexOf(processingConfig.primary.provider))
     })
 
-    const modelEntry = new Adw.EntryRow({
-      title: 'Model',
-      text: settings.get_string('primary-model') || primaryModelDefault
-    })
-    modelEntry.connect('changed', () => {
-      settings.set_string('primary-model', modelEntry.get_text())
-    })
-
-    // One stored key per provider; the row title shows whose key it is.
-    const primarySecretRow = secretRow({
+    const primaryFields = dynamicFieldRows({
       settings,
+      providers: providerRegistry,
+      providerIds: primaryProviderIds,
       providerId: primaryProviderId,
-      fieldKey: 'key',
-      title: `${providerLabel(primaryProviderId)} API key`,
-      subtitle: 'One key per provider, stored in plain text by dconf, or read from the provider environment variables.'
+      input: 'audio',
+      config: processingConfig,
+      save: saveProcessingConfig,
+      selection: processingConfig.primary
     })
 
     const primaryTestRow = buildConnectionRow({
@@ -204,28 +191,18 @@ export default class ToasPreferences extends ExtensionPreferences {
     const refineProviderRow = new Adw.ComboRow({
       title: 'Refine provider',
       subtitle: 'Processes the primary text',
-      model: Gtk.StringList.new(REFINE_PROVIDER_VALUES.map(providerLabel)),
-      selected: Math.max(0, REFINE_PROVIDER_VALUES.indexOf(
-        REFINE_PROVIDER_VALUES[settings.get_enum('refine-provider')] ?? 'mimo'
-      ))
+      model: Gtk.StringList.new(refineProviderIds.map(providerLabel)),
+      selected: Math.max(0, refineProviderIds.indexOf(processingConfig.refine.provider))
     })
-
-    const refineProviderId = () => REFINE_PROVIDER_VALUES[refineProviderRow.selected] ?? 'mimo'
-
-    const refineModelEntry = new Adw.EntryRow({
-      title: 'Refine model',
-      text: settings.get_string('refine-model') || ''
-    })
-    refineModelEntry.connect('changed', () => {
-      settings.set_string('refine-model', refineModelEntry.get_text())
-    })
-
-    const refineSecretRow = secretRow({
+    const refineFields = dynamicFieldRows({
       settings,
-      providerId: refineProviderId(),
-      fieldKey: 'key',
-      title: `${providerLabel(refineProviderId())} API key`,
-      subtitle: 'Shared with the same provider when both roles use it.'
+      providers: providerRegistry,
+      providerIds: refineProviderIds,
+      providerId: refineProviderId,
+      input: 'text',
+      config: processingConfig,
+      save: saveProcessingConfig,
+      selection: processingConfig.refine
     })
 
     const refineOnErrorRow = new Adw.ComboRow({
@@ -233,7 +210,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       subtitle: 'What happens when refine fails after primary processing succeeds.',
       model: Gtk.StringList.new(['Insert primary text', 'Fail the voice input']),
       selected: Math.max(0, REFINE_ON_ERROR_VALUES.indexOf(
-        REFINE_ON_ERROR_VALUES[settings.get_enum('refine-on-error')] ?? 'fallback'
+        processingConfig.refine.onError
       ))
     })
 
@@ -244,42 +221,41 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Sends a short fixed text through the same refine path as a real voice input.'
     })
 
-    // The schema default is the single source of the instruction template;
-    // anything the user saved replaces it.
-    const defaultInstructions = settings.get_default_value('refine-instructions')?.unpack?.() ?? ''
-
     const refineWarning = new Adw.Banner({ title: '' })
 
     // Refine Instructions: a PreferencesRow whose whole surface is the
     // input, EntryRow's design language at multiline scale. The persistent
     // compact title keeps the field identifiable once text fills the row.
-    const instructionsRow = textAreaRow(settings, 'refine-instructions', 'Refine instructions', {
-      defaultText: defaultInstructions,
+    const instructionsRow = textAreaValueRow('Refine instructions', {
+      text: processingConfig.refine.instructions,
+      onChanged: text => {
+        processingConfig.refine.instructions = text
+        saveProcessingConfig()
+      },
       minHeight: 84,
       maxHeight: 200
     })
 
-    // The enable switch carries refine-enabled directly; while off, the
+    // The enable switch updates Product Config directly; while off, the
     // nested settings stay collapsed and inaccessible.
     const refineExpander = new Adw.ExpanderRow({
       title: 'Refine',
       subtitle: 'Applies your instructions to the primary text with a second service. Disable for literal dictation.',
       show_enable_switch: true,
-      enable_expansion: settings.get_boolean('refine-enabled')
+      enable_expansion: processingConfig.refine.enabled
     })
 
     refineExpander.add_row(refineProviderRow)
-    refineExpander.add_row(refineModelEntry)
-    refineExpander.add_row(refineSecretRow.row)
+    refineFields.rows.forEach(row => refineExpander.add_row(row))
     refineExpander.add_row(refineOnErrorRow)
     refineExpander.add_row(refineTestRow.row)
     refineExpander.add_row(instructionsRow)
 
     const applyRefineWarning = () => {
-      const model = refineModelEntry.get_text().trim()
+      const model = String(processingConfig.refine.values.model || '').trim()
       const missing = []
       if (!model) { missing.push('a refine model') }
-      if (!refineSecretRow.hasValue()) { missing.push(`a ${providerLabel(refineProviderId())} API key`) }
+      if (!refineFields.secretsPresent()) { missing.push(`a ${providerLabel(refineProviderId())} API key`) }
 
       // The Banner rides below the boxed list when Refine is on but its
       // provider is incomplete; Adw.Banner carries no subtitle.
@@ -294,60 +270,52 @@ export default class ToasPreferences extends ExtensionPreferences {
     // Context matters only when some active role consumes it; the group is
     // hidden otherwise so the UI never offers settings the model ignores.
     const applyContextVisibility = () => {
-      const primaryId = PRIMARY_PROVIDER_VALUES[providerRow.selected] ?? 'qwen'
-      let used = primaryCapabilities(primaryId)
+      let used = resolvedCapabilities(processingConfig.primary, processingConfig, providerRegistry)?.context
       if (refineExpander.enable_expansion) {
-        used = used || refineCapabilities(refineProviderId())
+        used = used || resolvedCapabilities(processingConfig.refine, processingConfig, providerRegistry)?.context
       }
       contextGroup.visible = used
     }
 
     providerRow.connect('notify::selected', () => {
-      const nextId = PRIMARY_PROVIDER_VALUES[providerRow.selected] ?? 'qwen'
-      settings.set_enum('primary-provider', PRIMARY_PROVIDER_VALUES.indexOf(nextId))
-
-      const nextProvider = providerRegistry.get(nextId)
-      const nextModel = nextProvider?.manifest?.primary?.fields
-        ?.find(f => f.key === 'model')?.default ?? ''
-      settings.set_string('primary-model', nextModel)
-      modelEntry.set_text(nextModel)
-
-      primarySecretRow.rebind(nextId)
-      primarySecretRow.setTitle(`${providerLabel(nextId)} API key`)
-      primaryTestRow.rebind()
+      const nextId = primaryProviderId()
+      processingConfig.primary.provider = nextId
+      processingConfig.primary.values = { ...(providerRegistry.get(nextId)?.manifest?.defaults?.audio || {}) }
+      saveProcessingConfig()
+      primaryFields.refresh()
+      primaryTestRow.resetStatus()
       applyContextVisibility()
     })
 
     refineProviderRow.connect('notify::selected', () => {
       const nextId = refineProviderId()
-      settings.set_enum('refine-provider', REFINE_PROVIDER_VALUES.indexOf(nextId))
-      refineSecretRow.rebind(nextId)
-      refineSecretRow.setTitle(`${providerLabel(nextId)} API key`)
-      refineTestRow.rebind()
+      processingConfig.refine.provider = nextId
+      processingConfig.refine.values = { ...(providerRegistry.get(nextId)?.manifest?.defaults?.text || {}) }
+      saveProcessingConfig()
+      refineFields.refresh()
+      refineTestRow.resetStatus()
       applyContextVisibility()
       applyRefineWarning()
     })
 
     refineOnErrorRow.connect('notify::selected', () => {
       const value = REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
-      settings.set_enum('refine-on-error', REFINE_ON_ERROR_VALUES.indexOf(value))
+      processingConfig.refine.onError = value
+      saveProcessingConfig()
     })
 
     refineExpander.connect('notify::enable-expansion', () => {
-      settings.set_boolean('refine-enabled', refineExpander.enable_expansion)
+      processingConfig.refine.enabled = refineExpander.enable_expansion
+      saveProcessingConfig()
       applyContextVisibility()
       applyRefineWarning()
     })
 
-    refineModelEntry.connect('changed', applyRefineWarning)
-    // When both roles share a provider, one stored key serves both rows;
-    // editing either keeps the other in sync.
-    primarySecretRow.onChange(() => { refineSecretRow.refresh(); applyRefineWarning() })
-    refineSecretRow.onChange(() => { primarySecretRow.refresh(); applyRefineWarning() })
+    primaryFields.onChange(() => { refineFields.refresh(); applyContextVisibility() })
+    refineFields.onChange(() => { primaryFields.refresh(); applyContextVisibility(); applyRefineWarning() })
 
     processingGroup.add(providerRow)
-    processingGroup.add(modelEntry)
-    processingGroup.add(primarySecretRow.row)
+    primaryFields.rows.forEach(row => processingGroup.add(row))
     processingGroup.add(primaryTestRow.row)
     processingGroup.add(refineExpander)
     // group.add places the Banner below the group's boxed list — the
@@ -418,6 +386,108 @@ export default class ToasPreferences extends ExtensionPreferences {
   }
 }
 
+// Builds controls from Manifest fields while keeping persisted Provider maps
+// opaque to Preferences. Rows are reused when the selected Provider changes;
+// fields not declared by that Provider are hidden.
+function dynamicFieldRows ({ settings, providers, providerIds, providerId, input, config, save, selection }) {
+  const changed = []
+  let refreshing = false
+  const rows = []
+
+  const fieldKeys = (source) => [...new Set(providerIds.flatMap(id =>
+    (source(providers.get(id)) || []).map(field => field.key)))]
+
+  const valueRows = []
+  for (const scope of ['provider', 'selection']) {
+    const source = provider => scope === 'provider'
+      ? provider?.manifest?.fields?.filter(field => field.type !== 'secret')
+      : provider?.manifest?.selectionFields?.filter(field =>
+        field.inputs === undefined || field.inputs.includes(input))
+
+    for (const key of fieldKeys(source)) {
+      const row = new Adw.EntryRow({ title: key })
+      row.connect('changed', () => {
+        if (refreshing) { return }
+        const id = providerId()
+        const target = scope === 'provider'
+          ? (config.providers[id] ??= {})
+          : selection.values
+        target[key] = row.get_text()
+        save()
+        changed.forEach(handler => handler())
+      })
+      valueRows.push({ row, key, scope, source })
+      rows.push(row)
+    }
+  }
+
+  const secretKeys = fieldKeys(provider =>
+    provider?.manifest?.fields?.filter(field => field.type === 'secret'))
+  const secretRows = secretKeys.map(key => {
+    const control = secretRow({ settings, providerId: providerIds[0], fieldKey: key, title: key })
+    control.onChange(() => changed.forEach(handler => handler()))
+    rows.push(control.row)
+    return { key, control }
+  })
+
+  const refresh = () => {
+    refreshing = true
+    const id = providerId()
+    const provider = providers.get(id)
+    const providerValues = config.providers[id] || {}
+
+    for (const item of valueRows) {
+      const field = (item.source(provider) || []).find(candidate => candidate.key === item.key)
+      item.row.visible = Boolean(field)
+      if (!field) { continue }
+      item.row.title = field.label
+      const target = item.scope === 'provider' ? providerValues : selection.values
+      item.row.set_text(String(target[item.key] ?? field.default ?? ''))
+    }
+
+    for (const item of secretRows) {
+      const field = provider?.manifest?.fields?.find(candidate =>
+        candidate.type === 'secret' && candidate.key === item.key)
+      item.control.row.visible = Boolean(field)
+      if (!field) { continue }
+      item.control.rebind(id, item.key)
+      item.control.setTitle(field.label)
+    }
+    refreshing = false
+  }
+
+  refresh()
+  return {
+    rows,
+    refresh,
+    secretsPresent: () => secretRows
+      .filter(item => item.control.row.visible)
+      .every(item => item.control.hasValue()),
+    onChange: handler => changed.push(handler)
+  }
+}
+
+// One resolve() call against the current selection, for UI visibility
+// decisions. Capabilities depend on the selection, not on credentials:
+// Providers report them alongside any credential issues, so the probe needs
+// no secrets.
+function resolvedCapabilities (selection, config, providers) {
+  const provider = providers.get(selection.provider)
+  const { providerValues } = prepareResolveInput(
+    provider.manifest.fields || [],
+    selection.provider,
+    config.providers[selection.provider] || {}
+  )
+  return provider.resolve({ providerValues, values: selection.values, secretPresence: {} }).capabilities
+}
+
+function textAreaValueRow (title, { text = '', onChanged, minHeight = 84, maxHeight = 180 } = {}) {
+  const { row, buffer } = buildTextAreaRow(title, minHeight, maxHeight)
+  buffer.set_text(text, -1)
+  buffer.connect('changed', () => onChanged(buffer.text))
+  return row
+}
+
 // A multiline entry in the shape of Adw.EntryRow's design model: the
 // PreferencesRow itself is the input surface — one level, no nested card.
 // A persistent compact caption keeps the field identifiable once text
@@ -426,6 +496,19 @@ export default class ToasPreferences extends ExtensionPreferences {
 // property bidirectionally; no manual changed-listener round trips.
 // The ScrolledWindow gives natural growth up to maxHeight, then scrolls.
 function textAreaRow (settings, key, title, { defaultText = '', minHeight = 84, maxHeight = 180 } = {}) {
+  const { row, buffer } = buildTextAreaRow(title, minHeight, maxHeight)
+
+  // The schema default is the fallback when nothing was ever saved; a saved
+  // value always wins. Bind after seeding so the first save writes the
+  // visible text.
+  const stored = settings.get_string(key)
+  buffer.set_text(stored || defaultText, -1)
+  settings.bind(key, buffer, 'text', Gio.SettingsBindFlags.DEFAULT)
+
+  return row
+}
+
+function buildTextAreaRow (title, minHeight, maxHeight) {
   const row = new Adw.PreferencesRow({
     activatable: false,
     selectable: false
@@ -471,14 +554,7 @@ function textAreaRow (settings, key, title, { defaultText = '', minHeight = 84, 
   })
   box.append(scrolled)
 
-  // The schema default is the fallback when nothing was ever saved; a saved
-  // value always wins. Bind after seeding so the first save writes the
-  // visible text.
-  const stored = settings.get_string(key)
-  buffer.set_text(stored || defaultText, -1)
-  settings.bind(key, buffer, 'text', Gio.SettingsBindFlags.DEFAULT)
-
-  return row
+  return { row, buffer }
 }
 
 // Loads prefs.css for the Preferences window. The path points at the
@@ -519,6 +595,7 @@ function spinRow (settings, key, title, subtitle, lower, upper) {
 function secretRow ({ settings, providerId, fieldKey, title, subtitle }) {
   const entry = new Adw.PasswordEntryRow({ title })
   if (subtitle) { entry.set_tooltip_text(subtitle) }
+  let rebinding = false
 
   const readStored = () => {
     const map = settings.get_value('provider-secrets').deep_unpack()
@@ -537,20 +614,22 @@ function secretRow ({ settings, providerId, fieldKey, title, subtitle }) {
   const changeHandlers = []
 
   entry.connect('changed', () => {
+    if (rebinding) { return }
     writeStored(entry.get_text().trim())
   })
 
-  const rebind = nextProviderId => {
+  // Rebinding to another Provider or field loads that stored value. Never
+  // re-assign an identical value: set_text always emits 'changed', and the
+  // write-through would otherwise fire for a pure read.
+  const rebind = (nextProviderId, nextFieldKey = fieldKey) => {
     providerId = nextProviderId
-    entry.text = readStored()
-  }
-
-  const refresh = () => {
+    fieldKey = nextFieldKey
     const stored = readStored()
-    // Never re-assign an identical value: set_text always emits 'changed',
-    // and a mutual refresh between two rows sharing one provider would
-    // otherwise ping-pong forever.
-    if (entry.text !== stored) { entry.text = stored }
+    if (entry.text !== stored) {
+      rebinding = true
+      entry.text = stored
+      rebinding = false
+    }
   }
 
   const setTitle = title => {
@@ -562,7 +641,6 @@ function secretRow ({ settings, providerId, fieldKey, title, subtitle }) {
   return {
     row: entry,
     rebind,
-    refresh,
     setTitle,
     hasValue: () => Boolean(readStored() || envFallbackPresent(providerId, fieldKey)),
     onChange: handler => changeHandlers.push(handler)
@@ -610,5 +688,5 @@ function buildConnectionRow ({ settings, role, label, description }) {
     }
   })
 
-  return { row, rebind: () => setStatus(description) }
+  return { row, resetStatus: () => setStatus(description) }
 }
