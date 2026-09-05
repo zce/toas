@@ -3,7 +3,7 @@
 
 // Recording quality presets. The preset chooses the capture sample rate;
 // mono s16 stays fixed. Higher rates produce larger uploads and hit the
-// recording size cap sooner (see lib/infrastructure/audio.js MAX_PCM_BYTES).
+// recording size cap sooner (see audio.js MAX_PCM_BYTES).
 export const AUDIO_QUALITY_PRESETS = {
   standard: { sampleRate: 16000 },
   high: { sampleRate: 48000 },

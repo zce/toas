@@ -12,7 +12,7 @@
 
 import GLib from 'gi://GLib'
 import { readProcessingConfig } from './processing-config.js'
-import { resolveStep } from '../kernel/process.js'
+import { resolveStep } from './kernel/process.js'
 
 export class ConfigService {
   constructor ({ settings, providers }) {

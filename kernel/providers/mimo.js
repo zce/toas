@@ -1,17 +1,14 @@
 // MiMo Provider: explicit selection mappings over one shared service.
 // This module must not import GNOME/GI libraries.
 
+import { Provider } from './provider.js'
 import {
-  encodeBody,
-  decodeBody,
+  ChatCompletionsProcessor,
   extractContent,
   normalizeFinishReason,
   normalizeUsage,
-  serviceErrorFromStatus,
-  processingError,
-  cancelledError,
-  normalizeChatCompletionsUrl
-} from './chat-helpers.js'
+  processingError
+} from './chat-completions.js'
 
 const MODEL_SHAPES = {
   'mimo-v2.5-asr': {
@@ -28,58 +25,61 @@ const MODEL_SHAPES = {
   }
 }
 
-export const mimoProvider = {
-  id: 'mimo',
+class MimoProvider extends Provider {
+  constructor () {
+    super({
+      id: 'mimo',
+      manifest: {
+        label: 'MiMo',
 
-  manifest: {
-    label: 'MiMo',
+        fields: [
+          {
+            key: 'endpoint',
+            type: 'url',
+            label: 'Service base URL',
+            required: true,
+            default: 'https://token-plan-cn.xiaomimimo.com/v1',
+            env: ['TOAS_MIMO_ENDPOINT', 'MIMO_ENDPOINT']
+          },
+          {
+            key: 'key',
+            type: 'secret',
+            label: 'API key',
+            required: true,
+            env: ['TOAS_MIMO_API_KEY', 'MIMO_API_KEY']
+          }
+        ],
 
-    fields: [
-      {
-        key: 'endpoint',
-        type: 'url',
-        label: 'Service base URL',
-        required: true,
-        default: 'https://token-plan-cn.xiaomimimo.com/v1',
-        env: ['TOAS_MIMO_ENDPOINT', 'MIMO_ENDPOINT']
-      },
-      {
-        key: 'key',
-        type: 'secret',
-        label: 'API key',
-        required: true,
-        env: ['TOAS_MIMO_API_KEY', 'MIMO_API_KEY']
+        selectionFields: [
+          {
+            key: 'model',
+            type: 'string',
+            label: 'Model',
+            required: true,
+            inputs: ['audio'],
+            choices: [{ value: 'mimo-v2.5-asr', label: 'mimo-v2.5-asr' }]
+          },
+          {
+            key: 'model',
+            type: 'string',
+            label: 'Model',
+            required: true,
+            inputs: ['text'],
+            choices: [
+              { value: 'mimo-v2.5', label: 'mimo-v2.5' },
+              { value: 'mimo-v2.5-pro', label: 'mimo-v2.5-pro' }
+            ]
+          },
+          { key: 'language', type: 'string', label: 'Language', inputs: ['audio'] }
+        ],
+        support: { inputs: ['audio', 'text'], instructions: true },
+        defaults: {
+          audio: { model: 'mimo-v2.5-asr', language: 'auto' },
+          text: { model: 'mimo-v2.5' }
+        }
       }
-    ],
-
-    selectionFields: [
-      {
-        key: 'model',
-        type: 'string',
-        label: 'Model',
-        required: true,
-        inputs: ['audio'],
-        choices: [{ value: 'mimo-v2.5-asr', label: 'mimo-v2.5-asr' }]
-      },
-      {
-        key: 'model',
-        type: 'string',
-        label: 'Model',
-        required: true,
-        inputs: ['text'],
-        choices: [
-          { value: 'mimo-v2.5', label: 'mimo-v2.5' },
-          { value: 'mimo-v2.5-pro', label: 'mimo-v2.5-pro' }
-        ]
-      },
-      { key: 'language', type: 'string', label: 'Language', inputs: ['audio'] }
-    ],
-    support: { inputs: ['audio', 'text'], instructions: true },
-    defaults: {
-      audio: { model: 'mimo-v2.5-asr', language: 'auto' },
-      text: { model: 'mimo-v2.5' }
-    }
-  },
+    })
+  }
 
   resolve ({ providerValues, values, secretPresence }) {
     const issues = []
@@ -130,7 +130,7 @@ export const mimoProvider = {
       capabilities: shape.capabilities,
       issues: []
     }
-  },
+  }
 
   create (config, secrets, runtime) {
     if (!secrets.key) {
@@ -140,11 +140,11 @@ export const mimoProvider = {
   }
 }
 
-class MimoProcessor {
+export const mimoProvider = new MimoProvider()
+
+class MimoProcessor extends ChatCompletionsProcessor {
   constructor (config, apiKey, runtime, shape) {
-    this._config = config
-    this._apiKey = apiKey
-    this._runtime = runtime
+    super('MiMo', config, apiKey, runtime)
     this._shape = shape
   }
 
@@ -208,25 +208,5 @@ class MimoProcessor {
       requestId: null,
       responseId: data.id ?? null
     }
-  }
-
-  async _send (requestBody, signal) {
-    const response = await this._runtime.transport.send({
-      method: 'POST',
-      url: normalizeChatCompletionsUrl(this._config.endpoint),
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this._apiKey}`
-      },
-      body: encodeBody(requestBody)
-    }, signal)
-
-    if (signal?.aborted) { throw cancelledError() }
-
-    if (response.status < 200 || response.status >= 300) {
-      throw serviceErrorFromStatus(response.status, response.body, 'MiMo')
-    }
-
-    return decodeBody(response.body)
   }
 }

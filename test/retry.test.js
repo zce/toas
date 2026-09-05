@@ -1,6 +1,6 @@
-import { ToasOrchestrator } from '../lib/orchestrator.js'
+import { ToasOrchestrator } from '../orchestrator.js'
 import { FakeRecorder, FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import { recordingOutcomeOk } from '../lib/infrastructure/recorder-outcome.js'
+import { recordingOutcomeOk } from '../recorder-outcome.js'
 import { test, expectEqual, run } from './harness.js'
 
 const recording = { id: 'orig-1', path: '/tmp/orig-1.wav', durationMs: 3000, mimeType: 'audio/wav' }

@@ -1,3 +1,5 @@
+import { Provider } from '../kernel/providers/provider.js'
+
 // Test Provider with an explicit integrated-refine capability, used only by
 // Kernel tests to exercise the integrated branch. No production Provider
 // advertises integrated refine until a dedicated semantic verification
@@ -5,21 +7,22 @@
 //
 // This module must not import GNOME/GI libraries.
 
-export const testIntegratedProvider = {
-  id: 'test-integrated',
-
-  manifest: {
-    label: 'Test Integrated Provider',
-
-    fields: [
-      { key: 'endpoint', type: 'url', label: 'Endpoint', required: true, default: 'https://test.example.com' },
-      { key: 'key', type: 'secret', label: 'API key', required: true }
-    ],
-
-    selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
-    support: { inputs: ['audio'], instructions: false },
-    defaults: { audio: { model: 'test-integrated-model' } }
-  },
+class TestIntegratedProvider extends Provider {
+  constructor () {
+    super({
+      id: 'test-integrated',
+      manifest: {
+        label: 'Test Integrated Provider',
+        fields: [
+          { key: 'endpoint', type: 'url', label: 'Endpoint', required: true, default: 'https://test.example.com' },
+          { key: 'key', type: 'secret', label: 'API key', required: true }
+        ],
+        selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
+        support: { inputs: ['audio'], instructions: false },
+        defaults: { audio: { model: 'test-integrated-model' } }
+      }
+    })
+  }
 
   resolve ({ providerValues, values, secretPresence }) {
     const issues = []
@@ -49,7 +52,7 @@ export const testIntegratedProvider = {
       },
       issues: []
     }
-  },
+  }
 
   create (config, secrets, runtime) {
     if (!secrets.key) {
@@ -58,6 +61,8 @@ export const testIntegratedProvider = {
     return new TestIntegratedProcessor(config)
   }
 }
+
+export const testIntegratedProvider = new TestIntegratedProvider()
 
 class TestIntegratedProcessor {
   constructor (config) {

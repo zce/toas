@@ -1,9 +1,9 @@
 import GLib from 'gi://GLib'
 
-import { AudioRecorder } from './infrastructure/audio.js'
-import { DEFAULT_SAMPLE_RATE, resolveSampleRate } from './infrastructure/effective-config.js'
-import { RecorderOutcomeError, RecorderOutcomeKind } from './infrastructure/recorder-outcome.js'
-import { AttemptSignal } from './host/attempt-signal.js'
+import { AudioRecorder } from './audio.js'
+import { DEFAULT_SAMPLE_RATE, resolveSampleRate } from './audio-quality.js'
+import { RecorderOutcomeError, RecorderOutcomeKind } from './recorder-outcome.js'
+import { AttemptSignal } from './attempt-signal.js'
 
 export class ToasOrchestrator {
   constructor ({

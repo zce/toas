@@ -1,4 +1,4 @@
-import { OnboardingManager } from '../lib/domain/onboarding.js'
+import { OnboardingManager } from '../onboarding.js'
 import { test, expectEqual, run } from './harness.js'
 
 class FakeSettings {

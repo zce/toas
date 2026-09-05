@@ -1,4 +1,4 @@
-// Kernel collaborator for the GNOME Host: loads portable audio, snapshots
+// Kernel runner for the GNOME Host: loads portable audio, snapshots
 // Config/secrets/Context once per attempt, and invokes the runtime-agnostic
 // Kernel with a real AbortController. Settings changed after an attempt
 // starts affect only the next attempt.
@@ -6,10 +6,9 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-import { process as runKernel } from '../kernel/process.js'
-import { providers as registry } from '../kernel/providers/registry.js'
+import { process as runKernel } from './kernel/process.js'
+import { providers as registry } from './kernel/providers/registry.js'
 import { SoupHttpTransport } from './soup-http-transport.js'
-import { MonotonicClock } from './clock.js'
 import { ConfigService } from './config-service.js'
 
 Gio._promisify(
@@ -20,12 +19,12 @@ Gio._promisify(
 
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
-export class KernelCollaborator {
+export class KernelRunner {
   constructor ({ settings, providers = registry }) {
     this._providers = providers
     this._configService = new ConfigService({ settings, providers })
     this._transport = new SoupHttpTransport({ timeoutMs: 120000 })
-    this._clock = new MonotonicClock()
+    this._clock = { now: () => GLib.get_monotonic_time() / 1000 }
   }
 
   get configService () {

@@ -17,6 +17,7 @@
 // Context is free text the user composed and is delivered verbatim.
 // This module must not import GNOME/GI libraries.
 
+import { Provider } from './provider.js'
 import {
   encodeBody,
   decodeBody,
@@ -25,7 +26,7 @@ import {
   serviceErrorFromStatus,
   processingError,
   cancelledError
-} from './chat-helpers.js'
+} from './chat-completions.js'
 
 // Explicit, tested capability mapping. Unknown models are rejected because
 // neither capability nor invocation protocol may be guessed safely.
@@ -58,47 +59,50 @@ function endpointIssues (endpoint) {
   return issues
 }
 
-export const qwenProvider = {
-  id: 'qwen',
+class QwenProvider extends Provider {
+  constructor () {
+    super({
+      id: 'qwen',
+      manifest: {
+        label: 'Qwen',
 
-  manifest: {
-    label: 'Qwen',
-
-    fields: [
-      {
-        key: 'endpoint',
-        type: 'url',
-        label: 'Endpoint',
-        // Empty lets the Provider route by model protocol: both official
-        // endpoints below are verified live; an explicit override wins.
-        default: '',
-        env: ['TOAS_QWEN_ENDPOINT', 'DASHSCOPE_ENDPOINT']
-      },
-      {
-        key: 'key',
-        type: 'secret',
-        label: 'API key',
-        required: true,
-        env: ['TOAS_QWEN_API_KEY', 'QWEN_API_KEY', 'DASHSCOPE_API_KEY']
+        fields: [
+          {
+            key: 'endpoint',
+            type: 'url',
+            label: 'Endpoint',
+            // Empty lets the Provider route by model protocol: both official
+            // endpoints below are verified live; an explicit override wins.
+            default: '',
+            env: ['TOAS_QWEN_ENDPOINT', 'DASHSCOPE_ENDPOINT']
+          },
+          {
+            key: 'key',
+            type: 'secret',
+            label: 'API key',
+            required: true,
+            env: ['TOAS_QWEN_API_KEY', 'QWEN_API_KEY', 'DASHSCOPE_API_KEY']
+          }
+        ],
+        selectionFields: [
+          {
+            key: 'model',
+            type: 'string',
+            label: 'Model',
+            required: true,
+            choices: [
+              { value: 'fun-asr-flash-2026-06-15', label: 'fun-asr-flash-2026-06-15' },
+              { value: 'qwen-audio-3.0-asr-flash', label: 'qwen-audio-3.0-asr-flash' },
+              { value: 'qwen3-asr-flash-2026-02-10', label: 'qwen3-asr-flash-2026-02-10' },
+              { value: 'qwen3-asr-flash', label: 'qwen3-asr-flash · legacy' }
+            ]
+          }
+        ],
+        support: { inputs: ['audio'], instructions: false },
+        defaults: { audio: { model: 'fun-asr-flash-2026-06-15' } }
       }
-    ],
-    selectionFields: [
-      {
-        key: 'model',
-        type: 'string',
-        label: 'Model',
-        required: true,
-        choices: [
-          { value: 'fun-asr-flash-2026-06-15', label: 'fun-asr-flash-2026-06-15' },
-          { value: 'qwen-audio-3.0-asr-flash', label: 'qwen-audio-3.0-asr-flash' },
-          { value: 'qwen3-asr-flash-2026-02-10', label: 'qwen3-asr-flash-2026-02-10' },
-          { value: 'qwen3-asr-flash', label: 'qwen3-asr-flash · legacy' }
-        ]
-      }
-    ],
-    support: { inputs: ['audio'], instructions: false },
-    defaults: { audio: { model: 'fun-asr-flash-2026-06-15' } }
-  },
+    })
+  }
 
   resolve ({ providerValues, values, secretPresence }) {
     const issues = []
@@ -146,7 +150,7 @@ export const qwenProvider = {
       capabilities: shape.capabilities,
       issues: []
     }
-  },
+  }
 
   create (config, secrets, runtime) {
     if (!secrets.key) {
@@ -155,6 +159,8 @@ export const qwenProvider = {
     return new QwenProcessor(config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
 }
+
+export const qwenProvider = new QwenProvider()
 
 function audioCapabilities () {
   return { inputs: ['audio'], instructions: false, context: true, integratedRefine: false }

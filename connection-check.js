@@ -17,7 +17,7 @@
 
 import GLib from 'gi://GLib'
 
-import { resolveStep, processingError } from '../kernel/process.js'
+import { resolveStep, processingError } from './kernel/process.js'
 import { SoupHttpTransport } from './soup-http-transport.js'
 
 export async function runConnectionTest ({ configService, providers, role }) {

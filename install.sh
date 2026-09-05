@@ -22,13 +22,13 @@ gnome-extensions disable "$UUID" >/dev/null 2>&1 || true
 rm -rf "$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 
-cp "$SOURCE_DIR/metadata.json" "$TARGET_DIR/"
-cp "$SOURCE_DIR/extension.js" "$TARGET_DIR/"
-cp "$SOURCE_DIR/prefs.js" "$TARGET_DIR/"
-cp "$SOURCE_DIR/prefs.css" "$TARGET_DIR/"
-cp "$SOURCE_DIR/stylesheet.css" "$TARGET_DIR/"
-cp -R "$SOURCE_DIR/lib" "$TARGET_DIR/"
-cp -R "$SOURCE_DIR/schemas" "$TARGET_DIR/"
+cp "$SOURCE_DIR"/*.js "$TARGET_DIR/"
+cp "$SOURCE_DIR"/metadata.json "$TARGET_DIR/"
+cp "$SOURCE_DIR"/prefs.css "$TARGET_DIR/"
+cp "$SOURCE_DIR"/stylesheet.css "$TARGET_DIR/"
+cp -R "$SOURCE_DIR"/kernel "$TARGET_DIR/"
+cp -R "$SOURCE_DIR"/ui "$TARGET_DIR/"
+cp -R "$SOURCE_DIR"/schemas "$TARGET_DIR/"
 
 glib-compile-schemas --strict "$TARGET_DIR/schemas"
 

@@ -1,4 +1,4 @@
-import { selectOutputMethod } from '../lib/domain/output-strategy.js'
+import { selectOutputMethod } from '../output-strategy.js'
 import { expectEqual, run, test } from './harness.js'
 
 test('direct input is preferred for single-line text with text-input focus', () => {

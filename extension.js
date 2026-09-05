@@ -8,18 +8,18 @@ import St from 'gi://St'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
-import { ToasIndicator } from './lib/ui/indicator.js'
-import { ToasOrchestrator } from './lib/orchestrator.js'
-import { ToasOverlayPresenter } from './lib/ui/overlay-presenter.js'
-import { ShellOverlayView } from './lib/ui/shell-overlay-view.js'
-import { ShellNotifier } from './lib/ui/notifier.js'
-import { TextPaster } from './lib/infrastructure/input.js'
-import { HistoryStore } from './lib/domain/history.js'
-import { HistoryRepository } from './lib/domain/history-repository.js'
-import { OnboardingManager } from './lib/domain/onboarding.js'
-import { ConfirmDialog } from './lib/ui/confirm-dialog.js'
-import { KernelCollaborator } from './lib/host/collaborator.js'
-import { extractText } from './lib/domain/history-format.js'
+import { ToasIndicator } from './ui/indicator.js'
+import { ToasOrchestrator } from './orchestrator.js'
+import { ToasOverlayPresenter } from './ui/overlay-presenter.js'
+import { ShellOverlayView } from './ui/shell-overlay-view.js'
+import { ShellNotifier } from './ui/notifier.js'
+import { TextPaster } from './input.js'
+import { HistoryStore } from './history.js'
+import { HistoryRepository } from './history-repository.js'
+import { OnboardingManager } from './onboarding.js'
+import { ConfirmDialog } from './ui/confirm-dialog.js'
+import { KernelRunner } from './kernel-runner.js'
+import { extractText } from './history-format.js'
 const PTT_MOD_MASK =
     Clutter.ModifierType.CONTROL_MASK |
     Clutter.ModifierType.SHIFT_MASK |
@@ -58,10 +58,10 @@ export default class ToasExtension extends Extension {
       const overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
       this._overlayCollaborators = { overlay }
 
-      const kernelCollaborator = new KernelCollaborator({
+      const kernelRunner = new KernelRunner({
         settings: this._settings
       })
-      this._kernelCollaborator = kernelCollaborator
+      this._kernelRunner = kernelRunner
 
       this._orchestrator = new ToasOrchestrator({
         settings: this._settings,
@@ -72,7 +72,7 @@ export default class ToasExtension extends Extension {
           paster: new TextPaster(this._settings),
           notifier,
           privacy: this._privacy,
-          kernel: kernelCollaborator
+          kernel: kernelRunner
         },
         onStateChanged: (state, message) => this._indicator?.render(state, message)
       })
@@ -117,8 +117,8 @@ export default class ToasExtension extends Extension {
       this._orchestrator?.destroy()
       this._orchestrator = null
 
-      this._kernelCollaborator?.destroy()
-      this._kernelCollaborator = null
+      this._kernelRunner?.destroy()
+      this._kernelRunner = null
 
       this._overlayCollaborators?.overlay?.destroy()
       this._overlayCollaborators = null
@@ -153,8 +153,8 @@ export default class ToasExtension extends Extension {
     this._orchestrator?.destroy()
     this._orchestrator = null
 
-    this._kernelCollaborator?.destroy()
-    this._kernelCollaborator = null
+    this._kernelRunner?.destroy()
+    this._kernelRunner = null
 
     this._onboarding = null
     this._historyRepository = null
@@ -215,7 +215,7 @@ export default class ToasExtension extends Extension {
   // Gate for every recording entry point (shortcut and top-bar). Returns
   // false when the user was redirected to preferences instead.
   _guardReadyToRecord () {
-    const ready = this._kernelCollaborator?.configService?.primaryReady() ?? false
+    const ready = this._kernelRunner?.configService?.primaryReady() ?? false
     return !this._onboarding.guardUnconfigured(ready)
   }
 

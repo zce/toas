@@ -7,8 +7,8 @@ import GLib from 'gi://GLib'
 import Soup from 'gi://Soup?version=3.0'
 import System from 'system'
 
-import { SoupHttpTransport } from '../lib/host/soup-http-transport.js'
-import { AttemptSignal } from '../lib/host/attempt-signal.js'
+import { SoupHttpTransport } from '../soup-http-transport.js'
+import { AttemptSignal } from '../attempt-signal.js'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
