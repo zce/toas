@@ -371,20 +371,20 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Recording quality and local retention.'
     })
 
-    // Present presets in semantic order without changing persisted enum values:
-    // standard=0, balanced=2, high=1.
-    const qualityValues = [0, 2, 1]
+    const qualityValues = ['minimum', 'low', 'standard', 'high', 'maximum']
     const qualityRow = new Adw.ComboRow({
       title: 'Audio quality',
       model: Gtk.StringList.new([
+        'Minimum · 8 kHz · ~26 min',
+        'Low · 12 kHz · ~17 min',
         'Standard · 16 kHz · ~13 min',
-        'Balanced · 24 kHz · ~9 min',
-        'High · 48 kHz · ~4 min'
+        'High · 24 kHz · ~9 min',
+        'Maximum · 48 kHz · ~4 min'
       ]),
-      selected: Math.max(0, qualityValues.indexOf(settings.get_enum('audio-quality')))
+      selected: Math.max(0, qualityValues.indexOf(settings.get_string('audio-quality')))
     })
     qualityRow.connect('notify::selected', () => {
-      settings.set_enum('audio-quality', qualityValues[qualityRow.selected] ?? 0)
+      settings.set_string('audio-quality', qualityValues[qualityRow.selected] ?? 'standard')
     })
 
     localGroup.add(qualityRow)
