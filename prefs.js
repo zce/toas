@@ -14,13 +14,24 @@ import { readProcessingConfig, writeProcessingConfig, providerIdsFor } from './l
 
 const REFINE_ON_ERROR_VALUES = ['fallback', 'abort']
 
-function buildShortcutButton (settings) {
-  const button = new Gtk.Button({ valign: Gtk.Align.CENTER })
+function buildShortcutControl (settings) {
+  const label = new Adw.ShortcutLabel({
+    disabled_text: 'Disabled'
+  })
+  const button = new Gtk.Button({
+    valign: Gtk.Align.CENTER,
+    child: label
+  })
   button.add_css_class('flat')
 
-  const setLabelFromSettings = () => {
-    const value = settings.get_strv('push-to-talk')[0]
-    button.set_label(value || 'Disabled')
+  const showShortcut = () => {
+    label.accelerator = settings.get_strv('push-to-talk')[0] || ''
+    label.disabled_text = 'Disabled'
+  }
+
+  const showPrompt = text => {
+    label.accelerator = ''
+    label.disabled_text = text
   }
 
   let editing = false
@@ -37,7 +48,7 @@ function buildShortcutButton (settings) {
       GLib.source_remove(debounceId)
       debounceId = 0
     }
-    setLabelFromSettings()
+    showShortcut()
   }
 
   button.connect('clicked', () => {
@@ -47,7 +58,7 @@ function buildShortcutButton (settings) {
     }
 
     editing = true
-    button.set_label('Press a key combination…')
+    showPrompt('Press shortcut…')
 
     controller = new Gtk.EventControllerKey()
     button.add_controller(controller)
@@ -80,16 +91,18 @@ function buildShortcutButton (settings) {
         Gdk.KEY_Meta_L, Gdk.KEY_Meta_R
       ]
       if (bareModifiers.includes(keyval)) {
-        button.set_label('Add a regular key to the modifier…')
+        showPrompt('Add a key…')
         return Gdk.EVENT_STOP
       }
 
       const accelerator = Gtk.accelerator_name_with_keycode(null, keyval, keycode, mask)
       if (!accelerator || !Gtk.accelerator_valid(keyval, mask)) {
-        button.set_label('That combination cannot be used…')
+        showPrompt('Invalid shortcut')
         return Gdk.EVENT_STOP
       }
-      button.set_label(accelerator)
+
+      label.accelerator = accelerator
+      label.disabled_text = ''
 
       debounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
         debounceId = 0
@@ -102,7 +115,7 @@ function buildShortcutButton (settings) {
     })
   })
 
-  setLabelFromSettings()
+  showShortcut()
   return button
 }
 
@@ -125,10 +138,10 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Hold the shortcut to record, then release to process.'
     })
 
-    const shortcutButton = buildShortcutButton(settings)
+    const shortcutControl = buildShortcutControl(settings)
     const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' })
-    shortcutRow.add_suffix(shortcutButton)
-    shortcutRow.activatable_widget = shortcutButton
+    shortcutRow.add_suffix(shortcutControl)
+    shortcutRow.activatable_widget = shortcutControl
 
     const autoInsert = new Adw.SwitchRow({
       title: 'Insert automatically',
@@ -237,12 +250,13 @@ export default class ToasPreferences extends ExtensionPreferences {
     const refineWarning = new Adw.Banner({ title: '' })
 
     // Context is product-owned free text and only appears when an active
-    // selection can consume it.
+    // selection can consume it. The group already labels the field, so this
+    // uses the standalone multiline variant without an internal caption.
     const contextGroup = new Adw.PreferencesGroup({
       title: 'Context',
       description: 'Names, terms, and background sent to providers that support context.'
     })
-    const contextRow = textAreaRow(settings, 'context', 'Context', {
+    const contextRow = textAreaRow(settings, 'context', {
       minHeight: 92,
       maxHeight: 180
     })
@@ -544,39 +558,43 @@ function resolvedCapabilities (selection, config, providers) {
 }
 
 function textAreaValueRow (title, { text = '', onChanged, minHeight = 92, maxHeight = 200 } = {}) {
-  const { row, buffer } = buildTextAreaRow(title, minHeight, maxHeight)
+  const { row, buffer } = buildTextAreaRow({ title, minHeight, maxHeight })
   buffer.set_text(text, -1)
   buffer.connect('changed', () => onChanged(buffer.text))
   return row
 }
 
-function textAreaRow (settings, key, title, { defaultText = '', minHeight = 92, maxHeight = 180 } = {}) {
-  const { row, buffer } = buildTextAreaRow(title, minHeight, maxHeight)
+function textAreaRow (settings, key, { defaultText = '', minHeight = 92, maxHeight = 180 } = {}) {
+  const { row, buffer } = buildTextAreaRow({ minHeight, maxHeight })
   const stored = settings.get_string(key)
   buffer.set_text(stored || defaultText, -1)
   settings.bind(key, buffer, 'text', Gio.SettingsBindFlags.DEFAULT)
   return row
 }
 
-// Multiline sibling of Adw.EntryRow: the PreferencesRow is the input surface,
-// while the TextView remains transparent and contributes only editing/layout.
-function buildTextAreaRow (title, minHeight, maxHeight) {
+// Two visual forms share one editor implementation: embedded rows carry a
+// compact field caption, while standalone rows rely on their surrounding
+// PreferencesGroup for identity and render as a pure text area.
+function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
   const row = new Adw.PreferencesRow({
     activatable: false,
     selectable: false
   })
   row.add_css_class('toas-multiline-row')
+  if (!title) { row.add_css_class('toas-multiline-standalone') }
 
   const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })
   row.set_child(box)
 
-  const caption = new Gtk.Label({
-    label: title,
-    xalign: 0
-  })
-  caption.add_css_class('caption')
-  caption.add_css_class('toas-multiline-caption')
-  box.append(caption)
+  if (title) {
+    const caption = new Gtk.Label({
+      label: title,
+      xalign: 0
+    })
+    caption.add_css_class('caption')
+    caption.add_css_class('toas-multiline-caption')
+    box.append(caption)
+  }
 
   const buffer = new Gtk.TextBuffer()
   const view = new Gtk.TextView({
