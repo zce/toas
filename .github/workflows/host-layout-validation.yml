@@ -1,0 +1,109 @@
+name: Host layout validation
+
+on:
+  push:
+    branches:
+      - zce/host-layout-validation-20260905
+  pull_request:
+    branches:
+      - refactor-arch
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'chore: run host layout validation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Align Host layout
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mv lib host
+          mv kernel/runner.js host/runner.js
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              './lib/': './host/',
+              '../lib/': '../host/',
+              "'lib/": "'host/",
+              '`${root}/lib`': '`${root}/host`',
+              "listJs('lib')": "listJs('host')",
+              "'/lib/'": "'/host/'",
+              'soup-http-transport.js': 'host/transport.js',
+              'kernel-runner.js': 'host/runner.js',
+          }
+
+          for path in [Path('extension.js'), Path('prefs.js'), Path('CONTEXT.md'), Path('install.sh'), *Path('test').glob('*.js'), Path('test/release-check.sh'), Path('ui/indicator.js')]:
+              text = path.read_text()
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              path.write_text(text)
+
+          path = Path('extension.js')
+          text = path.read_text().replace("'./kernel/runner.js'", "'./host/runner.js'")
+          path.write_text(text)
+
+          path = Path('host/runner.js')
+          text = path.read_text()
+          text = text.replace("'./process.js'", "'../kernel/process.js'")
+          text = text.replace("'./providers/registry.js'", "'../kernel/providers/registry.js'")
+          text = text.replace("'../host/transport.js'", "'./transport.js'")
+          text = text.replace("'../host/config.js'", "'./config.js'")
+          path.write_text(text)
+
+          mapping = {
+              "'../audio.js'": "'../host/audio.js'",
+              "'../audio-quality.js'": "'../host/audio.js'",
+              "'../recorder-outcome.js'": "'../host/audio.js'",
+              "'../history.js'": "'../host/history.js'",
+              "'../history-repository.js'": "'../host/history.js'",
+              "'../history-format.js'": "'../host/history.js'",
+              "'../input.js'": "'../host/output.js'",
+              "'../output-strategy.js'": "'../host/output.js'",
+              "'../window-role.js'": "'../host/output.js'",
+              "'../config-service.js'": "'../host/config.js'",
+              "'../processing-config.js'": "'../host/config.js'",
+              "'../connection-check.js'": "'../host/config.js'",
+              "'../soup-http-transport.js'": "'../host/transport.js'",
+              "'../attempt-signal.js'": "'../host/transport.js'",
+              "'../orchestrator.js'": "'../host/orchestrator.js'",
+              "'../onboarding.js'": "'../host/onboarding.js'",
+              "'../ui/overlay-presenter.js'": "'../ui/overlay.js'",
+          }
+          for path in Path('test').glob('*.js'):
+              text = path.read_text()
+              for old, new in mapping.items():
+                  text = text.replace(old, new)
+              path.write_text(text)
+          PY
+
+          git diff --check
+          git status --short
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'refactor: align runtime modules with Host boundary'
+          git push origin HEAD:zce/host-layout-validation-20260905
+
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GJS test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gjs libglib2.0-bin gir1.2-soup-3.0
+      - name: Verify
+        run: |
+          ./test/release-check.sh
+          git diff --check
