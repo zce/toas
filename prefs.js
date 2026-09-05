@@ -15,10 +15,8 @@ import { readProcessingConfig, writeProcessingConfig, providerIdsFor } from './l
 const REFINE_ON_ERROR_VALUES = ['fallback', 'abort']
 
 function buildShortcutButton (settings) {
-  const button = new Gtk.Button({
-    has_frame: false,
-    valign: Gtk.Align.CENTER
-  })
+  const button = new Gtk.Button({ valign: Gtk.Align.CENTER })
+  button.add_css_class('flat')
 
   const setLabelFromSettings = () => {
     const value = settings.get_strv('push-to-talk')[0]
@@ -574,11 +572,7 @@ function buildTextAreaRow (title, minHeight, maxHeight) {
 
   const caption = new Gtk.Label({
     label: title,
-    xalign: 0,
-    margin_top: 10,
-    margin_bottom: 2,
-    margin_start: 12,
-    margin_end: 12
+    xalign: 0
   })
   caption.add_css_class('caption')
   caption.add_css_class('toas-multiline-caption')
@@ -589,17 +583,12 @@ function buildTextAreaRow (title, minHeight, maxHeight) {
     buffer,
     wrap_mode: Gtk.WrapMode.WORD_CHAR,
     accepts_tab: false,
-    hexpand: true,
-    top_margin: 4,
-    bottom_margin: 10,
-    left_margin: 12,
-    right_margin: 12
+    hexpand: true
   })
 
   const scrolled = new Gtk.ScrolledWindow({
     hscrollbar_policy: Gtk.PolicyType.NEVER,
     vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
-    has_frame: false,
     min_content_height: minHeight,
     max_content_height: maxHeight,
     propagate_natural_height: true,
