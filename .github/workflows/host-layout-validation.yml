@@ -107,11 +107,25 @@ jobs:
         shell: bash
         run: |
           set +e
-          ./test/release-check.sh 2>&1 | tee verify.log
-          rc=${PIPESTATUS[0]}
+          : > verify.log
+
+          echo '== release-check ==' | tee -a verify.log
+          ./test/release-check.sh 2>&1 | tee -a verify.log
+          release_rc=${PIPESTATUS[0]}
+
+          echo '== import audit ==' | tee -a verify.log
+          gjs -m test/imports.test.js 2>&1 | tee -a verify.log
+          import_rc=${PIPESTATUS[0]}
+
+          echo '== full test output ==' | tee -a verify.log
+          ./test/run-all.sh 2>&1 | tee -a verify.log
+          tests_rc=${PIPESTATUS[0]}
+
+          echo '== diff check ==' | tee -a verify.log
           git diff --check 2>&1 | tee -a verify.log
           diff_rc=${PIPESTATUS[0]}
-          if [ "$rc" -ne 0 ] || [ "$diff_rc" -ne 0 ]; then
+
+          if [ "$release_rc" -ne 0 ] || [ "$import_rc" -ne 0 ] || [ "$tests_rc" -ne 0 ] || [ "$diff_rc" -ne 0 ]; then
             exit 1
           fi
       - name: Upload verification log
