@@ -2,8 +2,14 @@ import Pango from 'gi://Pango'
 import Clutter from 'gi://Clutter'
 import St from 'gi://St'
 
-import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
-import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+let Spinner = null
+let Main = null
+try {
+  ({ Spinner } = await import('resource:///org/gnome/shell/ui/animation.js'))
+  Main = await import('resource:///org/gnome/shell/ui/main.js')
+} catch {
+  // The presenter remains importable for headless tests outside GNOME Shell.
+}
 
 // The overlay presenter owns the state machine and delegates all St/Clutter
 // work to an injected view. ShellOverlayView below owns the Shell wiring.
@@ -114,6 +120,10 @@ const OVERLAY_BOTTOM_MARGIN = 112
 
 export class ShellOverlayView {
   constructor () {
+    if (!Spinner || !Main) {
+      throw new Error('ShellOverlayView requires the GNOME Shell runtime')
+    }
+
     this._levels = Array(BAR_COUNT).fill(0)
 
     this._actor = new St.BoxLayout({
