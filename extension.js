@@ -1,32 +1,20 @@
-import Clutter from 'gi://Clutter'
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
-import Meta from 'gi://Meta'
-import Shell from 'gi://Shell'
 import St from 'gi://St'
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
-import { ToasIndicator } from './lib/ui/indicator.js'
-import { ToasOrchestrator } from './lib/orchestrator.js'
-import { ToasOverlayPresenter } from './lib/ui/overlay-presenter.js'
-import { ShellOverlayView } from './lib/ui/shell-overlay-view.js'
-import { ShellNotifier } from './lib/ui/notifier.js'
-import { TextPaster } from './lib/infrastructure/input.js'
-import { HistoryStore } from './lib/domain/history.js'
-import { HistoryRepository } from './lib/domain/history-repository.js'
-import { OnboardingManager } from './lib/domain/onboarding.js'
-import { ConfirmDialog } from './lib/ui/confirm-dialog.js'
-import { KernelCollaborator } from './lib/host/collaborator.js'
-import { extractText } from './lib/domain/history-format.js'
-const PTT_MOD_MASK =
-    Clutter.ModifierType.CONTROL_MASK |
-    Clutter.ModifierType.SHIFT_MASK |
-    Clutter.ModifierType.MOD1_MASK |
-    Clutter.ModifierType.SUPER_MASK
-
-const PTT_POLL_INTERVAL_MS = 40
+import { HistoryRepository, HistoryStore, extractText } from './host/history.js'
+import { PushToTalkBinding } from './host/input.js'
+import { OnboardingManager } from './host/onboarding.js'
+import { ToasOrchestrator } from './host/orchestrator.js'
+import { TextPaster } from './host/output.js'
+import { KernelRunner } from './host/runner.js'
+import { ConfirmDialog } from './ui/dialog.js'
+import { ToasIndicator } from './ui/indicator.js'
+import { ShellNotifier } from './ui/notifier.js'
+import { ShellOverlayView, ToasOverlayPresenter } from './ui/overlay.js'
 
 export default class ToasExtension extends Extension {
   enable () {
@@ -55,30 +43,27 @@ export default class ToasExtension extends Extension {
           this._historyRepository.resolveAudio(entry).available,
         onPrivateModeChanged: enabled => this._setPrivateMode(enabled)
       })
-      const overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
-      this._overlayCollaborators = { overlay }
 
-      const kernelCollaborator = new KernelCollaborator({
-        settings: this._settings
-      })
-      this._kernelCollaborator = kernelCollaborator
+      this._overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
+
+      const kernelRunner = new KernelRunner({ settings: this._settings })
+      this._kernelRunner = kernelRunner
 
       this._orchestrator = new ToasOrchestrator({
         settings: this._settings,
         historyRepository: this._historyRepository,
         collaborators: {
-          overlay,
+          overlay: this._overlay,
           history,
           paster: new TextPaster(this._settings),
           notifier,
           privacy: this._privacy,
-          kernel: kernelCollaborator
+          kernel: kernelRunner
         },
         onStateChanged: (state, message) => this._indicator?.render(state, message)
       })
 
-      // Overlay close button cancels the live session directly.
-      overlay.setOnCancelRequested?.(() => this._orchestrator?.cancel())
+      this._overlay.setOnCancelRequested?.(() => this._orchestrator?.cancel())
 
       this._onboarding = new OnboardingManager({
         settings: this._settings,
@@ -92,7 +77,7 @@ export default class ToasExtension extends Extension {
         this._confirmDialog = new ConfirmDialog({
           title: 'Clear your words?',
           description: 'Your words and retained recordings will be ' +
-                        'permanently deleted. This cannot be undone.',
+            'permanently deleted. This cannot be undone.',
           confirmLabel: 'Clear',
           onConfirm: () => this._doClearHistory()
         })
@@ -101,27 +86,28 @@ export default class ToasExtension extends Extension {
         this._confirmDialog = null
       }
 
-      Main.panel.addToStatusArea(this.uuid, this._indicator)
-      this._scheduleIndicatorPosition()
+      this._indicator.addToPanel(this.uuid)
 
-      Main.wm.addKeybinding(
-        'push-to-talk',
-        this._settings,
-        Meta.KeyBindingFlags.NONE,
-        Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-        () => this._onPushToTalk()
-      )
+      this._inputBinding = new PushToTalkBinding({
+        settings: this._settings,
+        canStart: () => this._guardReadyToRecord(),
+        onToggle: () => this._orchestrator?.toggle(),
+        onBegin: () => this._orchestrator?.begin(),
+        onEnd: () => this._orchestrator?.end()
+      })
+      this._inputBinding.enable()
     } catch (error) {
-      this._destroyIndicatorPosition()
+      this._inputBinding?.destroy()
+      this._inputBinding = null
 
       this._orchestrator?.destroy()
       this._orchestrator = null
 
-      this._kernelCollaborator?.destroy()
-      this._kernelCollaborator = null
+      this._kernelRunner?.destroy()
+      this._kernelRunner = null
 
-      this._overlayCollaborators?.overlay?.destroy()
-      this._overlayCollaborators = null
+      this._overlay?.destroy()
+      this._overlay = null
 
       this._confirmDialog?.destroy()
       this._confirmDialog = null
@@ -139,22 +125,16 @@ export default class ToasExtension extends Extension {
   }
 
   disable () {
-    this._destroyIndicatorPosition()
-
-    if (this._pttPollId) {
-      GLib.source_remove(this._pttPollId)
-      this._pttPollId = 0
-    }
-
-    Main.wm.removeKeybinding('push-to-talk')
+    this._inputBinding?.destroy()
+    this._inputBinding = null
 
     this._privacy = null
 
     this._orchestrator?.destroy()
     this._orchestrator = null
 
-    this._kernelCollaborator?.destroy()
-    this._kernelCollaborator = null
+    this._kernelRunner?.destroy()
+    this._kernelRunner = null
 
     this._onboarding = null
     this._historyRepository = null
@@ -166,8 +146,8 @@ export default class ToasExtension extends Extension {
 
     // The orchestrator drops collaborator references without destroying them;
     // the composition root owns their teardown.
-    this._overlayCollaborators?.overlay?.destroy()
-    this._overlayCollaborators = null
+    this._overlay?.destroy()
+    this._overlay = null
 
     this._indicator?.destroy()
     this._indicator = null
@@ -178,78 +158,11 @@ export default class ToasExtension extends Extension {
     this._settings = null
   }
 
-  _scheduleIndicatorPosition () {
-    this._positionIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-      this._positionIdleId = 0
-      this._positionIndicator()
-      return GLib.SOURCE_REMOVE
-    })
-  }
-
-  _positionIndicator () {
-    const indicator = this._indicator?.container
-    const keyboard = Main.panel.statusArea.keyboard?.container
-
-    if (!indicator || !keyboard) {
-      return
-    }
-
-    const parent = keyboard.get_parent()
-
-    if (!parent || indicator.get_parent() !== parent) {
-      return
-    }
-
-    parent.set_child_below_sibling(indicator, keyboard)
-  }
-
-  _destroyIndicatorPosition () {
-    if (!this._positionIdleId) {
-      return
-    }
-
-    GLib.source_remove(this._positionIdleId)
-    this._positionIdleId = 0
-  }
-
   // Gate for every recording entry point (shortcut and top-bar). Returns
   // false when the user was redirected to preferences instead.
   _guardReadyToRecord () {
-    const ready = this._kernelCollaborator?.configService?.primaryReady() ?? false
+    const ready = this._kernelRunner?.configService?.primaryReady() ?? false
     return !this._onboarding.guardUnconfigured(ready)
-  }
-
-  _onPushToTalk () {
-    if (this._pttPollId) { return }
-
-    const heldModifiers = global.get_pointer()[2] & PTT_MOD_MASK
-
-    // GNOME's keybinding callback only gives us the press. With no modifier
-    // there is no cheap/reliable release signal, so degrade to toggle mode.
-    if (heldModifiers === 0) {
-      if (this._guardReadyToRecord()) { this._orchestrator?.toggle() }
-      return
-    }
-
-    if (!this._guardReadyToRecord()) { return }
-
-    this._orchestrator?.begin()
-
-    this._pttPollId = GLib.timeout_add(
-      GLib.PRIORITY_DEFAULT,
-      PTT_POLL_INTERVAL_MS,
-      () => {
-        const modifiers = global.get_pointer()[2]
-
-        if ((modifiers & heldModifiers) !== 0) {
-          return GLib.SOURCE_CONTINUE
-        }
-
-        this._pttPollId = 0
-        this._orchestrator?.end()
-        return GLib.SOURCE_REMOVE
-      }
-    )
   }
 
   _setPrivateMode (enabled) {

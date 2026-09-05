@@ -4,8 +4,50 @@ import St from 'gi://St'
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
-import { selectOutputMethod } from '../domain/output-strategy.js'
-import { isTerminalWindow } from '../domain/window-role.js'
+const TERMINAL_HINTS = [
+  'ptyxis',
+  'ghostty',
+  'gnome-terminal',
+  'gnome-terminal-server',
+  'kgx',
+  'console',
+  'konsole',
+  'alacritty',
+  'kitty',
+  'wezterm',
+  'foot',
+  'tilix'
+]
+
+export function isTerminalWindow (window) {
+  if (!window) { return false }
+
+  const identifiers = [
+    window.get_wm_class?.(),
+    window.get_wm_class_instance?.(),
+    window.get_gtk_application_id?.(),
+    window.get_sandboxed_app_id?.()
+  ]
+    .filter(Boolean)
+    .map(value => value.toLowerCase())
+
+  return identifiers.some(identifier =>
+    TERMINAL_HINTS.some(hint => identifier.includes(hint))
+  )
+}
+
+export function selectOutputMethod ({ text, autoPaste, directInputAvailable }) {
+  if (
+    autoPaste &&
+    directInputAvailable &&
+    !text.includes('\n') &&
+    !text.includes('\r')
+  ) {
+    return 'direct'
+  }
+
+  return 'clipboard'
+}
 
 export class TextPaster {
   constructor (settings) {
@@ -81,8 +123,8 @@ export class TextPaster {
 
     if (
       this._settings.get_boolean('restore-clipboard') &&
-            originalText !== null &&
-            originalText !== text
+      originalText !== null &&
+      originalText !== text
     ) {
       await delay(450)
       if (this._cancelled) { return }

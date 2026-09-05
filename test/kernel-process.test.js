@@ -3,9 +3,9 @@
 // real registered Providers, plus the test-integrated Provider for the
 // integrated-refine capability branch. No network, no GNOME.
 
-import { process as kernelProcess, filterContext, normalizeContext, secretKey } from '../lib/kernel/process.js'
-import { providers as registry } from '../lib/kernel/providers/registry.js'
-import { testIntegratedProvider } from '../lib/kernel/providers/test-integrated.js'
+import { process as kernelProcess, filterContext, normalizeContext, secretKey } from '../kernel/process.js'
+import { providers as registry } from '../kernel/providers/registry.js'
+import { testIntegratedProvider } from './integrated-provider.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 const providers = new Map(registry)

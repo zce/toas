@@ -3,46 +3,46 @@
 // openai-compatible Provider, keeping official defaults separate.
 // This module must not import GNOME/GI libraries.
 
+import { Provider } from './provider.js'
 import {
-  encodeBody,
-  decodeBody,
+  ChatCompletionsProcessor,
   extractContent,
   normalizeFinishReason,
   normalizeUsage,
-  serviceErrorFromStatus,
-  processingError,
-  cancelledError,
-  normalizeChatCompletionsUrl
-} from './chat-helpers.js'
+  processingError
+} from './chat-completions.js'
 
-export const openaiProvider = {
-  id: 'openai',
+class OpenAIProvider extends Provider {
+  constructor () {
+    super({
+      id: 'openai',
+      manifest: {
+        label: 'OpenAI',
 
-  manifest: {
-    label: 'OpenAI',
+        fields: [
+          {
+            key: 'endpoint',
+            type: 'url',
+            label: 'Service base URL',
+            required: true,
+            default: 'https://api.openai.com/v1',
+            env: ['TOAS_OPENAI_ENDPOINT', 'OPENAI_API_BASE']
+          },
+          {
+            key: 'key',
+            type: 'secret',
+            label: 'API key',
+            required: true,
+            env: ['TOAS_OPENAI_API_KEY', 'OPENAI_API_KEY']
+          }
+        ],
 
-    fields: [
-      {
-        key: 'endpoint',
-        type: 'url',
-        label: 'Service base URL',
-        required: true,
-        default: 'https://api.openai.com/v1',
-        env: ['TOAS_OPENAI_ENDPOINT', 'OPENAI_API_BASE']
-      },
-      {
-        key: 'key',
-        type: 'secret',
-        label: 'API key',
-        required: true,
-        env: ['TOAS_OPENAI_API_KEY', 'OPENAI_API_KEY']
+        selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
+        support: { inputs: ['text'], instructions: true },
+        defaults: { text: { model: 'gpt-4o-mini' } }
       }
-    ],
-
-    selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
-    support: { inputs: ['text'], instructions: true },
-    defaults: { text: { model: 'gpt-4o-mini' } }
-  },
+    })
+  }
 
   resolve ({ providerValues, values, secretPresence }) {
     const issues = []
@@ -82,7 +82,7 @@ export const openaiProvider = {
       capabilities: textCapabilities(),
       issues: []
     }
-  },
+  }
 
   create (config, secrets, runtime) {
     if (!secrets.key) {
@@ -92,35 +92,40 @@ export const openaiProvider = {
   }
 }
 
+export const openaiProvider = new OpenAIProvider()
+
 // Bring-your-own OpenAI-compatible text endpoint. Arbitrary model ids are
 // accepted because this integration promises one explicit wire contract.
-export const openaiCompatibleProvider = {
-  id: 'openai-compatible',
+class OpenAICompatibleProvider extends Provider {
+  constructor () {
+    super({
+      id: 'openai-compatible',
+      manifest: {
+        label: 'OpenAI-compatible',
 
-  manifest: {
-    label: 'OpenAI-compatible',
+        fields: [
+          {
+            key: 'endpoint',
+            type: 'url',
+            label: 'Service base URL',
+            required: true,
+            env: ['TOAS_OPENAI_COMPATIBLE_ENDPOINT']
+          },
+          {
+            key: 'key',
+            type: 'secret',
+            label: 'API key',
+            required: true,
+            env: ['TOAS_OPENAI_COMPATIBLE_API_KEY']
+          }
+        ],
 
-    fields: [
-      {
-        key: 'endpoint',
-        type: 'url',
-        label: 'Service base URL',
-        required: true,
-        env: ['TOAS_OPENAI_COMPATIBLE_ENDPOINT']
-      },
-      {
-        key: 'key',
-        type: 'secret',
-        label: 'API key',
-        required: true,
-        env: ['TOAS_OPENAI_COMPATIBLE_API_KEY']
+        selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
+        support: { inputs: ['text'], instructions: true },
+        defaults: { text: {} }
       }
-    ],
-
-    selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
-    support: { inputs: ['text'], instructions: true },
-    defaults: { text: {} }
-  },
+    })
+  }
 
   resolve ({ providerValues, values, secretPresence }) {
     const issues = []
@@ -160,7 +165,7 @@ export const openaiCompatibleProvider = {
       capabilities: textCapabilities(),
       issues: []
     }
-  },
+  }
 
   create (config, secrets, runtime) {
     if (!secrets.key) {
@@ -170,18 +175,13 @@ export const openaiCompatibleProvider = {
   }
 }
 
+export const openaiCompatibleProvider = new OpenAICompatibleProvider()
+
 function textCapabilities () {
   return { inputs: ['text'], instructions: true, context: true, integratedRefine: false }
 }
 
-class OpenAICompatibleProcessor {
-  constructor (label, config, apiKey, runtime) {
-    this._label = label
-    this._config = config
-    this._apiKey = apiKey
-    this._runtime = runtime
-  }
-
+class OpenAICompatibleProcessor extends ChatCompletionsProcessor {
   async process ({ input, context, instructions, signal }) {
     if (input.kind !== 'text') {
       throw processingError('configuration', `${this._label} processing requires text input`)
@@ -218,25 +218,5 @@ class OpenAICompatibleProcessor {
       requestId: null,
       responseId: data.id ?? null
     }
-  }
-
-  async _send (requestBody, signal) {
-    const response = await this._runtime.transport.send({
-      method: 'POST',
-      url: normalizeChatCompletionsUrl(this._config.endpoint),
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this._apiKey}`
-      },
-      body: encodeBody(requestBody)
-    }, signal)
-
-    if (signal?.aborted) { throw cancelledError() }
-
-    if (response.status < 200 || response.status >= 300) {
-      throw serviceErrorFromStatus(response.status, response.body, this._label)
-    }
-
-    return decodeBody(response.body)
   }
 }

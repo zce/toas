@@ -1,9 +1,38 @@
-// Shared helpers for Chat-Completions-style protocol families. Wire shapes
-// stay inside Provider modules; nothing here leaks to the Kernel domain.
+// Shared Chat Completions protocol support.
+// Wire shapes stay inside Provider modules; nothing here leaks to the Kernel domain.
 // This module must not import GNOME/GI libraries.
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
+
+export class ChatCompletionsProcessor {
+  constructor (label, config, apiKey, runtime) {
+    this._label = label
+    this._config = config
+    this._apiKey = apiKey
+    this._runtime = runtime
+  }
+
+  async _send (requestBody, signal) {
+    const response = await this._runtime.transport.send({
+      method: 'POST',
+      url: normalizeChatCompletionsUrl(this._config.endpoint),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this._apiKey}`
+      },
+      body: encodeBody(requestBody)
+    }, signal)
+
+    if (signal?.aborted) { throw cancelledError() }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw serviceErrorFromStatus(response.status, response.body, this._label)
+    }
+
+    return decodeBody(response.body)
+  }
+}
 
 export function encodeBody (value) {
   return encoder.encode(JSON.stringify(value))

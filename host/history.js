@@ -173,3 +173,112 @@ export class HistoryStore {
     this._settings = null
   }
 }
+
+// History repository: bounded, safe queries over the session JSONL plus
+// linked retry attempts. Pure GLib, no Shell imports.
+//
+// Design notes:
+// - list() reads the file once, returns newest first, skips malformed lines.
+// - Attempts are appended (never rewritten) with attemptOf linking to the
+//   original session id; the original record is immutable.
+// - Audio resolution checks file existence without reading contents.
+
+const DEFAULT_PAGE_SIZE = 30
+
+export class HistoryRepository {
+  constructor (store) {
+    this._store = store
+  }
+
+  // Newest-first page of session metadata. `after` is the id of the last
+  // entry of the previous page, enabling keyset pagination without indexes.
+  list ({ limit = DEFAULT_PAGE_SIZE, beforeId = null } = {}) {
+    const entries = this._store.readEntries()
+    const newestFirst = [...entries].reverse()
+    const startIndex = beforeId
+      ? newestFirst.findIndex(entry => entry.id === beforeId) + 1
+      : 0
+
+    if (beforeId && startIndex === 0) { return [] }
+
+    return newestFirst
+      .slice(startIndex)
+      .filter(entry => !entry.attemptOf)
+      .slice(0, limit)
+  }
+
+  get (id) {
+    return this._store.readEntries().find(entry => entry.id === id) ?? null
+  }
+
+  // Attempts linked to a session, oldest first.
+  attemptsOf (sessionId) {
+    return this._store
+      .readEntries()
+      .filter(entry => entry.attemptOf === sessionId)
+  }
+
+  // Appends a retry attempt linked to a failed original. The original record
+  // is never modified.
+  appendAttempt (original, entry) {
+    const attempts = this.attemptsOf(original.id)
+    const attempt = {
+      ...entry,
+      id: entry.id ?? GLib.uuid_string_random(),
+      attemptOf: original.id,
+      attemptNumber: attempts.length + 1
+    }
+    this._store.append(attempt)
+    return attempt
+  }
+
+  // Resolves the audio path only if the file still exists on disk. Returns
+  // { available, path } without reading any bytes.
+  resolveAudio (entry) {
+    if (!entry?.audio) { return { available: false, path: null } }
+
+    const path = GLib.build_filenamev([
+      this._store.stateDirectory,
+      entry.audio
+    ])
+    const exists = GLib.file_test(path, GLib.FileTest.EXISTS) &&
+      !GLib.file_test(path, GLib.FileTest.IS_DIR)
+    return { available: exists, path: exists ? path : null }
+  }
+}
+
+// Pure formatting helpers for history UI; imported by headless tests and the
+// Shell-side indicator menu.
+
+const PREVIEW_MAX = 60
+
+export function formatRelativeTime (isoString, nowMs = Date.now()) {
+  const then = Date.parse(isoString)
+  if (Number.isNaN(then)) { return '' }
+
+  const deltaSeconds = Math.max(0, Math.round((nowMs - then) / 1000))
+  if (deltaSeconds < 60) { return 'just now' }
+  if (deltaSeconds < 3600) { return `${Math.floor(deltaSeconds / 60)} min ago` }
+  if (deltaSeconds < 86400) { return `${Math.floor(deltaSeconds / 3600)} h ago` }
+  return `${Math.floor(deltaSeconds / 86400)} d ago`
+}
+
+export function formatDuration (ms) {
+  const seconds = Math.round((ms ?? 0) / 1000)
+  if (seconds < 60) { return `${seconds}s` }
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m ${seconds % 60}s`
+}
+
+// Final text of a history entry: entries store Result text; the legacy
+// output/transcript fallbacks exist only for entries written before the
+// Result/Trace history shape.
+export function previewText (entry) {
+  const text = extractText(entry).replace(/\s+/g, ' ').trim()
+  if (!text) { return '(no text)' }
+  return text.length > PREVIEW_MAX ? `${text.slice(0, PREVIEW_MAX - 1)}…` : text
+}
+
+export function extractText (entry) {
+  return entry.text || entry.output || entry.transcript || ''
+}

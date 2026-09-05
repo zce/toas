@@ -3,8 +3,8 @@ import {
   normalizeProcessingConfig,
   readProcessingConfig,
   writeProcessingConfig
-} from '../lib/host/processing-config.js'
-import { providers } from '../lib/kernel/providers/registry.js'
+} from '../host/config.js'
+import { providers } from '../kernel/providers/registry.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 class FakeSettings {

@@ -49,8 +49,8 @@ _Avoid_: Anonymous voice input
 These names come from `docs/adr/0001-processing-kernel.md` and are used consistently across the code layout:
 
 - **Host**: the runtime-specific product shell (GNOME Shell extension): recording, Preferences, persistence, secrets, environment, Context text, output, notifications, history.
-- **Kernel**: runtime-agnostic processing orchestration (`lib/kernel/`), free of GNOME imports.
-- **Provider**: one cohesive service or protocol integration (`lib/kernel/providers/`).
+- **Kernel**: runtime-agnostic processing orchestration (`kernel/`), free of GNOME imports.
+- **Provider**: one cohesive service or protocol integration (`kernel/providers/`).
 - **Manifest**: a Provider's declarative fields and static discovery support. It is an upper bound, not effective runtime capability.
 - **Selection**: the Provider id, model identifier, and Provider-specific values chosen for one Processor. Model is a selection value, not a separate domain entity. Shared Provider-level values travel alongside a Selection as Provider values, not inside it.
 - **Resolved selection**: executable Provider configuration plus the explicit capabilities of one Selection.
@@ -58,4 +58,4 @@ These names come from `docs/adr/0001-processing-kernel.md` and are used consiste
 - **Config**: the persisted product configuration for primary processing and optional Refine.
 - **Plan**: the ephemeral one- or two-Step execution derived from Config.
 - **Trace**: the safe per-call record of the physical Steps that actually ran.
-- **HttpTransport**: the Host-owned HTTP seam (`lib/host/`); Providers never import Soup or `fetch`.
+- **HttpTransport**: the Host-owned HTTP seam (`host/transport.js`); Providers never import Soup or `fetch`.

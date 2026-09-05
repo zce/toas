@@ -6,11 +6,15 @@ import Gtk from 'gi://Gtk'
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
 
-import { providers as providerRegistry } from './lib/kernel/providers/registry.js'
-import { secretKey, prepareResolveInput } from './lib/kernel/process.js'
-import { ConfigService } from './lib/host/config-service.js'
-import { runConnectionTest } from './lib/host/connection-check.js'
-import { readProcessingConfig, writeProcessingConfig, providerIdsFor } from './lib/host/processing-config.js'
+import {
+  ConfigService,
+  providerIdsFor,
+  readProcessingConfig,
+  runConnectionTest,
+  writeProcessingConfig
+} from './host/config.js'
+import { providers as providerRegistry } from './kernel/providers/registry.js'
+import { secretKey, prepareResolveInput } from './kernel/process.js'
 
 const REFINE_ON_ERROR_VALUES = ['fallback', 'abort']
 
