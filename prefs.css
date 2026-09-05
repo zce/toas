@@ -8,12 +8,10 @@
   border: none;
 }
 
-/* Match the visual scale of Adw.EntryRow's field title. `.caption` is useful
-   for secondary text, but this label is the field title itself. */
+/* Embedded multiline labels are normal field titles. Let libadwaita provide
+   the regular foreground color and use the system accent only for focus. */
 .toas-multiline-row .toas-multiline-caption {
   margin: 10px 12px 2px;
-  font-size: 1em;
-  color: alpha(currentColor, 0.65);
 }
 
 .toas-multiline-row:focus-within .toas-multiline-caption {
