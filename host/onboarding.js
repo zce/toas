@@ -12,7 +12,7 @@ export class OnboardingManager {
   // Called on extension enable. Shows the orientation notice exactly once per
   // installation: persistent flag first, then history migration for users who
   // recorded before this setting existed.
-  maybeShowOnboarding () {
+  maybeShowOnboarding (primaryReady = false) {
     if (this._settings.get_boolean('onboarding-shown')) { return false }
 
     if (this._hasExistingHistory?.()) {
@@ -21,13 +21,22 @@ export class OnboardingManager {
       return false
     }
 
-    this._notifier.notify(
-      'toas voice input is ready',
-      'Hold the shortcut (default Ctrl+Shift+Space) or left-click the top-bar ' +
-            'microphone to record; right-click for the menu. Audio is sent to ' +
-            'your configured transcription service, and your words are kept ' +
-            'locally (clear anytime from the menu).'
-    )
+    if (primaryReady) {
+      this._notifier.notify(
+        'toas voice input is ready',
+        'Hold the shortcut (default Ctrl+Shift+Space) or left-click the top-bar ' +
+              'microphone to record; right-click for the menu. Audio is sent to ' +
+              'your configured transcription service, and your words are kept ' +
+              'locally (clear anytime from the menu).'
+      )
+    } else {
+      this._notifier.notify(
+        'toas is installed',
+        'Add your provider API key in Preferences before recording. Once configured, ' +
+              'audio is sent to your transcription service, and your words are kept ' +
+              'locally (clear anytime from the menu).'
+      )
+    }
     this._settings.set_boolean('onboarding-shown', true)
     return true
   }

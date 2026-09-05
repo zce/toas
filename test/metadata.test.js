@@ -6,6 +6,8 @@ const meta = JSON.parse(new TextDecoder().decode(bytes))
 
 test('metadata has identity and targets', () => {
   expectEqual(meta.uuid, 'toas@zce.me')
+  expectEqual(meta.name, 'toas')
+  expectEqual(meta.description.startsWith('Talk Once, Act Smart.'), true)
   expectTruthy(meta.version >= 7, 'version bumped for this cycle')
   expectEqual(meta['shell-version'].includes('49'), true)
   expectEqual(meta['shell-version'].includes('50'), true)

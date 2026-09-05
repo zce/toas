@@ -29,28 +29,40 @@ function make ({ shown = false, hasHistory = false, notify = true, withPrefsOpen
   return { onboarding, settings, notifier, getPrefsOpened: () => prefsOpened }
 }
 
-test('fresh install: onboarding shows exactly once with disclosure', () => {
-  const { onboarding, settings, notifier } = make()
+test('fresh unconfigured install: onboarding distinguishes installed from ready', () => {
+  const { onboarding, settings, notifier, getPrefsOpened } = make()
 
-  const shown = onboarding.maybeShowOnboarding()
+  const shown = onboarding.maybeShowOnboarding(false)
   expectEqual(shown, true)
   expectEqual(notifier.notifications.length, 1)
+  expectEqual(notifier.notifications[0].title, 'toas is installed')
 
   const body = notifier.notifications[0].body
+  expectEqual(body.includes('Preferences before recording'), true)
+  expectEqual(body.includes('Once configured'), true)
   expectEqual(body.includes('transcription service'), true)
   expectEqual(body.includes('kept locally'), true)
   expectEqual(body.includes('clear anytime'), true)
+  expectEqual(getPrefsOpened(), 0)
 
   // Second call is a no-op.
-  expectEqual(onboarding.maybeShowOnboarding(), false)
+  expectEqual(onboarding.maybeShowOnboarding(false), false)
   expectEqual(notifier.notifications.length, 1)
   expectEqual(settings.values['onboarding-shown'], true)
+})
+
+test('fresh configured install: onboarding reports ready', () => {
+  const { onboarding, notifier } = make()
+
+  expectEqual(onboarding.maybeShowOnboarding(true), true)
+  expectEqual(notifier.notifications.length, 1)
+  expectEqual(notifier.notifications[0].title, 'toas voice input is ready')
 })
 
 test('upgrading user with history: silent migration', () => {
   const { onboarding, settings, notifier } = make({ hasHistory: true })
 
-  expectEqual(onboarding.maybeShowOnboarding(), false)
+  expectEqual(onboarding.maybeShowOnboarding(false), false)
   expectEqual(notifier.notifications, [])
   expectEqual(settings.values['onboarding-shown'], true)
 })
