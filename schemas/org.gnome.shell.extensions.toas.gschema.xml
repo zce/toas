@@ -137,11 +137,11 @@
       <summary>Provider secrets</summary>
     </key>
 
-    <!-- Host-owned Context text, not processing configuration. Free text the
-         user composes; sent verbatim to providers that support Context. -->
-    <key name="custom-terms" type="s">
+    <!-- Host-owned free-text Context, not processing configuration. Sent
+         verbatim to providers whose resolved role supports it. -->
+    <key name="context" type="s">
       <default>''</default>
-      <summary>Context text</summary>
+      <summary>Context</summary>
       <description>Free text (terms, background, names) sent to providers that support it</description>
     </key>
   </schema>

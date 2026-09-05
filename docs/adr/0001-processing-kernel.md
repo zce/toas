@@ -293,7 +293,7 @@ const manifest = {
     }
   ],
 
-  processing: {
+  primary: {
     fields: [
       {
         key: 'model',
@@ -591,7 +591,7 @@ Context is attempt input, not processing Config. The Host constructs one snapsho
 
 The Context is one free-text string the user composes: terms, background, names — anything that helps interpretation. It is delivered verbatim; the product never reformats or re-templates it, because the user's own phrasing is the value. Structured forms (`terms`/`passages`) were rejected for deciding things the user should decide (how to present terminology, which parts are "background").
 
-The GNOME Host constructs its snapshot from user-configured Context text (a Host setting, not part of `processing-config`). Empty Context is valid and changes neither Config validity nor execution shape.
+The GNOME Host constructs its snapshot from the user's Context setting (a Host setting, not part of processing Config). Empty Context is valid and changes neither Config validity nor execution shape.
 
 Providers never acquire Context and never inspect the desktop, editor, clipboard, filesystem, history, or focused application. The Host performs no automatic environmental capture: only the text the user explicitly wrote is sent, to Providers that support it.
 
@@ -660,10 +660,11 @@ Adding a Provider requires registration, its Manifest, implementation, mappings,
 
 The GNOME Host uses generic storage:
 
-- `processing-config`: serialized Config, excluding all secret values;
-- `provider-secrets`: a string map containing stored Provider secrets.
+- one GSettings key per Config field (`primary-provider`, `primary-model`, `primary-endpoint`, `refine-enabled`, `refine-provider`, `refine-model`, `refine-endpoint`, `refine-instructions`, `refine-on-error`), excluding all secret values;
+- `provider-secrets`: a string map containing stored Provider secrets;
+- `context`: Host-owned free-text Context, attempt input rather than Config.
 
-No Provider field gets its own GSettings schema key. The complete Config shape above is used immediately because toas has not been formally released. There is no Config version, Manifest revision, Step id, migration function, upgrade framework, or compatibility layer.
+No Provider field gets its own GSettings schema key beyond the generic role keys above. The complete Config shape is used immediately because toas has not been formally released. There is no Config version, Manifest revision, Step id, migration function, upgrade framework, or compatibility layer.
 
 Config contains neither secret values nor secret references. A secret storage key is derived deterministically from Provider id and field key:
 
@@ -726,7 +727,7 @@ Separate example:
 ```javascript
 const trace = [
   {
-    role: 'processing',
+    role: 'primary',
     provider: 'qwen',
     model: 'qwen3-asr-flash',
     input: 'audio',
@@ -757,7 +758,7 @@ Integrated example:
 ```javascript
 const trace = [
   {
-    role: 'processing',
+    role: 'primary',
     provider: 'qwen',
     model: 'instruction-aware-audio-model',
     input: 'audio',

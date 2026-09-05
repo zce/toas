@@ -113,7 +113,7 @@ test('qwen only: disabled refine makes exactly one call and one trace entry', as
     'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
   expectEqual(result.text, 'hello world')
   expectEqual(result.trace.length, 1)
-  expectEqual(result.trace[0].role, 'processing')
+  expectEqual(result.trace[0].role, 'primary')
   expectEqual(result.trace[0].provider, 'qwen')
   expectEqual(result.trace[0].input, 'audio')
   expectEqual(result.warning, null)

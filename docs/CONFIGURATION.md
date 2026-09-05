@@ -69,7 +69,7 @@ note below.
 ### Context text
 
 ```bash
-dconf write /org/gnome/shell/extensions/toas/custom-terms \
+dconf write /org/gnome/shell/extensions/toas/context \
   "'技术讨论。术语：useEffect, usePaymentMethods, fetchPaymentMethods'"
 ```
 

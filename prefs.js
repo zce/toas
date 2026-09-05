@@ -194,7 +194,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const primaryTestRow = buildConnectionRow({
       settings,
-      role: 'processing',
+      role: 'primary',
       label: 'Test connection',
       description: 'Sends a short silent sample through the same processing path as a real voice input.'
     })
@@ -395,9 +395,9 @@ export default class ToasPreferences extends ExtensionPreferences {
     contextView.add_css_class('inline')
     contextBuffer.connect('changed', () => {
       const [start, end] = contextBuffer.get_bounds()
-      settings.set_string('custom-terms', contextBuffer.get_text(start, end, false))
+      settings.set_string('context', contextBuffer.get_text(start, end, false))
     })
-    contextBuffer.set_text(settings.get_string('custom-terms'), -1)
+    contextBuffer.set_text(settings.get_string('context'), -1)
     contextGroup.add(contextView)
 
     const securityGroup = new Adw.PreferencesGroup({
@@ -583,7 +583,7 @@ async function runConnectionTest ({ settings, role }) {
   // Both roles go through the same Kernel path with a harmless input: a
   // silent WAV exercises the real audio request shape; fixed text exercises
   // the real refine request shape.
-  const audio = role === 'processing'
+  const audio = role === 'primary'
     ? { kind: 'audio', base64: silenceWavBase64(16000), mimeType: 'audio/wav', durationMs: 250 }
     : { kind: 'text', text: 'Reply with OK.' }
 
