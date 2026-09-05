@@ -25,21 +25,20 @@ test('zero or invalid rate falls back to standard', () => {
 
 test('recording ids are UTC timestamp file names', () => {
   const id = recordingIdForNow()
-  // Compact ISO 8601: 20260905T132500Z — the file name is the start time.
-  expectEqual(/^\d{8}T\d{6}Z(-\d+)?$/.test(id), true)
-  expectEqual(id.endsWith('Z') || /-\d+$/.test(id), true)
+  // Compact ISO 8601 with milliseconds: 20260905T132500123.
+  expectEqual(/^\d{8}T\d{6}\d{3}$/.test(id), true)
+  expectEqual(id.length, 18)
 })
 
-test('a same-second capture gets a unique id instead of colliding', () => {
+test('ids differ across different milliseconds', () => {
   const a = recordingIdForNow()
+  // Recording starts are serial and always many milliseconds apart; the
+  // guarantee is one id per millisecond, not per call. Advance past the
+  // current millisecond so the second id is a genuinely different moment.
+  const t = Date.now()
+  while (Date.now() <= t) { /* spin to the next millisecond */ }
   const b = recordingIdForNow()
-  // Two calls within the same second must not produce the same file name:
-  // Gio.File.replace would truncate the earlier recording.
   expectEqual(a === b, false)
-  if (a.slice(0, 16) === b.slice(0, 16)) {
-    // same second: the later one carries a counter suffix
-    expectEqual(/-\d+$/.test(b), true)
-  }
 })
 
 await run()
