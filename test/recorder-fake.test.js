@@ -1,4 +1,4 @@
-import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeSizeLimit, recordingOutcomeCancelled, RecorderOutcomeKind } from '../lib/audio.js'
+import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeSizeLimit, recordingOutcomeCancelled, RecorderOutcomeKind } from '../host/audio.js'
 import { FakeRecorder } from './fakes.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 

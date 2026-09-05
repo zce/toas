@@ -12,7 +12,7 @@ import {
   readProcessingConfig,
   runConnectionTest,
   writeProcessingConfig
-} from './lib/config.js'
+} from './host/config.js'
 import { providers as providerRegistry } from './kernel/providers/registry.js'
 import { secretKey, prepareResolveInput } from './kernel/process.js'
 

@@ -1,4 +1,4 @@
-import { isTerminalWindow } from '../lib/output.js'
+import { isTerminalWindow } from '../host/output.js'
 import { expectEqual, run, test } from './harness.js'
 
 test('recognizes standalone terminals from Wayland application identifiers', () => {

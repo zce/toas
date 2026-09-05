@@ -35,7 +35,7 @@ function listJs (directory) {
 const rootModules = ['extension.js', 'prefs.js']
 const files = [
   ...rootModules,
-  ...listJs('lib'),
+  ...listJs('host'),
   ...listJs('kernel'),
   ...listJs('ui')
 ]
@@ -54,11 +54,11 @@ const removedPaths = [
   'config-service.js',
   'processing-config.js',
   'connection-check.js',
-  'soup-http-transport.js',
+  'host/transport.js',
   'attempt-signal.js',
   'orchestrator.js',
   'onboarding.js',
-  'kernel-runner.js',
+  'host/runner.js',
   'ui/overlay-presenter.js',
   'ui/shell-overlay-view.js',
   'ui/confirm-dialog.js'
@@ -101,7 +101,7 @@ test('runtime-agnostic kernel does not import Host or UI modules', () => {
     )
     for (const match of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
       expectTruthy(
-        !match[1].includes('/lib/') && !match[1].includes('/ui/'),
+        !match[1].includes('/host/') && !match[1].includes('/ui/'),
         `${file} must stay runtime-agnostic: ${match[1]}`
       )
     }

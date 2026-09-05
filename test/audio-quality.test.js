@@ -1,4 +1,4 @@
-import { resolveSampleRate, AUDIO_QUALITY_PRESETS } from '../lib/audio.js'
+import { resolveSampleRate, AUDIO_QUALITY_PRESETS } from '../host/audio.js'
 import { test, expectEqual, run } from './harness.js'
 
 class FakeSettings {

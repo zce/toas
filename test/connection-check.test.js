@@ -5,7 +5,7 @@
 // network, no real settings.
 
 import { test, expectEqual, expectTruthy, run } from './harness.js'
-import { runConnectionTest } from '../lib/config.js'
+import { runConnectionTest } from '../host/config.js'
 
 // The fake provider records the process() calls it receives so tests assert
 // on the exact inputs each role sends. Fresh instances per test.

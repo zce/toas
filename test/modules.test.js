@@ -5,7 +5,7 @@ import GLib from 'gi://GLib'
 import System from 'system'
 
 const SHELL_ONLY = new Set([
-  'lib/output.js',
+  'host/output.js',
   'ui/dialog.js',
   'ui/indicator.js',
   'ui/notifier.js',
@@ -40,7 +40,7 @@ function listModules (directory, prefix = '') {
 
 const root = GLib.get_current_dir()
 const modules = [
-  ...listModules(`${root}/lib`, 'lib/'),
+  ...listModules(`${root}/host`, 'host/'),
   ...listModules(`${root}/kernel`, 'kernel/'),
   ...listModules(`${root}/ui`, 'ui/')
 ]

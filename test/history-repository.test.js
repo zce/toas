@@ -1,6 +1,6 @@
 import GLib from 'gi://GLib'
 import Gio from 'gi://Gio'
-import { HistoryStore, HistoryRepository } from '../lib/history.js'
+import { HistoryStore, HistoryRepository } from '../host/history.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 const tmpRoot = GLib.dir_make_tmp('toas-hist-test-XXXXXX')
