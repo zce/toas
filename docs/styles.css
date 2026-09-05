@@ -637,12 +637,6 @@ video {
   text-align: right;
 }
 
-.provider-note {
-  margin: 16px 0 0;
-  color: var(--light-muted);
-  font-size: 12px;
-}
-
 .preferences-card {
   position: relative;
   overflow: hidden;
