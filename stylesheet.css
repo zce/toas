@@ -25,7 +25,7 @@
 .toas-bars {
   spacing: 3px;
   /* Fixed height so bars can change height without moving the overlay.
-     Keep in sync with BAR_MAX_HEIGHT in lib/overlay.js. */
+     Keep in sync with BAR_MAX_HEIGHT in lib/ui/shell-overlay-view.js. */
   height: 20px;
 }
 
@@ -56,15 +56,6 @@
   padding: 0;
 }
 
-.toas-history-row {
-  padding: 8px 12px;
-  border-radius: 8px;
-}
-
-.toas-history-row:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
 .toas-history-preview {
   font-size: 13px;
   font-weight: 500;
@@ -73,18 +64,6 @@
 .toas-history-meta {
   font-size: 11px;
   opacity: 0.65;
-}
-
-.toas-history-empty {
-  padding: 18px;
-  font-size: 13px;
-  opacity: 0.7;
-}
-
-.toas-history-load-more {
-  padding: 8px;
-  border-radius: 8px;
-  font-size: 12px;
 }
 
 .toas-history-menu-scroll {

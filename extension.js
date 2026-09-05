@@ -18,7 +18,6 @@ import { HistoryStore } from './lib/domain/history.js'
 import { HistoryRepository } from './lib/domain/history-repository.js'
 import { OnboardingManager } from './lib/domain/onboarding.js'
 import { ConfirmDialog } from './lib/ui/confirm-dialog.js'
-import { resolveSampleRate } from './lib/infrastructure/effective-config.js'
 import { KernelCollaborator } from './lib/host/collaborator.js'
 import { extractText } from './lib/domain/history-format.js'
 const PTT_MOD_MASK =

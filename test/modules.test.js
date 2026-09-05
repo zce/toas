@@ -9,7 +9,6 @@ import System from 'system'
 // Modules that import Shell resources or Shell-only GI libraries.
 const SHELL_ONLY = new Set([
   'ui/confirm-dialog.js',
-  'ui/history-browser.js',
   'ui/indicator.js',
   'infrastructure/input.js',
   'ui/notifier.js',

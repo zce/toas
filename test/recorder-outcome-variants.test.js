@@ -1,7 +1,5 @@
 import {
   RecorderOutcomeKind,
-  recordingOutcomeOk,
-  recordingOutcomeShortTap,
   recordingOutcomeSizeLimit,
   recordingOutcomeCancelled
 } from '../lib/infrastructure/recorder-outcome.js'

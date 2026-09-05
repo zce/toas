@@ -1,5 +1,5 @@
 import { ToasOverlayPresenter } from '../lib/ui/overlay-presenter.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { test, expectEqual, run } from './harness.js'
 
 class FakeOverlayView {
   constructor ({ hideDelay = 0 } = {}) {
