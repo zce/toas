@@ -8,8 +8,11 @@
   border: none;
 }
 
+/* Match the visual scale of Adw.EntryRow's field title. `.caption` is useful
+   for secondary text, but this label is the field title itself. */
 .toas-multiline-row .toas-multiline-caption {
   margin: 10px 12px 2px;
+  font-size: 1em;
   color: alpha(currentColor, 0.65);
 }
 
@@ -17,13 +20,16 @@
   color: var(--accent-color);
 }
 
-.toas-multiline-row textview text {
+/* Padding belongs on the TextView widget, not its internal `text` CSS node.
+   This keeps the insertion point and rendered text on the same 12px baseline
+   as the field caption and ordinary preference rows. */
+.toas-multiline-row textview {
   padding: 4px 12px 10px;
 }
 
-/* Standalone editors do not need an internal field label, so their text gets
-   balanced padding on all sides. */
-.toas-multiline-row.toas-multiline-standalone textview text {
+/* Standalone editors do not need an internal field label, so their content
+   gets balanced vertical padding while keeping the same horizontal baseline. */
+.toas-multiline-row.toas-multiline-standalone textview {
   padding: 10px 12px;
 }
 
