@@ -54,11 +54,11 @@ const removedPaths = [
   'config-service.js',
   'processing-config.js',
   'connection-check.js',
-  'host/transport.js',
+  'soup-http-transport.js',
   'attempt-signal.js',
   'orchestrator.js',
   'onboarding.js',
-  'host/runner.js',
+  'kernel-runner.js',
   'ui/overlay-presenter.js',
   'ui/shell-overlay-view.js',
   'ui/confirm-dialog.js'
