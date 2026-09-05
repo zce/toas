@@ -1,7 +1,6 @@
 /* GTK4/libadwaita styles for the extension Preferences process. */
 
-/* Multiline entry rows follow Adw.EntryRow's visual model: the row is the
-   surface, while TextView/ScrolledWindow remain visually transparent. */
+/* Multiline editors use the row as their visual surface. */
 .toas-multiline-row textview,
 .toas-multiline-row textview text,
 .toas-multiline-row scrolledwindow {
@@ -22,8 +21,13 @@
   padding: 4px 12px 10px;
 }
 
-/* Small preference editors do not need GTK's scroll-edge shadows. They are
-   especially distracting inside the boxed-list surface. */
+/* Standalone editors do not need an internal field label, so their text gets
+   balanced padding on all sides. */
+.toas-multiline-row.toas-multiline-standalone textview text {
+  padding: 10px 12px;
+}
+
+/* Small preference editors do not need GTK's scroll-edge shadows. */
 .toas-multiline-row scrolledwindow undershoot,
 .toas-multiline-row scrolledwindow overshoot {
   background: none;
