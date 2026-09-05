@@ -110,6 +110,12 @@ export default class ToasPreferences extends ExtensionPreferences {
   fillPreferencesWindow (window) {
     const settings = this.getSettings()
 
+    // Preferences run in their own GTK4 process; the Shell stylesheet is
+    // not loaded there, so prefs.css styles this window. Loading in
+    // fillPreferencesWindow keeps the provider scoped to this window's
+    // lifetime rather than the process.
+    loadPrefsCss(this.path)
+
     const page = new Adw.PreferencesPage({
       title: 'toas',
       icon_name: 'audio-input-microphone-symbolic'
@@ -252,14 +258,10 @@ export default class ToasPreferences extends ExtensionPreferences {
     const instructionsView = new Gtk.TextView({
       buffer: instructionsBuffer,
       wrap_mode: Gtk.WrapMode.WORD_CHAR,
-      top_margin: 12,
-      bottom_margin: 12,
-      left_margin: 18,
-      right_margin: 18,
       hexpand: true,
       vexpand: true
     })
-    instructionsView.add_css_class('inline')
+    instructionsView.add_css_class('toas-inline-text')
     const instructionsScroller = new Gtk.ScrolledWindow({
       hscrollbar_policy: Gtk.PolicyType.NEVER,
       vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
@@ -384,13 +386,9 @@ export default class ToasPreferences extends ExtensionPreferences {
     const contextView = new Gtk.TextView({
       buffer: contextBuffer,
       wrap_mode: Gtk.WrapMode.WORD_CHAR,
-      top_margin: 12,
-      bottom_margin: 12,
-      left_margin: 12,
-      right_margin: 12,
       hexpand: true
     })
-    contextView.add_css_class('inline')
+    contextView.add_css_class('toas-inline-text')
     // The group has no boxed list of its own, so the text view needs its own
     // region; the card is the region, not a nested decoration.
     const contextScroller = new Gtk.ScrolledWindow({
@@ -398,11 +396,10 @@ export default class ToasPreferences extends ExtensionPreferences {
       vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
       min_content_height: 120,
       max_content_height: 220,
-      margin_top: 6,
-      margin_bottom: 6,
       child: contextView
     })
     contextScroller.add_css_class('card')
+    contextScroller.add_css_class('toas-context-card')
     contextBuffer.connect('changed', () => {
       const [start, end] = contextBuffer.get_bounds()
       settings.set_string('context', contextBuffer.get_text(start, end, false))
@@ -428,9 +425,9 @@ export default class ToasPreferences extends ExtensionPreferences {
     const qualityValues = [0, 1, 2]
     const qualitySelector = new Gtk.DropDown({
       model: qualityModel,
-      valign: Gtk.Align.CENTER,
-      width_request: 190
+      valign: Gtk.Align.CENTER
     })
+    qualitySelector.add_css_class('toas-row-dropdown')
     qualitySelector.selected = Math.max(0, qualityValues.indexOf(settings.get_enum('audio-quality')))
     const qualityRow = new Adw.ActionRow({
       title: 'Audio quality',
@@ -460,6 +457,18 @@ export default class ToasPreferences extends ExtensionPreferences {
     applyContextVisibility()
     applyRefineWarning()
   }
+}
+
+// Loads prefs.css for the Preferences window. The path points at the
+// installed extension directory; prefs.css ships with the package.
+function loadPrefsCss (path) {
+  const provider = new Gtk.CssProvider()
+  provider.load_from_path(`${path}/prefs.css`)
+  Gtk.StyleContext.add_provider_for_display(
+    Gdk.Display.get_default(),
+    provider,
+    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+  )
 }
 
 function spinRow (settings, key, title, subtitle, lower, upper) {

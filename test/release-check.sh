@@ -28,7 +28,7 @@ glib-compile-schemas --strict "$tmp/schemas" && echo "ok" || rc=1
 rm -rf "$tmp"
 
 step "Package content: runtime files present, scratch excluded"
-REQUIRED="extension.js prefs.js stylesheet.css metadata.json"
+REQUIRED="extension.js prefs.js prefs.css stylesheet.css metadata.json"
 for f in $REQUIRED; do
   [ -f "$f" ] || { echo "missing $f"; rc=1; }
 done
