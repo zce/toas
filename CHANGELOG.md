@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 12 — 2026-09-05
+
+- Replaced the fixed transcription/refinement pipeline with a provider-neutral processing kernel: Qwen (recommended), MiMo, and OpenAI providers, cross-provider refine combinations, and shared per-provider credentials.
+- Added optional separate Refine with configurable instructions and fallback/abort failure behavior.
+- Added Custom Terms: user-configured vocabulary sent as recognition context to providers that support it. No automatic desktop, editor, clipboard, or file inspection.
+- Preferences, connection tests, and history were rebuilt on the new architecture; history now stores final text and a per-call Trace.
+
 ## Version 11 — 2026-09-03
 
 - Added session-only **Private mode** for new voice inputs.

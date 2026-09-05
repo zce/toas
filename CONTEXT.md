@@ -43,3 +43,17 @@ _Avoid_: Incognito, Do not track
 **Private voice input**:
 A voice input started while Private mode is on. It is snapshotted as private at start, so flipping the switch mid-processing does not change what that run retains.
 _Avoid_: Anonymous voice input
+
+## Architecture terms
+
+These names come from `docs/adr/0001-processing-kernel.md` and are used consistently across the code layout:
+
+- **Host**: the runtime-specific product shell (GNOME Shell extension): recording, Preferences, persistence, secrets, environment, Custom Terms, output, notifications, history.
+- **Kernel**: runtime-agnostic processing orchestration (`lib/kernel/`), free of GNOME imports.
+- **Provider**: one cohesive service or protocol integration (`lib/kernel/providers/`).
+- **Manifest**: a Provider's declarative fields and role capabilities.
+- **Processor**: one configured executor exposing a single `process` call.
+- **Config**: the persisted product configuration for primary processing and optional Refine.
+- **Plan**: the ephemeral one- or two-Step execution derived from Config.
+- **Trace**: the safe per-call record of the physical Steps that actually ran.
+- **HttpTransport**: the Host-owned HTTP seam (`lib/host/`); Providers never import Soup or `fetch`.

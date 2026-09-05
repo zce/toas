@@ -4,7 +4,7 @@ import {
   recordingOutcomeShortTap,
   recordingOutcomeSizeLimit,
   recordingOutcomeCancelled
-} from '../lib/recorder-outcome.js'
+} from '../lib/infrastructure/recorder-outcome.js'
 import { test, expectEqual, run } from './harness.js'
 
 test('size limit outcome carries a valid capped recording', () => {

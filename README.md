@@ -54,8 +54,11 @@ into a high-leverage writing workflow.
 ## Privacy, Clearly Bounded
 
 **On your desktop:** our local promise is concrete. There is no background listening,
-telemetry, context capture, local model runtime, or always-on inference service. Audio is
+telemetry, local model runtime, or always-on inference service. Audio is
 captured only during an explicit recording and uploaded only after you stop.
+toas never automatically inspects your desktop, editor, clipboard, files, or
+project. The only reference material it sends is the **Custom Terms** you
+explicitly configure, and only to providers that support them.
 Voice input text and retained recordings are kept locally for history and retry, bounded by
 your retention settings and removable from the top-bar menu.
 
@@ -105,8 +108,8 @@ instead of landing in the wrong window.
 | Desktop shell | GNOME Shell 49 / 50 |
 | Display server | Wayland |
 | Audio capture | `pw-record` from PipeWire |
-| Transcription | OpenAI-compatible multimodal Chat Completions endpoint with audio input |
-| Optional polish | OpenAI-compatible Chat Completions endpoint |
+| Primary processing | Qwen (DashScope, recommended), or MiMo |
+| Optional refine | MiMo, OpenAI, or any OpenAI-compatible endpoint |
 
 ## Install
 
@@ -150,50 +153,44 @@ gnome-extensions prefs toas@zce.me
 ## First Run
 
 On first enable, a one-time notice explains the shortcut and discloses that audio is
-uploaded to the configured transcription service while voice input text and some recordings
-are kept on disk. Recording is blocked until a transcription API key is configured.
-The Transcription group includes a `Test connection` button for checking the endpoint,
-key, and model with a short silent sample.
+uploaded to your configured voice-processing provider while voice input text and some
+recordings are kept on disk. Recording is blocked until a provider API key is configured.
+Each provider group includes a `Test connection` button that sends a short silent sample
+through the exact processing path a real voice input uses.
 
 ## Configure
 
-Open GNOME Preferences for `toas` and configure the transcription endpoint, model,
-language, and API key. The current default configuration uses MiMo, but the protocol
-is designed for any OpenAI-compatible multimodal Chat Completions endpoint that accepts
-audio input. The default settings are:
+Open GNOME Preferences for `toas`. Pick a primary provider, its model, and its API key.
+The default is the speed-first recommendation:
 
 ```text
-endpoint = https://token-plan-cn.xiaomimimo.com/v1/chat/completions
-model    = mimo-v2.5-asr
-language = auto
+provider  = qwen
+model     = qwen3-asr-flash
+endpoint  = https://dashscope.aliyuncs.com/... (provider default)
 ```
 
-The key, endpoint, model, and language can also come from the GNOME session environment:
+MiMo (`mimo-v2.5-asr`) is the alternative primary. Provider keys can also come from the
+GNOME session environment, in the priority order each provider documents:
 
 ```text
-TOAS_TRANSCRIPTION_ENDPOINT=...
-TOAS_TRANSCRIPTION_MODEL=...
-TOAS_TRANSCRIPTION_API_KEY=...
+TOAS_QWEN_API_KEY / QWEN_API_KEY / DASHSCOPE_API_KEY
+TOAS_MIMO_API_KEY / MIMO_API_KEY
+TOAS_OPENAI_API_KEY / OPENAI_API_KEY
 ```
 
-Refine is optional. It defaults to the OpenAI-compatible endpoint below and is skipped
-until both a model and key are configured:
+**Custom Terms** is a list of technical terms you configure once. When your primary
+provider supports recognition context, these terms are sent with each recording to help
+preserve identifiers such as `useEffect` or `usePaymentMethods`.
 
-```text
-endpoint = https://api.openai.com/v1/chat/completions
-model    = empty
-```
+Refine is optional: a second service (MiMo, OpenAI, or any OpenAI-compatible endpoint)
+applies your written instructions to the primary text. Configure its model and key, or
+disable it for literal dictation. If refine fails mid-processing, the primary text is
+inserted with a non-fatal notice (or the voice input fails, if you choose abort).
 
-```text
-TOAS_REFINE_ENDPOINT=...
-TOAS_REFINE_MODEL=...
-TOAS_REFINE_API_KEY=...
-```
-
-`OPENAI_API_KEY` is the final Refine key fallback. Keys entered in Preferences are
-stored as plain text in dconf. Leave them empty and set environment variables before
-the GNOME session starts if you want to keep them out of dconf. Secret Service
-integration is not implemented yet.
+Keys entered in Preferences are stored as plain text in dconf. Leave them empty and set
+environment variables before the GNOME session starts if you want to keep them out of
+dconf. Secret Service integration is not implemented yet. See `docs/CONFIGURATION.md`
+for the full key and environment-variable reference.
 
 ## Use It
 
@@ -209,19 +206,20 @@ Escape cancels and Backspace disables it.
 
 ## Failure Handling
 
-Recording, transcription, and insertion failures show the error in the overlay and
-send a desktop notification with a next action. If Refine fails, the raw transcript is
-inserted with a non-fatal notice. The overlay close action cancels a live voice input.
+Recording, processing, and insertion failures show the error in the overlay and
+send a desktop notification with a next action. If Refine fails, the primary text is
+inserted with a non-fatal notice (or the voice input fails, when you choose abort).
+The overlay close action cancels a live voice input.
 
 If the focused window changes while processing runs, the result stays on the clipboard
-with a notice. Failed transcriptions retain their recording when possible, so they can
+with a notice. Failed processing retains its recording when possible, so it can
 be retried from history without recording again.
 
 ## Recording
 
 `pw-record` captures mono signed 16-bit PCM in 100 ms chunks. Those chunks drive the
 live waveform, then the completed recording is wrapped in a standard WAV container
-before transcription.
+before processing.
 
 The `Audio quality` preference controls the sample rate for new recordings:
 
@@ -260,34 +258,43 @@ top-bar `Clear History` action asks for confirmation and is disabled while recor
 <details>
 <summary>Technical details</summary>
 
-### Transcription request
+### Processing architecture
 
-The WAV recording is embedded as a Base64 Data URL in a JSON multimodal Chat Completions
-request. Authentication uses the standard `Authorization: Bearer <key>` header, and
-the transcript is read from `choices[0].message.content`.
+Voice processing runs through a small runtime-agnostic kernel with pluggable
+providers. A voice input resolves to an ephemeral plan of one or two physical
+steps: primary audio-to-text processing, optionally followed by a separate
+text refine step. Each provider owns its own protocol mapping; the GNOME host
+owns HTTP execution, persistence, and output. History stores the final text
+plus a per-call Trace of the steps that actually ran — never raw HTTP bodies
+or credentials. See `docs/adr/0001-processing-kernel.md`.
+
+### Qwen primary request (DashScope)
+
+The WAV recording is embedded as a Base64 Data URL in a DashScope
+multimodal-generation request. Authentication uses the standard
+`Authorization: Bearer <key>` header.
 
 ```json
 {
-  "model": "mimo-v2.5-asr",
-  "messages": [{
-    "role": "user",
-    "content": [{
-      "type": "input_audio",
-      "input_audio": {"data": "data:audio/wav;base64,..."}
-    }]
-  }],
-  "asr_options": {"language": "auto"},
-  "stream": false
+  "model": "qwen3-asr-flash",
+  "input": {
+    "messages": [
+      {"role": "system", "content": [{"text": "技术讨论。常见术语：…"}]},
+      {"role": "user", "content": [{"audio": "data:audio/wav;base64,..."}]}
+    ]
+  },
+  "parameters": {"asr_options": {"enable_itn": true}}
 }
 ```
 
+The system message is present only when Custom Terms are configured.
+
 ### Refine behavior
 
-Refine makes one non-streaming OpenAI-compatible Chat Completions request after
-transcription. Its instruction is configurable. It preserves code, identifiers,
-commands, paths, URLs, product names, numbers, dates, units, uncertainty, and natural
-mixed-language usage. It does not answer questions or follow instructions contained in
-the transcript.
+Refine makes one non-streaming request after primary processing, on the
+provider you choose (MiMo, OpenAI, or any OpenAI-compatible endpoint). Its
+instructions are configurable text. Providers that support recognition
+context also receive your Custom Terms.
 
 ### Output behavior
 

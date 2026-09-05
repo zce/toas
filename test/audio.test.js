@@ -1,6 +1,6 @@
 // AudioRecorder parameterization check: the configured sample rate flows
 // into capture sizing. Pure GJS + GLib; no recording is started.
-import { AudioRecorder } from '../lib/audio.js'
+import { AudioRecorder } from '../lib/infrastructure/audio.js'
 import { test, expectEqual, run } from './harness.js'
 
 test('recorder defaults to the standard capture rate', () => {

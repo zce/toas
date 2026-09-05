@@ -8,18 +8,19 @@ import St from 'gi://St'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
-import { ToasIndicator } from './lib/indicator.js'
+import { ToasIndicator } from './lib/ui/indicator.js'
 import { ToasOrchestrator } from './lib/orchestrator.js'
-import { ToasOverlayPresenter } from './lib/overlay-presenter.js'
-import { ShellOverlayView } from './lib/shell-overlay-view.js'
-import { ShellNotifier } from './lib/notifier.js'
-import { TextPaster } from './lib/input.js'
-import { HistoryStore } from './lib/history.js'
-import { HistoryRepository } from './lib/history-repository.js'
-import { OnboardingManager } from './lib/onboarding.js'
-import { ConfirmDialog } from './lib/confirm-dialog.js'
-import { resolveTranscriptionConfig } from './lib/effective-config.js'
-
+import { ToasOverlayPresenter } from './lib/ui/overlay-presenter.js'
+import { ShellOverlayView } from './lib/ui/shell-overlay-view.js'
+import { ShellNotifier } from './lib/ui/notifier.js'
+import { TextPaster } from './lib/infrastructure/input.js'
+import { HistoryStore } from './lib/domain/history.js'
+import { HistoryRepository } from './lib/domain/history-repository.js'
+import { OnboardingManager } from './lib/domain/onboarding.js'
+import { ConfirmDialog } from './lib/ui/confirm-dialog.js'
+import { resolveSampleRate } from './lib/infrastructure/effective-config.js'
+import { KernelCollaborator } from './lib/host/collaborator.js'
+import { extractText } from './lib/domain/history-format.js'
 const PTT_MOD_MASK =
     Clutter.ModifierType.CONTROL_MASK |
     Clutter.ModifierType.SHIFT_MASK |
@@ -58,6 +59,11 @@ export default class ToasExtension extends Extension {
       const overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
       this._overlayCollaborators = { overlay }
 
+      const kernelCollaborator = new KernelCollaborator({
+        settings: this._settings
+      })
+      this._kernelCollaborator = kernelCollaborator
+
       this._orchestrator = new ToasOrchestrator({
         settings: this._settings,
         historyRepository: this._historyRepository,
@@ -66,7 +72,8 @@ export default class ToasExtension extends Extension {
           history,
           paster: new TextPaster(this._settings),
           notifier,
-          privacy: this._privacy
+          privacy: this._privacy,
+          kernel: kernelCollaborator
         },
         onStateChanged: (state, message) => this._indicator?.render(state, message)
       })
@@ -111,6 +118,9 @@ export default class ToasExtension extends Extension {
       this._orchestrator?.destroy()
       this._orchestrator = null
 
+      this._kernelCollaborator?.destroy()
+      this._kernelCollaborator = null
+
       this._overlayCollaborators?.overlay?.destroy()
       this._overlayCollaborators = null
 
@@ -143,6 +153,9 @@ export default class ToasExtension extends Extension {
 
     this._orchestrator?.destroy()
     this._orchestrator = null
+
+    this._kernelCollaborator?.destroy()
+    this._kernelCollaborator = null
 
     this._onboarding = null
     this._historyRepository = null
@@ -203,7 +216,7 @@ export default class ToasExtension extends Extension {
   // Gate for every recording entry point (shortcut and top-bar). Returns
   // false when the user was redirected to preferences instead.
   _guardReadyToRecord () {
-    const ready = resolveTranscriptionConfig(this._settings).ready
+    const ready = this._kernelCollaborator?.configService?.primaryReady() ?? false
     return !this._onboarding.guardUnconfigured(ready)
   }
 
@@ -270,7 +283,7 @@ export default class ToasExtension extends Extension {
   }
 
   _copySession (entry, notifier) {
-    const text = entry.output || entry.transcript || ''
+    const text = extractText(entry)
     if (!text) { return }
 
     this._historyClipboard?.set_text(St.ClipboardType.CLIPBOARD, text)
@@ -287,8 +300,7 @@ export default class ToasExtension extends Extension {
       return {
         ...entry,
         status: latest.status,
-        transcript: latest.transcript ?? entry.transcript,
-        output: latest.output ?? entry.output,
+        text: latest.text ?? entry.text,
         attemptNumber: latest.attemptNumber
       }
     })

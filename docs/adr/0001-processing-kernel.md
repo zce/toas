@@ -35,7 +35,7 @@ This design keeps each Provider cohesive, makes cross-provider Refine a first-cl
 |                                                                |
 | Config                                                         |
 |   |-- primary Provider + values                                |
-|   |-- Context selection                                       |
+|   |-- Context                                                  |
 |   `-- optional Refine                                          |
 |        |-- integrated                                          |
 |        `-- separate Provider + values                          |
@@ -131,15 +131,16 @@ Voice processing
 |
 |-- Primary Provider
 |-- Primary values
-|-- Context
 |
 `-- Refine (optional)
      |-- enabled
      |-- execution: separate | integrated
      |-- Provider + values (separate only)
-     |-- Context
      |-- Instructions
      `-- onError: fallback | abort (separate only)
+
+Host attempt inputs (not Config):
+  Context snapshot (Custom Terms), secrets, environment
 ```
 
 The Primary Provider answers: who first processes this Recording?
@@ -174,7 +175,6 @@ const config = {
     language: 'auto'
   },
 
-  context: ['terms'],
 
   refine: {
     enabled: true,
@@ -183,7 +183,6 @@ const config = {
     values: {
       model: 'mimo-text-model'
     },
-    context: ['terms', 'passages'],
     instructions: 'Refine the text without changing its meaning.',
     onError: 'fallback'
   }
@@ -207,12 +206,10 @@ const config = {
     language: 'auto'
   },
 
-  context: ['terms'],
 
   refine: {
     enabled: true,
     execution: 'integrated',
-    context: ['terms', 'passages'],
     instructions: 'Refine the text without changing its meaning.'
   }
 }
@@ -234,7 +231,6 @@ const config = {
     model: 'mimo-v2.5-asr',
     language: 'auto'
   },
-  context: [],
   refine: {
     enabled: false
   }
@@ -256,7 +252,6 @@ const config = {
   values: {
     model: 'mimo-v2.5-asr'
   },
-  context: [],
   refine: {
     enabled: true,
     execution: 'separate',
@@ -264,7 +259,6 @@ const config = {
     values: {
       model: 'mimo-text-model'
     },
-    context: [],
     instructions: '...',
     onError: 'fallback'
   }
@@ -315,7 +309,6 @@ const manifest = {
       }
     ],
     capabilities: {
-      context: ['terms', 'passages'],
       integratedRefine: false
     }
   },
@@ -493,10 +486,10 @@ Host `HttpTransport` owns:
 
 - actual I/O;
 - cancellation;
-- DNS and TLS;
-- proxy and redirect policy;
-- timeouts;
-- response-size policy.
+- timeout;
+- transport failure classification.
+
+DNS, TLS, proxying, and redirect handling are delegated to the runtime's HTTP stack (Soup defaults). A hard response-size cut-off is deferred: the current path reads whole responses through Soup's whole-response API, and an incremental-reading limit is not justified by present risk.
 
 Providers never import Soup, `fetch`, or Gio networking. Host code never constructs or parses Qwen, MiMo, or OpenAI payloads. No generic Transport, WebSocket abstraction, or gRPC abstraction is introduced.
 
@@ -518,7 +511,6 @@ Invalid Config produces field-addressed issues and no Plan. Validation requires:
 
 - the Primary Provider to exist and support `processing`;
 - all selected Provider and role values to resolve successfully;
-- every selected Context form to be supported by that role;
 - disabled Refine to require no other Refine fields;
 - separate Refine to name a Provider that supports `refine` and to provide `fallback` or `abort` as `onError`;
 - integrated Refine to omit Refine Provider, Refine values, and `onError`, and to have an effective primary `integratedRefine` Capability of `true`.
@@ -550,14 +542,14 @@ Plan
 |   role: processing
 |   input: audio
 |   Provider: primary
-|   Context: config.context
+|   Context: attempt snapshot, capability-filtered
 |   Instructions: none
 |
 `-- Step 2
     role: refine
     input: Step 1 text
     Provider: config.refine.provider
-    Context: config.refine.context
+    Context: attempt snapshot, capability-filtered
     Instructions: config.refine.instructions
     onError: config.refine.onError
 
@@ -574,7 +566,7 @@ Plan
     role: processing
     input: audio
     Provider: primary
-    Context: union(config.context, config.refine.context)
+    Context: one attempt snapshot, capability-filtered
     Instructions: config.refine.instructions
     integratedRefine: true
 
@@ -587,7 +579,7 @@ There is no `auto` execution value and no automatic fusion or routing.
 
 ## Context
 
-Context is an immutable snapshot supplied by the Host:
+Context is an immutable snapshot supplied by the Host for one processing attempt:
 
 ```javascript
 const context = {
@@ -596,11 +588,11 @@ const context = {
 }
 ```
 
-Config selects which Context forms each product role may upload. The selected forms must be supported by the resolved Provider role.
+Context is attempt input, not processing Config. The Host constructs one snapshot per attempt; the Kernel delivers each Processor only the forms its resolved capabilities support. A Processor that supports no Context forms receives empty Context — this is never a validation error.
 
-The initial GNOME Host may always provide empty Context. Empty Context is valid and changes neither Config validity nor execution shape.
+The GNOME Host constructs its snapshot from user-configured Custom Terms (a Host setting, not part of `processing-config`); `passages` remains empty until a Context source exists. Empty Context is valid and changes neither Config validity nor execution shape.
 
-Providers never acquire Context and never inspect the desktop, editor, clipboard, filesystem, history, or focused application. Context acquisition remains deferred and does not affect this architecture.
+Providers never acquire Context and never inspect the desktop, editor, clipboard, filesystem, history, or focused application. The Host performs no automatic environmental capture: only terms the user explicitly configured are sent, to Providers that support them.
 
 ## Instructions
 
@@ -621,8 +613,9 @@ Provider
 Provider fields
 Model
 Language
-Context
 ...
+
+Custom Terms                                 (Host Context source)
 
 Refine                                      [toggle]
 
@@ -630,10 +623,11 @@ Refine                                      [toggle]
   Provider                                 separate only
   Provider fields                          separate only
   Model                                    separate only
-  Context
   Instructions
   Failure behavior                         separate only
 ```
+
+There is no per-role Context selection UI: the Host constructs one attempt Context snapshot from Custom Terms, and each Processor receives only the forms its capabilities support.
 
 There is no redundant Transcription section and no user-facing Step or Kind.
 
@@ -738,7 +732,6 @@ const trace = [
     text: 'primary text',
     status: 'ok',
     elapsedMs: 647,
-    context: ['terms'],
     usage: null,
     requestId: null,
     responseId: 'response-1'
@@ -751,7 +744,6 @@ const trace = [
     text: 'final text',
     status: 'ok',
     elapsedMs: 900,
-    context: ['terms', 'passages'],
     usage: null,
     requestId: null,
     responseId: 'response-2'
@@ -771,7 +763,6 @@ const trace = [
     text: 'final text',
     status: 'ok',
     elapsedMs: 647,
-    context: ['terms', 'passages'],
     integratedRefine: true,
     usage: null,
     requestId: null,

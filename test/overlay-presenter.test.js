@@ -1,4 +1,4 @@
-import { ToasOverlayPresenter } from '../lib/overlay-presenter.js'
+import { ToasOverlayPresenter } from '../lib/ui/overlay-presenter.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 class FakeOverlayView {
@@ -65,11 +65,11 @@ test('a newer render supersedes the pending error hide', async () => {
   const presenter = new ToasOverlayPresenter({ view, hideDelay: 40 })
 
   presenter.render('error', 'broken')
-  presenter.render('transcribing')
+  presenter.render('processing')
   await flushAsync(80)
 
   expectEqual(view.hideCalls, 0)
-  expectEqual(view.renders[1].state, 'transcribing')
+  expectEqual(view.renders[1].state, 'processing')
   presenter.destroy()
 })
 
@@ -77,7 +77,7 @@ test('spinner runs only for processing states', () => {
   const view = new FakeOverlayView()
   const presenter = new ToasOverlayPresenter({ view })
 
-  presenter.render('transcribing')
+  presenter.render('processing')
   expectEqual(view.spinnerStarted, true)
   expectEqual(view.spinnerStopped ?? false, false)
 

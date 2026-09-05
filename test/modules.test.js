@@ -1,49 +1,62 @@
 // Module-level smoke check: every lib module must parse and, where it has no
-// Shell-only imports, load headlessly. Shell-only modules are listed in
-// SHELL_ONLY and only parse-checked (their imports fail outside the Shell).
+// GNOME-only imports, load headlessly. GNOME-only modules are listed in
+// GNOME_ONLY (they need a Shell session or prefs process); runtime-agnostic
+// modules (kernel/, plus everything else) must always load.
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import System from 'system'
 
+// Modules that import Shell resources or Shell-only GI libraries.
 const SHELL_ONLY = new Set([
-  'confirm-dialog.js',
-  'history-browser.js',
-  'indicator.js',
-  'input.js',
-  'notifier.js',
-  'shell-overlay-view.js'
+  'ui/confirm-dialog.js',
+  'ui/history-browser.js',
+  'ui/indicator.js',
+  'infrastructure/input.js',
+  'ui/notifier.js',
+  'ui/shell-overlay-view.js',
 ])
 
-const libDir = Gio.File.new_for_path(GLib.get_current_dir() + '/lib')
-const enumerator = libDir.enumerate_children(
-  'standard::name',
-  Gio.FileQueryInfoFlags.NONE,
-  null
-)
-const files = []
-let info
-while ((info = enumerator.next_file(null)) !== null) {
-  if (info.get_name().endsWith('.js')) { files.push(info.get_name()) }
+function listModules (dir, prefix = '') {
+  const modules = []
+  const enumerator = Gio.File.new_for_path(dir).enumerate_children(
+    'standard::name,standard::type',
+    Gio.FileQueryInfoFlags.NONE,
+    null
+  )
+  let info
+  while ((info = enumerator.next_file(null)) !== null) {
+    const name = info.get_name()
+    const path = `${dir}/${name}`
+    const relative = `${prefix}${name}`
+    if (info.get_file_type() === Gio.FileType.DIRECTORY) {
+      modules.push(...listModules(path, `${relative}/`))
+    } else if (name.endsWith('.js')) {
+      modules.push({ relative, path })
+    }
+  }
+  enumerator.close(null)
+  return modules
 }
-enumerator.close(null)
-files.sort()
+
+const modules = listModules(GLib.get_current_dir() + '/lib')
+modules.sort((a, b) => a.relative.localeCompare(b.relative))
 
 let failed = 0
-for (const name of files) {
-  const path = `${libDir.get_path()}/${name}`
+for (const { relative, path } of modules) {
   try {
     await import(`file://${path}`)
-    print(`ok (loads)   - lib/${name}`)
+    print(`ok (loads)   - lib/${relative}`)
   } catch (error) {
     const message = String(error?.message ?? error)
     const shellOnly = message.includes('resource:///org/gnome/shell') ||
-            message.includes('Typelib')
+            message.includes('Typelib') ||
+            message.includes('Requiring Shell')
 
-    if (SHELL_ONLY.has(name) && shellOnly) {
-      print(`ok (shell-only, parsed) - lib/${name}`)
+    if (SHELL_ONLY.has(relative) && shellOnly) {
+      print(`ok (shell-only, parsed) - lib/${relative}`)
     } else {
       failed++
-      print(`FAIL - lib/${name}: ${message}`)
+      print(`FAIL - lib/${relative}: ${message}`)
     }
   }
 }
