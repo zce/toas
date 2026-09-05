@@ -217,8 +217,8 @@ export default class ToasPreferences extends ExtensionPreferences {
         processingConfig.refine.instructions = text
         saveProcessingConfig()
       },
-      minHeight: 92,
-      maxHeight: 220
+      minHeight: 120,
+      maxHeight: 260
     })
 
     const refineOnErrorRow = new Adw.ComboRow({
@@ -257,8 +257,8 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Names, terms, and background sent to providers that support context.'
     })
     const contextRow = textAreaRow(settings, 'context', {
-      minHeight: 92,
-      maxHeight: 180
+      minHeight: 140,
+      maxHeight: 260
     })
     contextGroup.add(contextRow)
 
