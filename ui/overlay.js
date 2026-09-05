@@ -115,6 +115,7 @@ const OVERLAY_BOTTOM_MARGIN = 112
 export class ShellOverlayView {
   constructor () {
     this._levels = Array(BAR_COUNT).fill(0)
+    this._compositingHeld = false
 
     this._actor = new St.BoxLayout({
       style_class: 'toas-overlay',
@@ -184,9 +185,9 @@ export class ShellOverlayView {
     this._actor.add_child(this._status)
     this._actor.add_child(this._closeButton)
 
-    // Do not use trackFullscreen: LayoutManager owns and rewrites the
-    // visibility of tracked actors whenever overview visibility changes.
-    Main.layoutManager.addChrome(this._actor)
+    // This is transient system feedback, so keep it above application windows.
+    // Do not use trackFullscreen: tracked actors are hidden in fullscreen.
+    Main.layoutManager.addTopChrome(this._actor)
 
     this._monitorsChangedId = Main.layoutManager.connect(
       'monitors-changed',
@@ -248,6 +249,8 @@ export class ShellOverlayView {
     // A new recording can start while the previous hide animation is still
     // running. Stop it so the stale onStopped callback cannot hide this run.
     this._actor.remove_all_transitions()
+    this._acquireCompositing()
+
     if (this._actor.visible) {
       this._actor.opacity = 255
       return
@@ -265,7 +268,10 @@ export class ShellOverlayView {
 
   hide () {
     this._closeButton.visible = false
-    if (!this._actor.visible) { return }
+    if (!this._actor.visible) {
+      this._releaseCompositing()
+      return
+    }
 
     this._actor.ease({
       opacity: 0,
@@ -275,6 +281,7 @@ export class ShellOverlayView {
         // Only hide if nothing re-showed during the transition.
         if (this._actor && this._actor.opacity === 0) {
           this._actor.hide()
+          this._releaseCompositing()
         }
       }
     })
@@ -313,12 +320,27 @@ export class ShellOverlayView {
     this._actor.set_position(x, y)
   }
 
+  _acquireCompositing () {
+    if (this._compositingHeld) { return }
+
+    global.compositor.disable_unredirect()
+    this._compositingHeld = true
+  }
+
+  _releaseCompositing () {
+    if (!this._compositingHeld) { return }
+
+    global.compositor.enable_unredirect()
+    this._compositingHeld = false
+  }
+
   destroy () {
     this._spinner?.stop()
     this._onCancelRequested = null
 
     // Kill any in-flight ease before tearing down the chrome actor.
     this._actor?.remove_all_transitions()
+    this._releaseCompositing()
 
     if (this._monitorsChangedId) { Main.layoutManager.disconnect(this._monitorsChangedId) }
 
