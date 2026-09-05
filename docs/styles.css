@@ -156,8 +156,6 @@ h3 {
   box-shadow: 0 0 0 5px rgba(200, 243, 106, 0.11);
 }
 
-/* Hero ------------------------------------------------------------------- */
-
 .hero {
   position: relative;
   min-height: 720px;
@@ -342,7 +340,6 @@ h3 {
 
 .product-body aside i.active { width: 90%; background: rgba(200, 243, 106, 0.22); }
 .product-body aside i.short { width: 54%; }
-
 .editor { min-width: 0; background: #1b211c; }
 
 .editor-tab {
@@ -374,8 +371,8 @@ h3 {
 .editor-lines p { margin: 0 0 12px; white-space: nowrap; }
 .editor-lines small { display: inline-block; width: 34px; color: #596158; }
 .editor-lines b { color: #eef2eb; }
-
 .editor-lines .typing { color: #dfe7dc; }
+
 .editor-lines .typing > span {
   display: inline-block;
   width: 2px;
@@ -473,9 +470,7 @@ h3 {
 }
 
 kbd,
-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 
 kbd {
   padding: 2px 6px;
@@ -486,8 +481,6 @@ kbd {
   color: var(--text);
   font-size: 0.82em;
 }
-
-/* Demo and flow ---------------------------------------------------------- */
 
 .demo {
   padding: 92px 0 108px;
@@ -562,8 +555,6 @@ video {
 
 .flow span { color: var(--text); }
 .flow b { color: var(--accent); font-weight: 500; }
-
-/* Setup ------------------------------------------------------------------ */
 
 .setup {
   overflow: hidden;
@@ -670,7 +661,6 @@ video {
 }
 
 .preferences-titlebar strong { color: #2d332c; font-weight: 700; }
-
 .window-mark { display: flex; gap: 5px; }
 .window-mark i { width: 8px; height: 8px; border-radius: 50%; background: #cbd0c6; }
 
@@ -712,8 +702,8 @@ video {
 
 .pref-row + .pref-row { border-top: 1px solid rgba(23, 27, 23, 0.065); }
 .pref-row > b { color: #2c332b; font-size: 10px; font-weight: 650; text-align: right; }
-
 .keys { display: flex; gap: 4px; }
+
 .keys kbd {
   border-color: rgba(23, 27, 23, 0.14);
   border-bottom-color: rgba(23, 27, 23, 0.22);
@@ -742,29 +732,11 @@ video {
 }
 
 .chevron { margin-left: 5px; color: #8a9186; font-style: normal; }
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #587522 !important;
-}
-
-.status i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #7da532;
-}
-
-.refine-row > span {
-  display: grid;
-  gap: 1px;
-}
-
+.status { display: inline-flex; align-items: center; gap: 5px; color: #587522 !important; }
+.status i { width: 6px; height: 6px; border-radius: 50%; background: #7da532; }
+.refine-row > span { display: grid; gap: 1px; }
 .refine-row > span > b { color: #2c332b; font-size: 10px; }
 .refine-row > span > small { color: #8b9288; font-size: 8px; }
-
 .context-group { margin-bottom: 2px; }
 
 .context-box {
@@ -777,8 +749,6 @@ video {
   color: #70796d;
   font-size: 9px;
 }
-
-/* Privacy and install ---------------------------------------------------- */
 
 .privacy { background: #111612; }
 
@@ -881,10 +851,7 @@ footer {
 
 @media (max-width: 980px) {
   .hero-grid,
-  .setup-layout {
-    grid-template-columns: 1fr;
-  }
-
+  .setup-layout { grid-template-columns: 1fr; }
   .hero-grid { gap: 54px; padding-top: 86px; }
   .hero-product { justify-self: stretch; max-width: 760px; }
   .setup-layout { gap: 54px; }
