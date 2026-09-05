@@ -104,6 +104,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gjs libglib2.0-bin gir1.2-soup-3.0
       - name: Verify
+        shell: bash
         run: |
-          ./test/release-check.sh
-          git diff --check
+          set +e
+          ./test/release-check.sh 2>&1 | tee verify.log
+          rc=${PIPESTATUS[0]}
+          git diff --check 2>&1 | tee -a verify.log
+          diff_rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ] || [ "$diff_rc" -ne 0 ]; then
+            exit 1
+          fi
+      - name: Upload verification log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-layout-verify
+          path: verify.log
