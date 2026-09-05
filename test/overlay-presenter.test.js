@@ -73,6 +73,22 @@ test('a newer render supersedes the pending error hide', async () => {
   presenter.destroy()
 })
 
+test('processing and output states render truthful labels', () => {
+  const view = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view })
+
+  presenter.render('processing')
+  presenter.render('outputting')
+  presenter.render('copying')
+
+  expectEqual(view.renders, [
+    { state: 'processing', message: 'Processing…' },
+    { state: 'outputting', message: 'Inserting…' },
+    { state: 'copying', message: 'Copying…' }
+  ])
+  presenter.destroy()
+})
+
 test('spinner runs only for processing states', () => {
   const view = new FakeOverlayView()
   const presenter = new ToasOverlayPresenter({ view })

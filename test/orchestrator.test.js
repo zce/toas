@@ -3,7 +3,8 @@ import { FakeRecorder, FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNot
 import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeCaptureFailure, recordingOutcomeCancelled } from '../host/audio.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
-function makeOrchestrator ({  recorder = new FakeRecorder(),
+function makeOrchestrator ({
+  recorder = new FakeRecorder(),
   kernel = new FakeKernel(),
   paster = new FakePaster(),
   history = new FakeHistory(),
@@ -134,6 +135,55 @@ test('normal session runs recording through idle with one terminal transition', 
   orchestrator.destroy()
 })
 
+test('automatic insert success uses the outputting state', async () => {
+  const recording = { id: 'rec-insert', path: '/tmp/rec-insert.wav', durationMs: 1000, mimeType: 'audio/wav' }
+  const { orchestrator, run, notifier } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    paster: new FakePaster({ deliveryMode: 'insert' })
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  expectEqual(run.events.some(event => event.state === 'outputting'), true)
+  expectEqual(run.events.some(event => event.state === 'copying'), false)
+  expectEqual(notifier.notifications, [])
+  orchestrator.destroy()
+})
+
+test('clipboard-only success uses copying state without fallback notification', async () => {
+  const recording = { id: 'rec-copy', path: '/tmp/rec-copy.wav', durationMs: 1000, mimeType: 'audio/wav' }
+  const { orchestrator, run, notifier, paster } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    paster: new FakePaster({ deliveryMode: 'clipboard' })
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  expectEqual(paster.writes, ['hello'])
+  expectEqual(run.events.some(event => event.state === 'copying'), true)
+  expectEqual(run.events.some(event => event.state === 'outputting'), false)
+  expectEqual(notifier.notifications, [])
+  orchestrator.destroy()
+})
+
+test('target-window mismatch keeps insert intent but notifies clipboard fallback', async () => {
+  const recording = { id: 'rec-focus', path: '/tmp/rec-focus.wav', durationMs: 1000, mimeType: 'audio/wav' }
+  const fallback = 'The target window changed, so your text was copied to the clipboard.'
+  const { orchestrator, run, notifier } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    paster: new FakePaster({ deliveryMode: 'insert', focusMismatchMessage: fallback })
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  expectEqual(run.events.some(event => event.state === 'outputting'), true)
+  expectEqual(notifier.notifications, [{ title: 'Copied to clipboard', body: fallback }])
+  orchestrator.destroy()
+})
+
 test('output target is captured before kernel processing starts', async () => {
   const recording = { id: 'rec-order', path: '/tmp/rec-order.wav', durationMs: 1000, mimeType: 'audio/wav' }
   const order = []
@@ -223,23 +273,46 @@ test('capture failure produces error state and notification', async () => {
   expectEqual(run.events.filter(e => e.state === 'error').length, 1)
   expectEqual(notifier.notifications.length, 1)
   expectEqual(notifier.notifications[0]?.title, 'Recording failed')
+  expectEqual(notifier.notifications[0]?.body, 'Check that your microphone is available.')
   orchestrator.destroy()
 })
 
-test('processing failure notifies once with the error detail', async () => {
+test('processing failure uses category guidance without raw provider detail', async () => {
   const recording = { id: 'rec-4', path: '/tmp/rec-4.wav', durationMs: 3000, mimeType: 'audio/wav' }
-  const { orchestrator, notifier, run } = makeOrchestrator({
+  const { orchestrator, notifier, run, history } = makeOrchestrator({
     recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
-    kernel: new FakeKernel({ error: Object.assign(new Error('HTTP 401: unauthorized'), { category: 'authentication' }) })
+    kernel: new FakeKernel({ error: Object.assign(new Error('HTTP 401: unauthorized token detail'), { category: 'authentication' }) })
   })
 
   orchestrator.begin()
   await orchestrator.end()
 
   expectEqual(run.events.filter(e => e.state === 'error').length, 1)
-  expectEqual(notifier.notifications.length, 1)
-  expectEqual(notifier.notifications[0].title, 'Voice input failed')
-  expectEqual(notifier.notifications[0].body.includes('401'), true)
+  expectEqual(run.events.find(e => e.state === 'error')?.message, 'Provider authentication failed')
+  expectEqual(notifier.notifications, [{
+    title: 'Provider authentication failed',
+    body: 'Check your API key in Settings.'
+  }])
+  expectEqual(notifier.notifications[0].body.includes('401'), false)
+  expectEqual(history.appends[0].error.category, 'authentication')
+  expectEqual(history.appends[0].error.message.includes('401'), true)
+  orchestrator.destroy()
+})
+
+test('cancelled processing error is not presented as a failure', async () => {
+  const recording = { id: 'rec-cancelled-category', path: '/tmp/rec-cancelled-category.wav', durationMs: 3000, mimeType: 'audio/wav' }
+  const { orchestrator, notifier, run, history, paster } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    kernel: new FakeKernel({ error: Object.assign(new Error('Request was cancelled'), { category: 'cancelled' }) })
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  expectEqual(run.events.filter(e => e.state === 'error'), [])
+  expectEqual(notifier.notifications, [])
+  expectEqual(history.appends, [])
+  expectEqual(paster.writes, [])
   orchestrator.destroy()
 })
 
@@ -261,6 +334,27 @@ test('refine fallback notifies as a soft warning, session still succeeds', async
   expectEqual(run.events.filter(e => e.state === 'error').length, 0)
   expectEqual(notifier.notifications.length, 1)
   expectEqual(notifier.notifications[0].title, 'Inserted the primary result')
+  orchestrator.destroy()
+})
+
+test('clipboard-only refine fallback remains a successful copy with soft warning', async () => {
+  const recording = { id: 'rec-6-copy', path: '/tmp/rec-6-copy.wav', durationMs: 3000, mimeType: 'audio/wav' }
+  const { orchestrator, history, notifier, run } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    paster: new FakePaster({ deliveryMode: 'clipboard' }),
+    kernel: new FakeKernel({
+      text: 'primary text',
+      warning: { type: 'refine-failed', provider: 'mimo', message: 'refine provider down' }
+    })
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  expectEqual(history.appends[0].status, 'ok')
+  expectEqual(run.events.some(e => e.state === 'copying'), true)
+  expectEqual(run.events.filter(e => e.state === 'error').length, 0)
+  expectEqual(notifier.notifications[0].title, 'Copied the primary result')
   orchestrator.destroy()
 })
 

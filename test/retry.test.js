@@ -74,19 +74,21 @@ test('retry runs transcription on retained audio without a recorder', async () =
   orchestrator.destroy()
 })
 
-test('retry failure appends a linked error attempt, original preserved', async () => {
+test('retry failure appends categorized error attempt, original preserved', async () => {
   const repo = makeRepo([
     { id: 'orig-2', status: 'error', audio: 'recordings/orig-2.wav', durationMs: 3000 }
   ])
+  const failure = Object.assign(new Error('DNS lookup detail'), { category: 'network' })
   const orchestrator = makeOrchestrator({
     repo,
-    kernel: new FakeKernel({ error: new Error('still unauthorized') })
+    kernel: new FakeKernel({ error: failure })
   })
 
   const attempt = await orchestrator.retry(repo.get('orig-2'))
 
   expectEqual(attempt.status, 'error')
-  expectEqual(attempt.error.message, 'still unauthorized')
+  expectEqual(attempt.error.category, 'network')
+  expectEqual(attempt.error.message, 'DNS lookup detail')
   expectEqual(attempt.attemptOf, 'orig-2')
   expectEqual(repo.get('orig-2').status, 'error')
 
