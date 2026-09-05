@@ -2,7 +2,12 @@ import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
 import St from 'gi://St'
 
-import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+let Main = null
+try {
+  Main = await import('resource:///org/gnome/shell/ui/main.js')
+} catch {
+  // Pure output helpers remain importable outside the Shell process.
+}
 
 const TERMINAL_HINTS = [
   'ptyxis',
@@ -51,6 +56,8 @@ export function selectOutputMethod ({ text, autoPaste, directInputAvailable }) {
 
 export class TextPaster {
   constructor (settings) {
+    if (!Main) { throw new Error('TextPaster requires the GNOME Shell runtime') }
+
     this._settings = settings
     this._clipboard = St.Clipboard.get_default()
     this._keyboard = Clutter.get_default_backend()
