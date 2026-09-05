@@ -1,6 +1,6 @@
 // AudioRecorder parameterization check: the configured sample rate flows
 // into capture sizing. Pure GJS + GLib; no recording is started.
-import { AudioRecorder } from '../lib/infrastructure/audio.js'
+import { AudioRecorder, recordingIdForNow } from '../lib/infrastructure/audio.js'
 import { test, expectEqual, run } from './harness.js'
 
 test('recorder defaults to the standard capture rate', () => {
@@ -21,6 +21,25 @@ test('high quality preset uses 48 kHz capture sizing', () => {
 
 test('zero or invalid rate falls back to standard', () => {
   expectEqual(new AudioRecorder('/tmp/x', null, null, 0)._sampleRate, 16000)
+})
+
+test('recording ids are UTC timestamp file names', () => {
+  const id = recordingIdForNow()
+  // Compact ISO 8601: 20260905T132500Z — the file name is the start time.
+  expectEqual(/^\d{8}T\d{6}Z(-\d+)?$/.test(id), true)
+  expectEqual(id.endsWith('Z') || /-\d+$/.test(id), true)
+})
+
+test('a same-second capture gets a unique id instead of colliding', () => {
+  const a = recordingIdForNow()
+  const b = recordingIdForNow()
+  // Two calls within the same second must not produce the same file name:
+  // Gio.File.replace would truncate the earlier recording.
+  expectEqual(a === b, false)
+  if (a.slice(0, 16) === b.slice(0, 16)) {
+    // same second: the later one carries a counter suffix
+    expectEqual(/-\d+$/.test(b), true)
+  }
 })
 
 await run()
