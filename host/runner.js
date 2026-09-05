@@ -6,8 +6,8 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-import { ConfigService } from '../lib/config.js'
-import { SoupHttpTransport } from '../lib/transport.js'
+import { ConfigService } from './config.js'
+import { SoupHttpTransport } from './transport.js'
 import { process as runKernel } from '../kernel/process.js'
 import { providers as registry } from '../kernel/providers/registry.js'
 
