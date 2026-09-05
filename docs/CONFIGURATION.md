@@ -9,7 +9,7 @@ Configure:
 - Primary provider (Qwen recommended) and its model
 - The provider's API key
 - Optional: Refine (provider, model, instructions, failure behavior)
-- Optional: Custom Terms
+- Optional: Context text (sent to providers that support it)
 - Audio quality and history limits
 
 All settings are saved automatically. Each provider group has a **Test
@@ -66,16 +66,18 @@ A key entered here is shared by both roles when the same provider serves
 primary and refine. Keys are stored in plain text by dconf; see the security
 note below.
 
-### Custom Terms
+### Context text
 
 ```bash
 dconf write /org/gnome/shell/extensions/toas/custom-terms \
-  "['useEffect', 'usePaymentMethods', 'fetchPaymentMethods', 'Payabli']"
+  "'技术讨论。术语：useEffect, usePaymentMethods, fetchPaymentMethods'"
 ```
 
-Terms are sent as recognition context to providers that support it (Qwen
-today); other providers ignore them. toas never reads your desktop, editor,
-clipboard, or files on its own.
+The Context is free text you compose: terms, background, names — anything
+that helps recognition or refinement. It is sent verbatim, only to roles
+whose provider supports Context (Qwen primary, all refine providers); other
+roles never see it. toas never reads your desktop, editor, clipboard, or
+files on its own.
 
 ## Environment variables (optional fallback)
 
@@ -96,9 +98,9 @@ Priority: dconf stored value → environment variable → missing.
 ### Qwen (default, recommended)
 
 - Primary processing only
-- Model: `qwen3-asr-flash`
-- Fast mixed Chinese/English technical dictation; supports Custom Terms as
-  recognition context
+- Model: `qwen3-asr-flash` (also verified: `qwen-audio-3.0-asr-flash`)
+- Fast mixed Chinese/English technical dictation; supports free-text Context
+  as recognition bias
 - API: [DashScope](https://dashscope.aliyun.com/)
 
 ### MiMo

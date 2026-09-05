@@ -57,8 +57,8 @@ into a high-leverage writing workflow.
 telemetry, local model runtime, or always-on inference service. Audio is
 captured only during an explicit recording and uploaded only after you stop.
 toas never automatically inspects your desktop, editor, clipboard, files, or
-project. The only reference material it sends is the **Custom Terms** you
-explicitly configure, and only to providers that support them.
+project. The only reference material it sends is the **Context text** you
+explicitly configure, and only to providers that support it.
 Voice input text and retained recordings are kept locally for history and retry, bounded by
 your retention settings and removable from the top-bar menu.
 
@@ -178,9 +178,10 @@ TOAS_MIMO_API_KEY / MIMO_API_KEY
 TOAS_OPENAI_API_KEY / OPENAI_API_KEY
 ```
 
-**Custom Terms** is a list of technical terms you configure once. When your primary
-provider supports recognition context, these terms are sent with each recording to help
-preserve identifiers such as `useEffect` or `usePaymentMethods`.
+**Context** is free text you write once — domain terms, background, names,
+anything that helps. Providers that support it receive your text verbatim with
+each recording or refine request; it is sent exactly as you wrote it, and
+providers without Context support never see it.
 
 Refine is optional: a second service (MiMo, OpenAI, or any OpenAI-compatible endpoint)
 applies your written instructions to the primary text. Configure its model and key, or
@@ -279,7 +280,7 @@ multimodal-generation request. Authentication uses the standard
   "model": "qwen3-asr-flash",
   "input": {
     "messages": [
-      {"role": "system", "content": [{"text": "技术讨论。常见术语：…"}]},
+      {"role": "system", "content": [{"text": "<your Context text, verbatim>"}]},
       {"role": "user", "content": [{"audio": "data:audio/wav;base64,..."}]}
     ]
   },
@@ -287,14 +288,15 @@ multimodal-generation request. Authentication uses the standard
 }
 ```
 
-The system message is present only when Custom Terms are configured.
+The system message is present only when Context text is configured, and
+carries your text verbatim.
 
 ### Refine behavior
 
 Refine makes one non-streaming request after primary processing, on the
 provider you choose (MiMo, OpenAI, or any OpenAI-compatible endpoint). Its
-instructions are configurable text. Providers that support recognition
-context also receive your Custom Terms.
+instructions are configurable text. Providers that support Context also
+receive your Context text verbatim as their system message.
 
 ### Output behavior
 

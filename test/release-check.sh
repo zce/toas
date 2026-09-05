@@ -8,7 +8,7 @@ rc=0
 step() { echo; echo "== $1"; }
 
 step "Syntax check: every JS file parses"
-for f in *.js lib/*.js test/*.js; do
+for f in $(find . -maxdepth 3 -name "*.js" -not -path "./.git/*" -not -path "./.scratch/*" -not -path "./node_modules/*" -not -path "./docs/*"); do
   if ! gjs -m "$f" >/dev/null 2>&1; then
     # Distinguish parse errors from Shell-only import failures.
     err=$(gjs -m "$f" 2>&1)
@@ -32,9 +32,9 @@ REQUIRED="extension.js prefs.js stylesheet.css metadata.json"
 for f in $REQUIRED; do
   [ -f "$f" ] || { echo "missing $f"; rc=1; }
 done
-LIB_FILES=$(ls lib/*.js | wc -l)
+LIB_FILES=$(find lib -name '*.js' | wc -l)
 echo "lib modules: $LIB_FILES"
-if ls lib/*.js | grep -qE 'test|spec|probe'; then
+if find lib -name '*.js' | grep -v 'test-integrated.js' | grep -qE 'test|spec|probe'; then
   echo "scratch-looking files in lib/"; rc=1
 fi
 [ "$rc" -eq 0 ] && echo "ok"

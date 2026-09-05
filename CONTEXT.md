@@ -17,8 +17,8 @@ A single attempt to turn a voice input's recording into text. A retry is another
 _Avoid_: Session (when referring to a retry)
 
 **Context**:
-Optional information supplied alongside a recording or text to help interpret it. It may be empty and does not itself specify how the result should be transformed.
-_Avoid_: Processing context, prompt
+Optional free text the user composes and supplies alongside a recording or text — terms, background, names, anything that helps interpretation. It is sent verbatim; it may be empty and does not itself specify how the result should be transformed.
+_Avoid_: Processing context, prompt, structured forms
 
 **Instructions**:
 Directions configured for Refine that describe the text result the user wants. Their requested operation is not a built-in output mode.
@@ -48,7 +48,7 @@ _Avoid_: Anonymous voice input
 
 These names come from `docs/adr/0001-processing-kernel.md` and are used consistently across the code layout:
 
-- **Host**: the runtime-specific product shell (GNOME Shell extension): recording, Preferences, persistence, secrets, environment, Custom Terms, output, notifications, history.
+- **Host**: the runtime-specific product shell (GNOME Shell extension): recording, Preferences, persistence, secrets, environment, Context text, output, notifications, history.
 - **Kernel**: runtime-agnostic processing orchestration (`lib/kernel/`), free of GNOME imports.
 - **Provider**: one cohesive service or protocol integration (`lib/kernel/providers/`).
 - **Manifest**: a Provider's declarative fields and role capabilities.

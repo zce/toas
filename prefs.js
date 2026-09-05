@@ -149,10 +149,18 @@ export default class ToasPreferences extends ExtensionPreferences {
     inputGroup.add(autoPaste)
     inputGroup.add(restoreClipboard)
 
+    // Voice Processing is the core of the product: the primary audio-to-text
+    // provider, with the optional Refine enhancement nested inside it.
     const processingGroup = new Adw.PreferencesGroup({
       title: 'Voice Processing',
       description: 'Your recording is sent to this service to be turned into text.'
     })
+
+    const providerLabel = id => providerRegistry.get(id)?.manifest?.label ?? id
+    const primaryCapabilities = id =>
+      Boolean(providerRegistry.get(id)?.manifest?.processing?.capabilities?.context)
+    const refineCapabilities = id =>
+      Boolean(providerRegistry.get(id)?.manifest?.refine?.capabilities?.context)
 
     // Primary provider + model + credential, driven by the provider manifests.
     const primaryProviderId = PRIMARY_PROVIDER_VALUES[settings.get_enum('primary-provider')] ?? 'qwen'
@@ -163,9 +171,7 @@ export default class ToasPreferences extends ExtensionPreferences {
     const providerRow = new Adw.ComboRow({
       title: 'Primary provider',
       subtitle: 'Processes your recording into text',
-      model: Gtk.StringList.new(PRIMARY_PROVIDER_VALUES.map(id =>
-        providerRegistry.get(id)?.manifest?.label ?? id
-      )),
+      model: Gtk.StringList.new(PRIMARY_PROVIDER_VALUES.map(providerLabel)),
       selected: Math.max(0, PRIMARY_PROVIDER_VALUES.indexOf(primaryProviderId))
     })
 
@@ -177,12 +183,13 @@ export default class ToasPreferences extends ExtensionPreferences {
       settings.set_string('primary-model', modelEntry.get_text())
     })
 
+    // One stored key per provider; the row title shows whose key it is.
     const primarySecretRow = secretRow({
       settings,
       providerId: primaryProviderId,
       fieldKey: 'key',
-      title: 'API key',
-      subtitle: 'Stored in plain text by dconf, or read from the provider environment variables.'
+      title: `${providerLabel(primaryProviderId)} API key`,
+      subtitle: 'One key per provider, stored in plain text by dconf, or read from the provider environment variables.'
     })
 
     const primaryTestRow = buildConnectionRow({
@@ -192,76 +199,18 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Sends a short silent sample through the same processing path as a real voice input.'
     })
 
-    providerRow.connect('notify::selected', () => {
-      const nextId = PRIMARY_PROVIDER_VALUES[providerRow.selected] ?? 'qwen'
-      settings.set_enum('primary-provider', PRIMARY_PROVIDER_VALUES.indexOf(nextId))
-
-      const nextProvider = providerRegistry.get(nextId)
-      const nextModel = nextProvider?.manifest?.processing?.fields
-        ?.find(f => f.key === 'model')?.default ?? ''
-      settings.set_string('primary-model', nextModel)
-      modelEntry.set_text(nextModel)
-
-      primarySecretRow.rebind(nextId)
-      primaryTestRow.rebind()
-    })
-
-    processingGroup.add(providerRow)
-    processingGroup.add(modelEntry)
-    processingGroup.add(primarySecretRow.row)
-    processingGroup.add(primaryTestRow.row)
-
-    // Custom Terms: Host-owned Context source, not provider configuration.
-    const termsGroup = new Adw.PreferencesGroup({
-      title: 'Custom Terms',
-      description: 'Terms you list here are sent as recognition context to providers that support it. toas never reads your desktop, editor, clipboard, or files on its own.'
-    })
-
-    const termsBuffer = new Gtk.TextBuffer()
-    termsBuffer.set_text(settings.get_strv('custom-terms').join('\n'), -1)
-    const termsView = new Gtk.TextView({
-      buffer: termsBuffer,
-      wrap_mode: Gtk.WrapMode.WORD,
-      top_margin: 12,
-      bottom_margin: 12,
-      left_margin: 12,
-      right_margin: 12,
-      hexpand: true
-    })
-    termsView.add_css_class('inline')
-    termsBuffer.connect('changed', () => {
-      const [start, end] = termsBuffer.get_bounds()
-      const text = termsBuffer.get_text(start, end, false)
-      settings.set_strv('custom-terms', text.split('\n').map(t => t.trim()).filter(Boolean))
-    })
-    termsGroup.add(termsView)
-
-    // Optional Refine: an enhancement of voice processing, not a product of
-    // its own.
-    const refineGroup = new Adw.PreferencesGroup({
-      title: 'Refine (optional)',
-      description: 'Applies your instructions to the primary text with a second service.'
-    })
-
-    const refineEnabled = new Adw.SwitchRow({
-      title: 'Enable Refine',
-      subtitle: 'Disable for literal dictation.',
-      active: settings.get_boolean('refine-enabled')
-    })
-
-    const refineWarning = new Adw.ActionRow({ title: 'Refine is not active' })
-    refineWarning.add_css_class('warning')
+    // --- Refine: an enhancement nested inside voice processing -------------
 
     const refineProviderRow = new Adw.ComboRow({
       title: 'Refine provider',
       subtitle: 'Processes the primary text',
-      model: Gtk.StringList.new(REFINE_PROVIDER_VALUES.map(id =>
-        providerRegistry.get(id)?.manifest?.label ?? id
-      )),
+      model: Gtk.StringList.new(REFINE_PROVIDER_VALUES.map(providerLabel)),
       selected: Math.max(0, REFINE_PROVIDER_VALUES.indexOf(
         REFINE_PROVIDER_VALUES[settings.get_enum('refine-provider')] ?? 'mimo'
       ))
     })
+
+    const refineProviderId = () => REFINE_PROVIDER_VALUES[refineProviderRow.selected] ?? 'mimo'
 
     const refineModelEntry = new Adw.EntryRow({
       title: 'Refine model',
@@ -273,9 +222,9 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const refineSecretRow = secretRow({
       settings,
-      providerId: REFINE_PROVIDER_VALUES[settings.get_enum('refine-provider')] ?? 'mimo',
+      providerId: refineProviderId(),
       fieldKey: 'key',
-      title: 'Refine API key',
+      title: `${providerLabel(refineProviderId())} API key`,
       subtitle: 'Shared with the same provider when both roles use it.'
     })
 
@@ -295,10 +244,11 @@ export default class ToasPreferences extends ExtensionPreferences {
       description: 'Sends a short fixed text through the same refine path as a real voice input.'
     })
 
-    const instructionsGroup = new Adw.PreferencesGroup({
-      title: 'Refine Instructions',
-      description: 'Tell the refine provider how to edit the primary text. Paragraphs, lists, and code formatting are kept when pasted.'
-    })
+    const refineWarning = new Adw.ActionRow({ title: 'Refine is not active' })
+    refineWarning.add_css_class('warning')
+
+    // Refine Instructions live inside the expander: they only matter when
+    // refine is part of voice processing.
     const instructionsBuffer = new Gtk.TextBuffer()
     const instructionsView = new Gtk.TextView({
       buffer: instructionsBuffer,
@@ -316,30 +266,45 @@ export default class ToasPreferences extends ExtensionPreferences {
       vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
       min_content_height: 180,
       max_content_height: 220,
+      margin_top: 6,
+      margin_bottom: 6,
       child: instructionsView
     })
     instructionsScroller.add_css_class('card')
 
-    const refineRows = [
-      refineProviderRow,
-      refineModelEntry,
-      refineSecretRow.row,
-      refineOnErrorRow,
-      refineTestRow.row
-    ]
+    // The schema default is the single source of the template; anything the
+    // user saved replaces it.
+    const defaultInstructions = settings.get_default_value('refine-instructions')?.unpack?.() ?? ''
+    instructionsBuffer.connect('changed', () => {
+      const [start, end] = instructionsBuffer.get_bounds()
+      settings.set_string('refine-instructions', instructionsBuffer.get_text(start, end, false))
+    })
+    instructionsBuffer.set_text(settings.get_string('refine-instructions') || defaultInstructions, -1)
 
-    const applyRefineState = () => {
-      const enabled = refineEnabled.active
-      refineRows.forEach(row => { row.visible = enabled })
-      instructionsGroup.visible = enabled
+    // The enable switch carries refine-enabled directly; while off, the
+    // nested settings stay collapsed and inaccessible.
+    const refineExpander = new Adw.ExpanderRow({
+      title: 'Refine (optional)',
+      subtitle: 'Applies your instructions to the primary text with a second service. Disable for literal dictation.',
+      show_enable_switch: true,
+      enable_expansion: settings.get_boolean('refine-enabled')
+    })
 
-      const refineProviderId = REFINE_PROVIDER_VALUES[refineProviderRow.selected] ?? 'mimo'
+    refineExpander.add_row(refineProviderRow)
+    refineExpander.add_row(refineModelEntry)
+    refineExpander.add_row(refineSecretRow.row)
+    refineExpander.add_row(refineOnErrorRow)
+    refineExpander.add_row(refineTestRow.row)
+    refineExpander.add_row(refineWarning)
+    refineExpander.add_row(instructionsScroller)
+
+    const applyRefineWarning = () => {
       const model = refineModelEntry.get_text().trim()
       const missing = []
       if (!model) { missing.push('a refine model') }
-      if (!refineSecretRow.hasValue()) { missing.push('a refine API key') }
+      if (!refineSecretRow.hasValue()) { missing.push(`a ${providerLabel(refineProviderId())} API key`) }
 
-      if (enabled && missing.length > 0) {
+      if (refineExpander.enable_expansion && missing.length > 0) {
         refineWarning.visible = true
         refineWarning.subtitle =
           `Missing ${missing.join(' and ')}. Until then, voice inputs keep the primary text without refining.`
@@ -348,39 +313,92 @@ export default class ToasPreferences extends ExtensionPreferences {
       }
     }
 
+    // Context matters only when some active role consumes it; the group is
+    // hidden otherwise so the UI never offers settings the model ignores.
+    const applyContextVisibility = () => {
+      const primaryId = PRIMARY_PROVIDER_VALUES[providerRow.selected] ?? 'qwen'
+      let used = primaryCapabilities(primaryId)
+      if (refineExpander.enable_expansion) {
+        used = used || refineCapabilities(refineProviderId())
+      }
+      contextGroup.visible = used
+    }
+
+    providerRow.connect('notify::selected', () => {
+      const nextId = PRIMARY_PROVIDER_VALUES[providerRow.selected] ?? 'qwen'
+      settings.set_enum('primary-provider', PRIMARY_PROVIDER_VALUES.indexOf(nextId))
+
+      const nextProvider = providerRegistry.get(nextId)
+      const nextModel = nextProvider?.manifest?.processing?.fields
+        ?.find(f => f.key === 'model')?.default ?? ''
+      settings.set_string('primary-model', nextModel)
+      modelEntry.set_text(nextModel)
+
+      primarySecretRow.rebind(nextId)
+      primarySecretRow.setTitle(`${providerLabel(nextId)} API key`)
+      primaryTestRow.rebind()
+      applyContextVisibility()
+    })
+
     refineProviderRow.connect('notify::selected', () => {
-      const nextId = REFINE_PROVIDER_VALUES[refineProviderRow.selected] ?? 'mimo'
+      const nextId = refineProviderId()
       settings.set_enum('refine-provider', REFINE_PROVIDER_VALUES.indexOf(nextId))
       refineSecretRow.rebind(nextId)
+      refineSecretRow.setTitle(`${providerLabel(nextId)} API key`)
       refineTestRow.rebind()
-      applyRefineState()
+      applyContextVisibility()
+      applyRefineWarning()
     })
+
     refineOnErrorRow.connect('notify::selected', () => {
       const value = REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
       settings.set_enum('refine-on-error', REFINE_ON_ERROR_VALUES.indexOf(value))
     })
-    refineEnabled.connect('notify::active', () => {
-      settings.set_boolean('refine-enabled', refineEnabled.active)
-      applyRefineState()
-    })
-    refineModelEntry.connect('changed', applyRefineState)
-    primarySecretRow.onChange(applyRefineState)
-    refineSecretRow.onChange(applyRefineState)
 
-    // The schema default is the single source of the template; anything the
-    // user saved replaces it. The initial fill runs after the changed handler
-    // so the template is persisted on first open instead of staying a UI-only
-    // default that the processing path would read as empty.
-    const defaultInstructions = settings.get_default_value('refine-instructions')?.unpack?.() ?? ''
-    instructionsBuffer.connect('changed', () => {
-      const [start, end] = instructionsBuffer.get_bounds()
-      settings.set_string('refine-instructions', instructionsBuffer.get_text(start, end, false))
+    refineExpander.connect('notify::enable-expansion', () => {
+      settings.set_boolean('refine-enabled', refineExpander.enable_expansion)
+      applyContextVisibility()
+      applyRefineWarning()
     })
-    instructionsBuffer.set_text(settings.get_string('refine-instructions') || defaultInstructions, -1)
 
-    refineGroup.add(refineEnabled)
-    refineGroup.add(refineWarning)
-    refineRows.forEach(row => refineGroup.add(row))
+    refineModelEntry.connect('changed', applyRefineWarning)
+    // When both roles share a provider, one stored key serves both rows;
+    // editing either keeps the other in sync.
+    primarySecretRow.onChange(() => { refineSecretRow.refresh(); applyRefineWarning() })
+    refineSecretRow.onChange(() => { primarySecretRow.refresh(); applyRefineWarning() })
+
+    processingGroup.add(providerRow)
+    processingGroup.add(modelEntry)
+    processingGroup.add(primarySecretRow.row)
+    processingGroup.add(primaryTestRow.row)
+    processingGroup.add(refineExpander)
+
+    // Context: Host-owned free text, not provider configuration. The user
+    // decides what belongs in it (terms, background, names); it is sent
+    // verbatim only to providers that support it. toas never reads your
+    // desktop, editor, clipboard, or files on its own.
+    const contextGroup = new Adw.PreferencesGroup({
+      title: 'Context',
+      description: 'Free text sent to providers that support it: list terms, background, names — anything that helps recognition or refinement. Kept exactly as you write it.'
+    })
+
+    const contextBuffer = new Gtk.TextBuffer()
+    const contextView = new Gtk.TextView({
+      buffer: contextBuffer,
+      wrap_mode: Gtk.WrapMode.WORD_CHAR,
+      top_margin: 12,
+      bottom_margin: 12,
+      left_margin: 12,
+      right_margin: 12,
+      hexpand: true
+    })
+    contextView.add_css_class('inline')
+    contextBuffer.connect('changed', () => {
+      const [start, end] = contextBuffer.get_bounds()
+      settings.set_string('custom-terms', contextBuffer.get_text(start, end, false))
+    })
+    contextBuffer.set_text(settings.get_string('custom-terms'), -1)
+    contextGroup.add(contextView)
 
     const securityGroup = new Adw.PreferencesGroup({
       title: 'Security',
@@ -423,15 +441,14 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     page.add(inputGroup)
     page.add(processingGroup)
-    page.add(termsGroup)
-    page.add(refineGroup)
-    page.add(instructionsGroup)
+    page.add(contextGroup)
     page.add(securityGroup)
     page.add(recordingGroup)
     page.add(historyGroup)
     window.add(page)
 
-    applyRefineState()
+    applyContextVisibility()
+    applyRefineWarning()
   }
 }
 
@@ -487,11 +504,25 @@ function secretRow ({ settings, providerId, fieldKey, title, subtitle }) {
     entry.text = readStored()
   }
 
+  const refresh = () => {
+    const stored = readStored()
+    // Never re-assign an identical value: set_text always emits 'changed',
+    // and a mutual refresh between two rows sharing one provider would
+    // otherwise ping-pong forever.
+    if (entry.text !== stored) { entry.text = stored }
+  }
+
+  const setTitle = title => {
+    entry.title = title
+  }
+
   rebind(providerId)
 
   return {
     row: entry,
     rebind,
+    refresh,
+    setTitle,
     hasValue: () => Boolean(readStored() || envFallbackPresent(providerId, fieldKey)),
     onChange: handler => changeHandlers.push(handler)
   }
@@ -561,7 +592,7 @@ async function runConnectionTest ({ settings, role }) {
     await kernelProcess({
       config,
       audio,
-      context: { terms: [], passages: [] },
+      context: { text: '' },
       secrets,
       runtime: { transport, clock: { now: () => 0 } },
       signal: null

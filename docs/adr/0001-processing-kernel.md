@@ -140,7 +140,7 @@ Voice processing
      `-- onError: fallback | abort (separate only)
 
 Host attempt inputs (not Config):
-  Context snapshot (Custom Terms), secrets, environment
+  Context snapshot (user Context text), secrets, environment
 ```
 
 The Primary Provider answers: who first processes this Recording?
@@ -323,7 +323,7 @@ const manifest = {
       }
     ],
     capabilities: {
-      context: ['terms', 'passages']
+      context: true
     }
   }
 }
@@ -583,16 +583,17 @@ Context is an immutable snapshot supplied by the Host for one processing attempt
 
 ```javascript
 const context = {
-  terms: [],
-  passages: []
+  text: ''
 }
 ```
 
-Context is attempt input, not processing Config. The Host constructs one snapshot per attempt; the Kernel delivers each Processor only the forms its resolved capabilities support. A Processor that supports no Context forms receives empty Context — this is never a validation error.
+Context is attempt input, not processing Config. The Host constructs one snapshot per attempt; the Kernel delivers the text to a Processor only when its resolved capabilities support Context. A Processor without Context support receives empty Context — this is never a validation error.
 
-The GNOME Host constructs its snapshot from user-configured Custom Terms (a Host setting, not part of `processing-config`); `passages` remains empty until a Context source exists. Empty Context is valid and changes neither Config validity nor execution shape.
+The Context is one free-text string the user composes: terms, background, names — anything that helps interpretation. It is delivered verbatim; the product never reformats or re-templates it, because the user's own phrasing is the value. Structured forms (`terms`/`passages`) were rejected for deciding things the user should decide (how to present terminology, which parts are "background").
 
-Providers never acquire Context and never inspect the desktop, editor, clipboard, filesystem, history, or focused application. The Host performs no automatic environmental capture: only terms the user explicitly configured are sent, to Providers that support them.
+The GNOME Host constructs its snapshot from user-configured Context text (a Host setting, not part of `processing-config`). Empty Context is valid and changes neither Config validity nor execution shape.
+
+Providers never acquire Context and never inspect the desktop, editor, clipboard, filesystem, history, or focused application. The Host performs no automatic environmental capture: only the text the user explicitly wrote is sent, to Providers that support it.
 
 ## Instructions
 
@@ -615,9 +616,9 @@ Model
 Language
 ...
 
-Custom Terms                                 (Host Context source)
+Context                                     (Host Context text source)
 
-Refine                                      [toggle]
+Refine                                      [toggle, nested in voice processing]
 
   Execution                                separate | integrated
   Provider                                 separate only
@@ -627,7 +628,7 @@ Refine                                      [toggle]
   Failure behavior                         separate only
 ```
 
-There is no per-role Context selection UI: the Host constructs one attempt Context snapshot from Custom Terms, and each Processor receives only the forms its capabilities support.
+There is no per-role Context selection UI: the Host constructs one attempt Context snapshot from the user's Context text, and each Processor receives it only when its capabilities allow. The Context group is visible only when an active role (primary, or an enabled Refine) consumes it.
 
 There is no redundant Transcription section and no user-facing Step or Kind.
 
@@ -821,7 +822,7 @@ All required scenarios follow from Config resolution without provider-specific o
 | Explicit separate is authoritative | Separate always builds the configured Refine Step even when primary supports integrated Refine. | Pass |
 | New Provider locality | A new Provider needs only its module, Manifest, Processors, protocol mappings, tests, and registration. Generic settings, Kernel, HTTP, other Providers, and GSettings schema do not change. | Pass |
 | Runtime replacement | Replacing `SoupHttpTransport` with `FetchHttpTransport` leaves Providers, Processors, resolution, and Plans unchanged. | Pass |
-| Empty Context | Empty `terms` and `passages` are valid for all execution strategies. | Pass |
+| Empty Context | Empty `text` is valid for all execution strategies. | Pass |
 
 ## Rejected alternatives
 

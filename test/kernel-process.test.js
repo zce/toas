@@ -17,7 +17,7 @@ function runKernel (args) {
 }
 
 const AUDIO = { kind: 'audio', base64: 'aW5zZXJ0LWF1ZGlv', mimeType: 'audio/wav', durationMs: 1000 }
-const CONTEXT = { terms: ['useEffect', 'usePaymentMethods'], passages: [] }
+const CONTEXT = { text: '技术讨论。术语表：useEffect, usePaymentMethods' }
 
 // Fake transport: records requests, returns queued responses per provider.
 // Also counts calls so tests can assert exact physical call counts.
@@ -317,11 +317,11 @@ test('integrated refine on a capable provider makes exactly one call carrying in
 
   expectEqual(transport.requests.length, 0) // test provider does not use transport
   expectTruthy(result.text.includes('Refine while transcr'))
-  expectTruthy(result.text.includes('useEffect'))
+  expectTruthy(result.text.includes('[context present]'))
   expectEqual(result.trace.length, 1)
   expectEqual(result.trace[0].input, 'audio+instructions')
   expectEqual(result.trace[0].integratedRefine, true)
-  expectEqual(result.trace[0].context, ['terms'])
+  expectEqual(result.trace[0].context, ['text'])
 })
 
 // --- Acceptance 6: Unsupported integrated rejected -------------------------------
@@ -679,13 +679,13 @@ test('cancel during refine never converts into a fallback warning', async () => 
 
 // --- Context contract -----------------------------------------------------------
 
-test('context filtering delivers only supported forms per role', async () => {
+test('context is delivered verbatim only to roles that support it', async () => {
   const transport = new FakeTransport({
     responses: [chatResponse('p'), chatResponse('r')]
   })
   await runKernel({
     config: {
-      // MiMo primary supports no Context; MiMo refine supports terms.
+      // MiMo primary supports no Context; MiMo refine supports it.
       primary: { provider: 'mimo', endpoint: null, values: { model: 'mimo-v2.5-asr' } },
       refine: {
         enabled: true,
@@ -708,32 +708,35 @@ test('context filtering delivers only supported forms per role', async () => {
   expectTruthy(primaryBody.messages.every(m => !JSON.stringify(m).includes('useEffect')))
 
   const refineBody = transport.requests[1].body
-  expectTruthy(JSON.stringify(refineBody).includes('useEffect'))
+  // The refine request carries the user's free text verbatim, as its own
+  // system message.
+  const systemMessages = refineBody.messages.filter(m => m.role === 'system')
+  expectEqual(systemMessages.length, 1)
+  expectEqual(systemMessages[0].content, CONTEXT.text)
 })
 
-test('normalizeContext trims, dedupes, and drops empties', () => {
-  const snapshot = normalizeContext({
-    terms: [' useEffect ', '', 'useEffect', 'Retry'],
-    passages: null
-  })
-  expectEqual(snapshot.terms, ['useEffect', 'Retry'])
-  expectEqual(snapshot.passages, [])
+test('normalizeContext trims surrounding whitespace and accepts empty', () => {
+  const snapshot = normalizeContext({ text: '  技术讨论。术语：useEffect  ' })
+  expectEqual(snapshot.text, '技术讨论。术语：useEffect')
+  expectEqual(normalizeContext({}).text, '')
+  expectEqual(normalizeContext(null).text, '')
 })
 
-test('normalizeContext rejects malformed forms', () => {
+test('normalizeContext rejects non-string text', () => {
   let threw = null
-  try { normalizeContext({ terms: 'not-an-array' }) } catch (e) { threw = e }
-  expectEqual(threw.category, 'configuration')
-
-  threw = null
-  try { normalizeContext({ terms: [42] }) } catch (e) { threw = e }
+  try { normalizeContext({ text: 42 }) } catch (e) { threw = e }
   expectEqual(threw.category, 'configuration')
 })
 
-test('filterContext drops unsupported forms without error', () => {
-  const filtered = filterContext(CONTEXT, { context: ['terms'] })
-  expectEqual(filtered.terms, ['useEffect', 'usePaymentMethods'])
-  expectEqual(filtered.passages, [])
+test('filterContext passes text only to capabilities that allow it', () => {
+  const allowed = filterContext(CONTEXT, { context: true })
+  expectEqual(allowed.text, CONTEXT.text)
+
+  const denied = filterContext(CONTEXT, { context: false })
+  expectEqual(denied.text, '')
+
+  const unspecified = filterContext(CONTEXT, {})
+  expectEqual(unspecified.text, '')
 })
 
 // --- Trace safety ---------------------------------------------------------------
