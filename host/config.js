@@ -43,25 +43,15 @@ export function writeProcessingConfig (settings, config) {
 }
 
 export function switchProcessingProvider (config, role, providerId, providerRegistry) {
-  const input = role === 'primary' ? 'audio' : role === 'refine' ? 'text' : null
-  if (!input) { throw new Error(`Unknown processing role: ${String(role)}`) }
-
   const selection = config[role]
-  if (!selection) { throw new Error(`Processing ${role} selection is missing`) }
-
-  const remembered = (config.selectionValues ??= { primary: {}, refine: {} })
-  const valuesByProvider = (remembered[role] ??= {})
-  if (selection.provider) {
-    valuesByProvider[selection.provider] = { ...(selection.values || {}) }
-  }
-
+  const valuesByProvider = config.selectionValues[role]
+  valuesByProvider[selection.provider] = { ...selection.values }
   selection.provider = providerId
-  selection.values = resolveSelectionValues(
+  selection.values = selectionValues(
     valuesByProvider[providerId],
     providerRegistry.get(providerId),
-    input
+    role === 'primary' ? 'audio' : 'text'
   )
-  valuesByProvider[providerId] = { ...selection.values }
 }
 
 export function normalizeProcessingConfig (stored, providerRegistry) {
@@ -74,34 +64,30 @@ export function normalizeProcessingConfig (stored, providerRegistry) {
     primary: copyObjectMap(source.selectionValues?.primary),
     refine: copyObjectMap(source.selectionValues?.refine)
   }
-  const primaryValues = resolveSelectionValues(
-    source.primary?.provider === primaryProvider
-      ? source.primary?.values
-      : remembered.primary[primaryProvider],
-    providerRegistry.get(primaryProvider),
-    'audio'
-  )
-  const refineValues = resolveSelectionValues(
-    source.refine?.provider === refineProvider
-      ? source.refine?.values
-      : remembered.refine[refineProvider],
-    providerRegistry.get(refineProvider),
-    'text'
-  )
-  remembered.primary[primaryProvider] = { ...primaryValues }
-  remembered.refine[refineProvider] = { ...refineValues }
 
   return {
     providers: copyObjectMap(source.providers),
     selectionValues: remembered,
     primary: {
       provider: primaryProvider,
-      values: primaryValues
+      values: selectionValues(
+        source.primary?.provider === primaryProvider
+          ? source.primary?.values
+          : remembered.primary[primaryProvider],
+        providerRegistry.get(primaryProvider),
+        'audio'
+      )
     },
     refine: {
       enabled: Boolean(source.refine?.enabled),
       provider: refineProvider,
-      values: refineValues,
+      values: selectionValues(
+        source.refine?.provider === refineProvider
+          ? source.refine?.values
+          : remembered.refine[refineProvider],
+        providerRegistry.get(refineProvider),
+        'text'
+      ),
       instructions: typeof source.refine?.instructions === 'string'
         ? source.refine.instructions
         : DEFAULT_REFINE_INSTRUCTIONS,
@@ -110,7 +96,7 @@ export function normalizeProcessingConfig (stored, providerRegistry) {
   }
 }
 
-function resolveSelectionValues (stored, provider, input) {
+function selectionValues (stored, provider, input) {
   return {
     ...(provider?.manifest?.defaults?.[input] || {}),
     ...(isObject(stored) ? stored : {})
