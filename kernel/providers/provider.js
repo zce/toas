@@ -55,7 +55,7 @@ export class Provider {
     const seen = new Set()
     for (const field of this.manifest.selectionFields || []) {
       if (!field.required || seen.has(field.key)) { continue }
-      if (input && field.inputs && !field.inputs.includes(input)) { continue }
+      if (field.inputs && (!input || !field.inputs.includes(input))) { continue }
       seen.add(field.key)
       if (!hasValue(values[field.key])) {
         issues.push(requiredIssue(
