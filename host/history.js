@@ -33,7 +33,17 @@ export class HistoryStore {
   }
 
   append (entry) {
-    const line = new TextEncoder().encode(`${JSON.stringify(entry)}\n`)
+    // A zero recording limit means audio is not historical data. Processing
+    // has already finished by the time entries reach the store, so discard
+    // the WAV before persisting the text record rather than waiting for a
+    // later retention pass.
+    let retainedEntry = entry
+    if (entry.audio && this._settings.get_uint('recording-limit') === 0) {
+      this._discardEntryRecording(entry)
+      retainedEntry = { ...entry, audio: null }
+    }
+
+    const line = new TextEncoder().encode(`${JSON.stringify(retainedEntry)}\n`)
     const file = Gio.File.new_for_path(this._historyPath)
     const stream = file.append_to(Gio.FileCreateFlags.PRIVATE, null)
     try {

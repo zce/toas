@@ -37,7 +37,7 @@ A saved voice-input result or processing attempt shown in history.
 _Avoid_: Session
 
 **Private mode**:
-A session-only top-bar switch that suspends local retention for new voice inputs: no history records are written and each recording is deleted once processing finishes. Processing and output still run, and uploads are unchanged.
+A persistent top-bar preference that suspends local retention for new voice inputs until explicitly disabled: no history records are written and each recording is deleted once processing finishes. Processing and output still run, and uploads are unchanged.
 _Avoid_: Incognito, Do not track
 
 **Private voice input**:

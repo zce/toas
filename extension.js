@@ -11,6 +11,7 @@ import { PushToTalkBinding } from './host/input.js'
 import { OnboardingManager } from './host/onboarding.js'
 import { ToasOrchestrator } from './host/orchestrator.js'
 import { TextPaster } from './host/output.js'
+import { PrivacyPreference } from './host/privacy.js'
 import { KernelRunner } from './host/runner.js'
 import { ConfirmDialog } from './ui/dialog.js'
 import { ToasIndicator } from './ui/indicator.js'
@@ -26,10 +27,7 @@ export default class ToasExtension extends Extension {
       const notifier = new ShellNotifier()
       this._historyRepository = new HistoryRepository(history)
       this._historyClipboard = St.Clipboard.get_default()
-
-      // Session-level privacy state; deliberately not persisted so a restart
-      // always returns to normal retention.
-      this._privacy = { enabled: false }
+      this._privacy = new PrivacyPreference(this._settings)
 
       this._indicator = new ToasIndicator({
         onToggle: () => {
@@ -44,6 +42,11 @@ export default class ToasExtension extends Extension {
           this._historyRepository.resolveAudio(entry).available,
         onPrivateModeChanged: enabled => this._setPrivateMode(enabled)
       })
+      this._privateModeChangedId = this._settings.connect(
+        'changed::private-mode',
+        () => this._indicator?.setPrivateMode(this._privacy?.enabled ?? false)
+      )
+      this._indicator.setPrivateMode(this._privacy.enabled)
 
       this._overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
 
@@ -118,6 +121,11 @@ export default class ToasExtension extends Extension {
       this._historyStore?.destroy()
       this._historyStore = null
 
+      if (this._privateModeChangedId && this._settings) {
+        this._settings.disconnect(this._privateModeChangedId)
+      }
+      this._privateModeChangedId = 0
+      this._privacy = null
       this._settings = null
 
       throw error
@@ -128,10 +136,15 @@ export default class ToasExtension extends Extension {
     this._inputBinding?.destroy()
     this._inputBinding = null
 
-    this._privacy = null
+    if (this._privateModeChangedId && this._settings) {
+      this._settings.disconnect(this._privateModeChangedId)
+    }
+    this._privateModeChangedId = 0
 
     this._orchestrator?.destroy()
     this._orchestrator = null
+
+    this._privacy = null
 
     this._kernelRunner?.destroy()
     this._kernelRunner = null
@@ -167,11 +180,7 @@ export default class ToasExtension extends Extension {
 
   _setPrivateMode (enabled) {
     if (!this._privacy) { return }
-
-    this._privacy.enabled = Boolean(enabled)
-    // Only the panel icon reflects the live switch; the overlay decoration
-    // rides the run snapshot, driven solely by the orchestrator.
-    this._indicator?.setPrivateMode(enabled)
+    this._privacy.enabled = enabled
   }
 
   _clearHistory () {
