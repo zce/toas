@@ -12,6 +12,7 @@ import {
   runConnectionTest,
   snapshotProcessingConfig,
   snapshotProviderSecrets,
+  switchProcessingProvider,
   writeProcessingConfig
 } from './host/config.js'
 import { providers as providerRegistry } from './kernel/providers/registry.js'
@@ -125,6 +126,9 @@ export default class ToasPreferences extends ExtensionPreferences {
       title: 'toas',
       icon_name: 'audio-input-microphone-symbolic'
     })
+    const configurationBanner = new Adw.Banner({ title: '', revealed: false })
+    configurationBanner.add_css_class('toas-config-banner')
+    page.banner = configurationBanner
 
     const inputGroup = new Adw.PreferencesGroup({
       title: 'Voice Input',
@@ -166,7 +170,11 @@ export default class ToasPreferences extends ExtensionPreferences {
       title: 'Context',
       description: 'Names, terms, and background sent to providers that support context.'
     })
-    contextGroup.add(textAreaRow(settings, 'context', { minHeight: 140, maxHeight: 260 }))
+    contextGroup.add(textAreaRow(settings, 'context', {
+      placeholder: 'Names, product terms, acronyms, or background that may help recognition.',
+      minHeight: 140,
+      maxHeight: 260
+    }))
 
     let processingRows = []
     const replaceProcessingRows = rows => {
@@ -187,8 +195,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       primaryProviderRow.connect('notify::selected', () => {
         const id = primaryProviderIds[primaryProviderRow.selected] ?? primaryProviderIds[0]
         if (!id || id === processingConfig.primary.provider) { return }
-        processingConfig.primary.provider = id
-        processingConfig.primary.values = { ...(providerRegistry.get(id)?.manifest?.defaults?.audio || {}) }
+        switchProcessingProvider(processingConfig, 'primary', id, providerRegistry)
         saveProcessingConfig()
         renderProcessing()
       })
@@ -221,8 +228,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       refineProviderRow.connect('notify::selected', () => {
         const id = refineProviderIds[refineProviderRow.selected] ?? refineProviderIds[0]
         if (!id || id === processingConfig.refine.provider) { return }
-        processingConfig.refine.provider = id
-        processingConfig.refine.values = { ...(providerRegistry.get(id)?.manifest?.defaults?.text || {}) }
+        switchProcessingProvider(processingConfig, 'refine', id, providerRegistry)
         saveProcessingConfig()
         renderProcessing()
       })
@@ -244,6 +250,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
       refineExpander.add_row(textAreaValueRow('Instructions', {
         text: processingConfig.refine.instructions,
+        placeholder: 'Describe how you want the transcription rewritten.',
         onChanged: text => {
           processingConfig.refine.instructions = text
           saveProcessingConfig()
@@ -260,6 +267,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       refineOnErrorRow.connect('notify::selected', () => {
         processingConfig.refine.onError = REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
         saveProcessingConfig()
+        refreshMeta()
       })
       refineExpander.add_row(refineOnErrorRow)
       refineExpander.add_row(buildConnectionRow({ settings, role: 'refine' }).row)
@@ -280,9 +288,6 @@ export default class ToasPreferences extends ExtensionPreferences {
         for (const row of advancedRows) { advancedExpander.add_row(row) }
         rows.push(advancedExpander)
       }
-
-      const refineWarning = new Adw.Banner({ title: '' })
-      rows.push(refineWarning)
 
       const securityNote = new Gtk.Label({
         label: 'API keys entered here are stored as plain text in GNOME settings. Environment variables can be used instead.',
@@ -307,15 +312,39 @@ export default class ToasPreferences extends ExtensionPreferences {
         const primary = inspect(processingConfig.primary, 'primary')
         const refine = inspect(processingConfig.refine, 'refine')
 
-        contextGroup.visible = Boolean(
+        const contextSupported = Boolean(
           primary.capabilities?.context ||
           (processingConfig.refine.enabled && refine.capabilities?.context)
         )
+        contextGroup.remove_css_class('toas-context-unused')
+        if (!contextSupported) { contextGroup.add_css_class('toas-context-unused') }
+        contextGroup.description = contextSupported
+          ? 'Names, terms, and background sent to providers that support context.'
+          : 'Not used by the current processing setup.'
 
-        refineWarning.revealed = processingConfig.refine.enabled && refine.issues.length > 0
-        refineWarning.title = refineWarning.revealed
-          ? `Refine: ${refine.issues[0]?.message ?? 'Provider settings need attention'}`
-          : ''
+        let status = null
+        if (primary.issues.length > 0) {
+          status = {
+            style: 'error',
+            title: `Voice input: ${primary.issues[0]?.message ?? 'Provider settings need attention'}`
+          }
+        } else if (processingConfig.refine.enabled && refine.issues.length > 0) {
+          status = {
+            style: processingConfig.refine.onError === 'abort' ? 'error' : 'warning',
+            title: `Refine: ${refine.issues[0]?.message ?? 'Provider settings need attention'}`
+          }
+        }
+
+        configurationBanner.remove_css_class('warning')
+        configurationBanner.remove_css_class('error')
+        if (status) {
+          configurationBanner.add_css_class(status.style)
+          configurationBanner.title = status.title
+          configurationBanner.revealed = true
+        } else {
+          configurationBanner.title = ''
+          configurationBanner.revealed = false
+        }
       }
 
       replaceProcessingRows(rows)
@@ -453,22 +482,33 @@ function selectionFieldRow (field, value, onChanged) {
   return row
 }
 
-function textAreaValueRow (title, { text = '', onChanged, minHeight = 92, maxHeight = 200 } = {}) {
-  const { row, buffer } = buildTextAreaRow({ title, minHeight, maxHeight })
+function textAreaValueRow (title, {
+  text = '',
+  placeholder = '',
+  onChanged,
+  minHeight = 92,
+  maxHeight = 200
+} = {}) {
+  const { row, buffer } = buildTextAreaRow({ title, placeholder, minHeight, maxHeight })
   buffer.set_text(text, -1)
   buffer.connect('changed', () => onChanged(buffer.text))
   return row
 }
 
-function textAreaRow (settings, key, { defaultText = '', minHeight = 92, maxHeight = 180 } = {}) {
-  const { row, buffer } = buildTextAreaRow({ minHeight, maxHeight })
+function textAreaRow (settings, key, {
+  defaultText = '',
+  placeholder = '',
+  minHeight = 92,
+  maxHeight = 180
+} = {}) {
+  const { row, buffer } = buildTextAreaRow({ placeholder, minHeight, maxHeight })
   const stored = settings.get_string(key)
   buffer.set_text(stored || defaultText, -1)
   settings.bind(key, buffer, 'text', Gio.SettingsBindFlags.DEFAULT)
   return row
 }
 
-function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
+function buildTextAreaRow ({ title = null, placeholder = '', minHeight, maxHeight }) {
   const row = new Adw.PreferencesRow({ activatable: false, selectable: false })
   row.add_css_class('toas-multiline-row')
   if (!title) { row.add_css_class('toas-multiline-standalone') }
@@ -489,14 +529,34 @@ function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
     accepts_tab: false,
     hexpand: true
   })
-  box.append(new Gtk.ScrolledWindow({
+  const scroller = new Gtk.ScrolledWindow({
     hscrollbar_policy: Gtk.PolicyType.NEVER,
     vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
     min_content_height: minHeight,
     max_content_height: maxHeight,
     propagate_natural_height: true,
     child: view
-  }))
+  })
+
+  if (placeholder) {
+    const placeholderLabel = new Gtk.Label({
+      label: placeholder,
+      xalign: 0,
+      wrap: true,
+      halign: Gtk.Align.FILL,
+      valign: Gtk.Align.START,
+      can_target: false
+    })
+    placeholderLabel.add_css_class('dimmed')
+    placeholderLabel.add_css_class('toas-multiline-placeholder')
+
+    const overlay = new Gtk.Overlay({ child: scroller })
+    overlay.add_overlay(placeholderLabel)
+    buffer.connect('changed', () => { placeholderLabel.visible = buffer.text.length === 0 })
+    box.append(overlay)
+  } else {
+    box.append(scroller)
+  }
 
   return { row, buffer }
 }

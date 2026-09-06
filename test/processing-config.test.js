@@ -2,6 +2,7 @@ import {
   DEFAULT_REFINE_INSTRUCTIONS,
   normalizeProcessingConfig,
   readProcessingConfig,
+  switchProcessingProvider,
   writeProcessingConfig
 } from '../host/config.js'
 import { providers } from '../kernel/providers/registry.js'
@@ -37,6 +38,23 @@ test('Provider values and arbitrary selection values round trip generically', ()
   }, providers)
   writeProcessingConfig(settings, expected)
   expectEqual(readProcessingConfig(settings, providers), expected)
+})
+
+test('Refine selection values survive Provider switches and reload', () => {
+  const settings = new FakeSettings()
+  const config = normalizeProcessingConfig({
+    refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro' } }
+  }, providers)
+
+  switchProcessingProvider(config, 'refine', 'openai-compatible', providers)
+  config.refine.values.model = 'private-refine-model'
+  switchProcessingProvider(config, 'refine', 'mimo', providers)
+  expectEqual(config.refine.values.model, 'mimo-v2.5-pro')
+
+  writeProcessingConfig(settings, config)
+  const restored = readProcessingConfig(settings, providers)
+  switchProcessingProvider(restored, 'refine', 'openai-compatible', providers)
+  expectEqual(restored.refine.values.model, 'private-refine-model')
 })
 
 test('malformed JSON falls back without leaking persistence concerns to Providers', () => {

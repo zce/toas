@@ -42,19 +42,38 @@ export function writeProcessingConfig (settings, config) {
   settings.set_string('processing-config', JSON.stringify(config))
 }
 
+export function switchProcessingProvider (config, role, providerId, providerRegistry) {
+  const selection = config[role]
+  const valuesByProvider = config.selectionValues[role]
+  valuesByProvider[selection.provider] = { ...selection.values }
+  selection.provider = providerId
+  selection.values = selectionValues(
+    valuesByProvider[providerId],
+    providerRegistry.get(providerId),
+    role === 'primary' ? 'audio' : 'text'
+  )
+}
+
 export function normalizeProcessingConfig (stored, providerRegistry) {
   const source = isObject(stored) ? stored : {}
   const primaryProvider = validProvider(source.primary?.provider, providerRegistry, 'audio') ??
     firstProvider(providerRegistry, 'audio')
   const refineProvider = validProvider(source.refine?.provider, providerRegistry, 'text', true) ??
     firstProvider(providerRegistry, 'text', true)
+  const remembered = {
+    primary: copyObjectMap(source.selectionValues?.primary),
+    refine: copyObjectMap(source.selectionValues?.refine)
+  }
 
   return {
     providers: copyObjectMap(source.providers),
+    selectionValues: remembered,
     primary: {
       provider: primaryProvider,
       values: selectionValues(
-        source.primary?.provider === primaryProvider ? source.primary?.values : null,
+        source.primary?.provider === primaryProvider
+          ? source.primary?.values
+          : remembered.primary[primaryProvider],
         providerRegistry.get(primaryProvider),
         'audio'
       )
@@ -63,7 +82,9 @@ export function normalizeProcessingConfig (stored, providerRegistry) {
       enabled: Boolean(source.refine?.enabled),
       provider: refineProvider,
       values: selectionValues(
-        source.refine?.provider === refineProvider ? source.refine?.values : null,
+        source.refine?.provider === refineProvider
+          ? source.refine?.values
+          : remembered.refine[refineProvider],
         providerRegistry.get(refineProvider),
         'text'
       ),

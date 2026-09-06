@@ -14,7 +14,10 @@
   margin: 10px 12px 2px;
 }
 
-.toas-multiline-row:focus-within .toas-multiline-caption {
+.toas-multiline-row:focus-within .toas-multiline-caption,
+row.combo:focus-within label.title,
+row.spin:focus-within label.title,
+row.switch:focus-within label.title {
   color: var(--accent-color);
 }
 
@@ -31,6 +34,14 @@
   padding: 10px 12px;
 }
 
+.toas-multiline-placeholder {
+  margin: 4px 12px 0;
+}
+
+.toas-multiline-standalone .toas-multiline-placeholder {
+  margin-top: 10px;
+}
+
 /* Small preference editors do not need GTK's scroll-edge shadows. */
 .toas-multiline-row scrolledwindow undershoot,
 .toas-multiline-row scrolledwindow overshoot {
@@ -40,4 +51,16 @@
 
 .toas-group-note {
   margin: 8px 12px 0;
+}
+
+preferencesgroup.toas-context-unused .header .body {
+  color: var(--warning-color);
+}
+
+.toas-config-banner.warning {
+  --banner-color: var(--warning-bg-color);
+}
+
+.toas-config-banner.error {
+  --banner-color: var(--error-bg-color);
 }
