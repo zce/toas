@@ -170,7 +170,11 @@ export default class ToasPreferences extends ExtensionPreferences {
       title: 'Context',
       description: 'Names, terms, and background sent to providers that support context.'
     })
-    contextGroup.add(textAreaRow(settings, 'context', { minHeight: 140, maxHeight: 260 }))
+    contextGroup.add(textAreaRow(settings, 'context', {
+      placeholder: 'Names, product terms, acronyms, or background that may help recognition.',
+      minHeight: 140,
+      maxHeight: 260
+    }))
 
     let processingRows = []
     const replaceProcessingRows = rows => {
@@ -246,6 +250,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
       refineExpander.add_row(textAreaValueRow('Instructions', {
         text: processingConfig.refine.instructions,
+        placeholder: 'Describe how you want the transcription rewritten.',
         onChanged: text => {
           processingConfig.refine.instructions = text
           saveProcessingConfig()
@@ -307,10 +312,13 @@ export default class ToasPreferences extends ExtensionPreferences {
         const primary = inspect(processingConfig.primary, 'primary')
         const refine = inspect(processingConfig.refine, 'refine')
 
-        contextGroup.visible = Boolean(
+        const contextSupported = Boolean(
           primary.capabilities?.context ||
           (processingConfig.refine.enabled && refine.capabilities?.context)
         )
+        contextGroup.description = contextSupported
+          ? 'Names, terms, and background sent to providers that support context.'
+          : 'Not used by the current processing setup.'
 
         let status = null
         if (primary.issues.length > 0) {
@@ -472,22 +480,33 @@ function selectionFieldRow (field, value, onChanged) {
   return row
 }
 
-function textAreaValueRow (title, { text = '', onChanged, minHeight = 92, maxHeight = 200 } = {}) {
-  const { row, buffer } = buildTextAreaRow({ title, minHeight, maxHeight })
+function textAreaValueRow (title, {
+  text = '',
+  placeholder = '',
+  onChanged,
+  minHeight = 92,
+  maxHeight = 200
+} = {}) {
+  const { row, buffer } = buildTextAreaRow({ title, placeholder, minHeight, maxHeight })
   buffer.set_text(text, -1)
   buffer.connect('changed', () => onChanged(buffer.text))
   return row
 }
 
-function textAreaRow (settings, key, { defaultText = '', minHeight = 92, maxHeight = 180 } = {}) {
-  const { row, buffer } = buildTextAreaRow({ minHeight, maxHeight })
+function textAreaRow (settings, key, {
+  defaultText = '',
+  placeholder = '',
+  minHeight = 92,
+  maxHeight = 180
+} = {}) {
+  const { row, buffer } = buildTextAreaRow({ placeholder, minHeight, maxHeight })
   const stored = settings.get_string(key)
   buffer.set_text(stored || defaultText, -1)
   settings.bind(key, buffer, 'text', Gio.SettingsBindFlags.DEFAULT)
   return row
 }
 
-function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
+function buildTextAreaRow ({ title = null, placeholder = '', minHeight, maxHeight }) {
   const row = new Adw.PreferencesRow({ activatable: false, selectable: false })
   row.add_css_class('toas-multiline-row')
   if (!title) { row.add_css_class('toas-multiline-standalone') }
@@ -508,14 +527,34 @@ function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
     accepts_tab: false,
     hexpand: true
   })
-  box.append(new Gtk.ScrolledWindow({
+  const scroller = new Gtk.ScrolledWindow({
     hscrollbar_policy: Gtk.PolicyType.NEVER,
     vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
     min_content_height: minHeight,
     max_content_height: maxHeight,
     propagate_natural_height: true,
     child: view
-  }))
+  })
+
+  if (placeholder) {
+    const placeholderLabel = new Gtk.Label({
+      label: placeholder,
+      xalign: 0,
+      wrap: true,
+      halign: Gtk.Align.FILL,
+      valign: Gtk.Align.START,
+      can_target: false
+    })
+    placeholderLabel.add_css_class('dimmed')
+    placeholderLabel.add_css_class('toas-multiline-placeholder')
+
+    const overlay = new Gtk.Overlay({ child: scroller })
+    overlay.add_overlay(placeholderLabel)
+    buffer.connect('changed', () => { placeholderLabel.visible = buffer.text.length === 0 })
+    box.append(overlay)
+  } else {
+    box.append(scroller)
+  }
 
   return { row, buffer }
 }

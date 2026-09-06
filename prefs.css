@@ -31,6 +31,14 @@
   padding: 10px 12px;
 }
 
+.toas-multiline-placeholder {
+  margin: 4px 12px 0;
+}
+
+.toas-multiline-standalone .toas-multiline-placeholder {
+  margin-top: 10px;
+}
+
 /* Small preference editors do not need GTK's scroll-edge shadows. */
 .toas-multiline-row scrolledwindow undershoot,
 .toas-multiline-row scrolledwindow overshoot {
