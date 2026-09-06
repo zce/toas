@@ -28,7 +28,7 @@ function resolveDoubao ({ secret = true } = {}) {
   })
 }
 
-test('Doubao manifest exposes BigASR Flash as an audio-only selection', () => {
+test('Doubao manifest exposes BigASR Flash with Context support', () => {
   const resolved = resolveDoubao()
   expectEqual(resolved.issues, [])
   expectEqual(resolved.config.model, 'volc.bigasr.auc_turbo')
@@ -37,7 +37,7 @@ test('Doubao manifest exposes BigASR Flash as an audio-only selection', () => {
   expectEqual(resolved.capabilities, {
     inputs: ['audio'],
     instructions: false,
-    context: false
+    context: true
   })
 })
 
@@ -46,7 +46,7 @@ test('Doubao requires its Speech API key before processor creation', () => {
   expectTruthy(resolved.issues.some(issue => issue.path === 'providers.doubao.key'))
 })
 
-test('Doubao Flash sends the documented headers, raw Base64, and model_name', async () => {
+test('Doubao Flash sends Context through the native dialog context contract', async () => {
   let request = null
   const transport = {
     async send (value) {
@@ -65,9 +65,10 @@ test('Doubao Flash sends the documented headers, raw Base64, and model_name', as
 
   const resolved = resolveDoubao()
   const processor = doubaoProvider.create(resolved.config, { key: 'doubao-secret' }, { transport })
+  const contextText = '  MagicDoor, Payabli, ASP.NET Core, PostgreSQL  '
   const result = await processor.process({
     input: AUDIO,
-    context: { text: 'must not be sent' },
+    context: { text: contextText },
     signal: null
   })
 
@@ -86,12 +87,42 @@ test('Doubao Flash sends the documented headers, raw Base64, and model_name', as
   expectEqual(body.request.enable_itn, true)
   expectEqual(body.request.enable_punc, true)
   expectEqual(body.request.enable_ddc, false)
+  expectEqual(JSON.parse(body.request.corpus.context), {
+    context_type: 'dialog_ctx',
+    context_data: [{ text: contextText }]
+  })
   expectEqual(JSON.stringify(body).includes('data:audio'), false)
-  expectEqual(JSON.stringify(body).includes('must not be sent'), false)
 
   expectEqual(result.text, 'hello world')
   expectEqual(result.model, 'volc.bigasr.auc_turbo')
   expectEqual(result.requestId, 'log-success')
+})
+
+test('Doubao Flash omits corpus when Context is empty', async () => {
+  let request = null
+  const transport = {
+    async send (value) {
+      request = value
+      return {
+        status: 200,
+        headers: {
+          'x-api-status-code': '20000000',
+          'x-api-message': 'OK'
+        },
+        body: encodeBody({ result: { text: 'text' } })
+      }
+    }
+  }
+
+  const resolved = resolveDoubao()
+  const processor = doubaoProvider.create(resolved.config, { key: 'doubao-secret' }, { transport })
+  await processor.process({
+    input: AUDIO,
+    context: { text: '   ' },
+    signal: null
+  })
+
+  expectEqual(decodeBody(request.body).request.corpus, undefined)
 })
 
 test('Doubao does not treat HTTP 200 as business success', async () => {
