@@ -180,7 +180,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       const rows = []
 
       const primaryProviderRow = new Adw.ComboRow({
-        title: 'Transcription provider',
+        title: 'Provider',
         model: Gtk.StringList.new(primaryProviderIds.map(providerLabel)),
         selected: Math.max(0, primaryProviderIds.indexOf(processingConfig.primary.provider))
       })
