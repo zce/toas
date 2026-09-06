@@ -3,13 +3,15 @@
 // response envelopes differ. Unknown models are rejected rather than guessed.
 // This module must not import GNOME/GI libraries.
 
-import { cancelledError, processingError } from '../error.js'
-import { Provider } from './provider.js'
 import {
-  decodeJsonBody,
-  encodeJsonBody,
+  cancelledError,
+  processingError,
   serviceErrorFromHttpStatus
-} from './http.js'
+} from '../error.js'
+import { Provider } from './provider.js'
+
+const encoder = new TextEncoder()
+const decoder = new TextDecoder()
 
 const MODEL_SHAPES = {
   'qwen-audio-3.0-asr-flash': {
@@ -182,7 +184,7 @@ class QwenProcessor {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this._apiKey}`
       },
-      body: encodeJsonBody(requestBody)
+      body: encodeBody(requestBody)
     }, signal)
 
     if (signal?.aborted) { throw cancelledError() }
@@ -199,7 +201,7 @@ class QwenProcessor {
       )
     }
 
-    return decodeJsonBody(response.body)
+    return decodeBody(response.body)
   }
 }
 
@@ -237,9 +239,24 @@ function qwenUsage (usage) {
   }
 }
 
+function encodeBody (value) {
+  return encoder.encode(JSON.stringify(value))
+}
+
+function decodeBody (bytes) {
+  if (!bytes || bytes.length === 0) {
+    throw processingError('invalid-response', 'The service returned an empty body')
+  }
+  try {
+    return JSON.parse(decoder.decode(bytes))
+  } catch {
+    throw processingError('invalid-response', 'The service returned invalid JSON')
+  }
+}
+
 function safeErrorDetail (bodyBytes) {
   try {
-    return JSON.parse(new TextDecoder().decode(bodyBytes))?.message ?? ''
+    return JSON.parse(decoder.decode(bodyBytes))?.message ?? ''
   } catch {
     return ''
   }
@@ -247,7 +264,7 @@ function safeErrorDetail (bodyBytes) {
 
 function httpErrorDetail (bodyBytes) {
   try {
-    return JSON.parse(new TextDecoder().decode(bodyBytes))?.error?.message ?? ''
+    return JSON.parse(decoder.decode(bodyBytes))?.error?.message ?? ''
   } catch {
     return ''
   }

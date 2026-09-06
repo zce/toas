@@ -7,13 +7,15 @@
 //
 // This module must not import GNOME/GI libraries.
 
-import { cancelledError, processingError } from '../error.js'
-import { Provider } from './provider.js'
 import {
-  decodeJsonBody,
-  encodeJsonBody,
+  cancelledError,
+  processingError,
   serviceErrorFromHttpStatus
-} from './http.js'
+} from '../error.js'
+import { Provider } from './provider.js'
+
+const encoder = new TextEncoder()
+const decoder = new TextDecoder()
 
 const FLASH_ENDPOINT = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash'
 
@@ -131,7 +133,7 @@ class DoubaoProcessor {
         'X-Api-Request-Id': clientRequestId,
         'X-Api-Sequence': '-1'
       },
-      body: encodeJsonBody({
+      body: encodeBody({
         user: { uid: 'toas' },
         audio: { data: input.base64 },
         request: {
@@ -172,7 +174,7 @@ class DoubaoProcessor {
       )
     }
 
-    const data = decodeJsonBody(response.body)
+    const data = decodeBody(response.body)
     const text = data?.result?.text
     if (typeof text !== 'string' || !text.trim()) {
       throw processingError('no-text', 'No speech was recognized')
@@ -190,9 +192,24 @@ class DoubaoProcessor {
   }
 }
 
+function encodeBody (value) {
+  return encoder.encode(JSON.stringify(value))
+}
+
+function decodeBody (bytes) {
+  if (!bytes || bytes.length === 0) {
+    throw processingError('invalid-response', 'The service returned an empty body')
+  }
+  try {
+    return JSON.parse(decoder.decode(bytes))
+  } catch {
+    throw processingError('invalid-response', 'The service returned invalid JSON')
+  }
+}
+
 function doubaoHttpErrorDetail (bodyBytes) {
   try {
-    return JSON.parse(new TextDecoder().decode(bodyBytes))?.error?.message ?? ''
+    return JSON.parse(decoder.decode(bodyBytes))?.error?.message ?? ''
   } catch {
     return ''
   }

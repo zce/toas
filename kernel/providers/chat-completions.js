@@ -2,13 +2,13 @@
 // Wire shapes stay inside Provider modules; nothing here leaks to the Kernel domain.
 // This module must not import GNOME/GI libraries.
 
-import { cancelledError } from '../error.js'
 import {
-  decodeJsonBody,
-  encodeJsonBody,
+  cancelledError,
+  processingError,
   serviceErrorFromHttpStatus
-} from './http.js'
+} from '../error.js'
 
+const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
 export class ChatCompletionsProcessor {
@@ -36,7 +36,7 @@ export class ChatCompletionsProcessor {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this._apiKey}`
       },
-      body: encodeJsonBody(requestBody)
+      body: encodeBody(requestBody)
     }, signal)
 
     if (signal?.aborted) { throw cancelledError() }
@@ -49,7 +49,7 @@ export class ChatCompletionsProcessor {
       )
     }
 
-    return decodeJsonBody(response.body)
+    return decodeBody(response.body)
   }
 }
 
@@ -78,6 +78,21 @@ export function normalizeChatCompletionsUrl (endpoint) {
   const base = String(endpoint ?? '').replace(/\/+$/, '')
   if (base.endsWith('/chat/completions')) { return base }
   return `${base}/chat/completions`
+}
+
+function encodeBody (value) {
+  return encoder.encode(JSON.stringify(value))
+}
+
+function decodeBody (bytes) {
+  if (!bytes || bytes.length === 0) {
+    throw processingError('invalid-response', 'The service returned an empty body')
+  }
+  try {
+    return JSON.parse(decoder.decode(bytes))
+  } catch {
+    throw processingError('invalid-response', 'The service returned invalid JSON')
+  }
 }
 
 function chatCompletionsErrorDetail (bodyBytes) {
