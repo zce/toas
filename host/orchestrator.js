@@ -5,6 +5,7 @@ import {
   DEFAULT_SAMPLE_RATE,
   RecorderOutcomeError,
   RecorderOutcomeKind,
+  resolveMinimumRecordingDuration,
   resolveSampleRate
 } from './audio.js'
 import { presentFailure } from './feedback.js'
@@ -45,8 +46,8 @@ export class ToasOrchestrator {
 
     this._recorderFactory =
       collaborators.recorderFactory ??
-      ((directory, onLevel, onError, sampleRate) =>
-        new AudioRecorder(directory, onLevel, onError, sampleRate))
+      ((directory, onLevel, onError, sampleRate, minimumDurationMs) =>
+        new AudioRecorder(directory, onLevel, onError, sampleRate, minimumDurationMs))
 
     // Focus-mismatch notices share the notifier seam.
     if (this._output.setOnFocusMismatch && this._notifier) {
@@ -87,7 +88,8 @@ export class ToasOrchestrator {
         if (this._run === run && this._state === 'recording') { this._overlay.setLevel(level) }
       },
       error => this._fail(run, 'recording', error),
-      resolveSampleRate(this._settings ?? {})
+      resolveSampleRate(this._settings ?? {}),
+      resolveMinimumRecordingDuration(this._settings ?? {})
     )
 
     this._run = run
