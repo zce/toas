@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added Doubao BigASR Flash as a selectable transcription provider using the synchronous Speech API.
+
 ## Version 12 — 2026-09-05
 
 - Replaced the fixed transcription/refinement pipeline with a provider-neutral processing kernel: Qwen (recommended), MiMo, and OpenAI providers, cross-provider refine combinations, and shared per-provider credentials.

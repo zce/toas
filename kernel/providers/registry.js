@@ -1,10 +1,12 @@
 import { Provider } from './provider.js'
 import { qwenProvider } from './qwen.js'
+import { doubaoProvider } from './doubao.js'
 import { mimoProvider } from './mimo.js'
 import { openaiProvider, openaiCompatibleProvider } from './openai.js'
 
 const registered = [
   qwenProvider,
+  doubaoProvider,
   mimoProvider,
   openaiProvider,
   openaiCompatibleProvider
