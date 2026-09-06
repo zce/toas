@@ -193,13 +193,6 @@ export class ToasOrchestrator {
     } catch (error) {
       if (this._run !== run) { return }
 
-      // Cancellation is a terminal user action, not a failed voice input.
-      if (error?.category === 'cancelled') {
-        this._finishRun(run, !run.isRetry)
-        this._transition('idle')
-        return
-      }
-
       const stage = error.category === 'configuration' ? 'configuration' : 'processing'
       this._fail(run, stage, error)
     } finally {
@@ -271,8 +264,6 @@ export class ToasOrchestrator {
   _fail (run, stage, error) {
     if (this._run !== run) { return }
 
-    console.error(`[toas] ${error?.stack ?? error}`)
-
     let message = error?.message ?? String(error)
     if (error instanceof RecorderOutcomeError) {
       message = error.outcome.error?.message ?? message
@@ -285,13 +276,15 @@ export class ToasOrchestrator {
     }
     const presentation = presentFailure(failure, stage)
 
-    // Defensive handling for a cancellation that reaches this boundary from
-    // a collaborator without going through cancel().
+    // Cancellation can arrive from the Kernel or another collaborator. It is
+    // a terminal user action, so finish quietly before logging or persisting.
     if (!presentation) {
       this._finishRun(run, !run.isRetry)
       this._transition('idle')
       return
     }
+
+    console.error(`[toas] ${error?.stack ?? error}`)
 
     if (run.isRetry) {
       // Retry failures append a linked attempt and keep the original record

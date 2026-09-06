@@ -60,7 +60,9 @@ function presentationCategory (error, stage) {
   if (stage === 'recording' || error?.stage === 'recording') { return 'recording' }
   if (stage === 'configuration' || error?.stage === 'configuration') { return 'configuration' }
 
-  // Compatibility for retained entries written before category was persisted.
+  // Older retained entries predate persisted categories and only carry the
+  // original stage/message. Match the exact message emitted by that old
+  // no-text path rather than inferring semantics from arbitrary provider text.
   if (error?.message === 'No speech was recognized') { return 'no-text' }
 
   return 'unknown'

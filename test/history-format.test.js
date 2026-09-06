@@ -69,6 +69,25 @@ test('retry success replaces visible failure state and clears the old error', ()
   expectEqual(previewText(projected), 'recovered text')
 })
 
+test('retry failure clears stale visible text', () => {
+  const original = {
+    id: 'original',
+    status: 'error',
+    text: 'stale text from an earlier visible state',
+    error: { category: 'no-text', stage: 'processing', message: 'No speech was recognized' }
+  }
+  const projected = projectLatestAttempt(original, [{
+    status: 'error',
+    text: null,
+    error: { category: 'network', stage: 'processing', message: 'DNS detail' },
+    attemptNumber: 1
+  }])
+
+  expectEqual(projected.status, 'error')
+  expectEqual(projected.text, null)
+  expectEqual(previewText(projected), 'Connection problem')
+})
+
 test('retry failure uses the latest attempt error instead of the original error', () => {
   const original = {
     id: 'original',
