@@ -2,6 +2,10 @@
 // Wire shapes stay inside Provider modules; nothing here leaks to the Kernel domain.
 // This module must not import GNOME/GI libraries.
 
+import { cancelledError, processingError } from '../error.js'
+
+export { cancelledError, processingError } from '../error.js'
+
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
@@ -49,8 +53,6 @@ export function decodeBody (bytes) {
   }
 }
 
-// Text extraction shared by every Chat Completions variant: string content
-// or an array of {text} parts.
 export function extractContent (data) {
   const content = data?.choices?.[0]?.message?.content
   if (typeof content === 'string') { return content }
@@ -63,16 +65,6 @@ export function extractContent (data) {
   return ''
 }
 
-export function normalizeFinishReason (reason) {
-  if (!reason) { return null }
-  if (reason === 'stop') { return 'stop' }
-  if (reason === 'length') { return 'length' }
-  if (reason === 'content_filter') { return 'filtered' }
-  return 'other'
-}
-
-// Best-effort normalization: provider-specific payloads are discarded and
-// only nullable token counts cross the Processor boundary.
 export function normalizeUsage (usage, { inputKey = 'prompt_tokens', outputKey = 'completion_tokens' } = {}) {
   if (!usage) { return null }
   return {
@@ -82,16 +74,12 @@ export function normalizeUsage (usage, { inputKey = 'prompt_tokens', outputKey =
   }
 }
 
-// A base URL is expected, but endpoints copied from other tools or older
-// versions may already carry the chat/completions path. Never append twice.
 export function normalizeChatCompletionsUrl (endpoint) {
   const base = String(endpoint ?? '').replace(/\/+$/, '')
   if (base.endsWith('/chat/completions')) { return base }
   return `${base}/chat/completions`
 }
 
-// Maps an HTTP status response into the fixed safe categories. The body is
-// only mined for a short safe message; it is never surfaced raw.
 export function serviceErrorFromStatus (status, bodyBytes, label) {
   let detail = ''
   try {
@@ -121,15 +109,4 @@ export function serviceErrorFromStatus (status, bodyBytes, label) {
 
   if (detail) { message = `${message}: ${detail}` }
   return processingError(category, message, status)
-}
-
-export function processingError (category, message, status = null) {
-  const err = new Error(message)
-  err.category = category
-  if (status !== null) { err.status = status }
-  return err
-}
-
-export function cancelledError () {
-  return processingError('cancelled', 'Request was cancelled')
 }

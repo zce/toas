@@ -5,62 +5,42 @@ import {
   resolveMinimumRecordingDuration
 } from '../host/audio.js'
 import { ToasOrchestrator } from '../host/orchestrator.js'
-import {
-  FakeHistory,
-  FakeKernel,
-  FakeNotifier,
-  FakeOverlay,
-  FakePaster,
-  FakeRecorder
-} from './fakes.js'
+import { FakeHistory, FakeKernel, FakeNotifier, FakeOverlay, FakePaster, FakeRecorder } from './fakes.js'
 import { test, expectEqual, run } from './harness.js'
 
 function stoppedRecorderForDuration (durationMs, {
   sampleRate = 16000,
   minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS
 } = {}) {
-  const recorder = new AudioRecorder(
-    '/tmp/x',
-    null,
-    null,
+  const recorder = new AudioRecorder({
+    recordingsDirectory: '/tmp/x',
     sampleRate,
     minimumDurationMs
-  )
+  })
   recorder._process = { send_signal () {} }
   recorder._readPromise = Promise.resolve()
   recorder._totalBytes = Math.round(recorder._bytesPerMs * durationMs)
-  recorder._output = {
-    seek () {},
-    write_all () {},
-    close () {}
-  }
+  recorder._output = { seek () {}, write_all () {}, close () {} }
   return recorder
 }
 
 test('minimum recording duration defaults to 600 ms', () => {
   expectEqual(DEFAULT_MINIMUM_RECORDING_DURATION_MS, 600)
   expectEqual(resolveMinimumRecordingDuration({}), 600)
-  expectEqual(new AudioRecorder('/tmp/x', null, null)._minimumDurationMs, 600)
+  expectEqual(new AudioRecorder({ recordingsDirectory: '/tmp/x' })._minimumDurationMs, 600)
 })
 
 test('recordings below the default threshold are short taps', async () => {
-  const outcome = await stoppedRecorderForDuration(500).stop()
-  expectEqual(outcome.kind, RecorderOutcomeKind.SHORT_TAP)
+  expectEqual((await stoppedRecorderForDuration(500).stop()).kind, RecorderOutcomeKind.SHORT_TAP)
 })
 
 test('recordings at the default threshold are accepted', async () => {
-  const outcome = await stoppedRecorderForDuration(600).stop()
-  expectEqual(outcome.kind, RecorderOutcomeKind.OK)
+  expectEqual((await stoppedRecorderForDuration(600).stop()).kind, RecorderOutcomeKind.OK)
 })
 
 test('recorder uses a configured threshold instead of the default', async () => {
-  const below = await stoppedRecorderForDuration(700, {
-    minimumDurationMs: 800
-  }).stop()
-  const above = await stoppedRecorderForDuration(900, {
-    minimumDurationMs: 800
-  }).stop()
-
+  const below = await stoppedRecorderForDuration(700, { minimumDurationMs: 800 }).stop()
+  const above = await stoppedRecorderForDuration(900, { minimumDurationMs: 800 }).stop()
   expectEqual(below.kind, RecorderOutcomeKind.SHORT_TAP)
   expectEqual(above.kind, RecorderOutcomeKind.OK)
 })
@@ -68,34 +48,26 @@ test('recorder uses a configured threshold instead of the default', async () => 
 test('minimum duration keeps time semantics at another sample rate', async () => {
   const recorder = stoppedRecorderForDuration(600, { sampleRate: 48000 })
   expectEqual(recorder._minimumBytes, 57600)
-  const outcome = await recorder.stop()
-  expectEqual(outcome.kind, RecorderOutcomeKind.OK)
+  expectEqual((await recorder.stop()).kind, RecorderOutcomeKind.OK)
 })
 
-test('host resolves the configured duration before constructing the recorder', () => {
+test('host resolves configured duration before constructing the recorder', () => {
   let receivedDuration = null
   const recorder = new FakeRecorder()
   const orchestrator = new ToasOrchestrator({
     settings: {
+      get_boolean: () => false,
       get_string: () => 'standard',
       get_uint: key => key === 'minimum-recording-duration' ? 800 : 0
     },
-    collaborators: {
-      recorderFactory: (
-        _directory,
-        _onLevel,
-        _onError,
-        _sampleRate,
-        minimumDurationMs
-      ) => {
-        receivedDuration = minimumDurationMs
-        return recorder
-      },
-      history: new FakeHistory(),
-      kernel: new FakeKernel(),
-      paster: new FakePaster(),
-      overlay: new FakeOverlay(),
-      notifier: new FakeNotifier()
+    history: new FakeHistory(),
+    kernel: new FakeKernel(),
+    output: new FakePaster(),
+    overlay: new FakeOverlay(),
+    notifier: new FakeNotifier(),
+    recorderFactory: options => {
+      receivedDuration = options.minimumDurationMs
+      return recorder
     }
   })
 

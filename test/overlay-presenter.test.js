@@ -4,11 +4,13 @@ import { test, expectEqual, run } from './harness.js'
 class FakeOverlayView {
   constructor () {
     this.renders = []
-    this.visibility = []
+    this.modes = []
     this.privateFlags = []
     this.hideCalls = 0
     this.showCalls = 0
     this.resetCalls = 0
+    this.spinnerStarts = 0
+    this.spinnerStops = 0
     this.destroyed = 0
   }
 
@@ -16,12 +18,12 @@ class FakeOverlayView {
     this.renders.push({ state, message })
   }
 
-  setVisible (recording, error, statusVisible) {
-    this.visibility.push({ recording, error, statusVisible })
+  setMode (mode) {
+    this.modes.push(mode)
   }
 
-  startSpinner () { this.spinnerStarted = true }
-  stopSpinner () { this.spinnerStopped = true }
+  startSpinner () { this.spinnerStarts++ }
+  stopSpinner () { this.spinnerStops++ }
   show () { this.showCalls++ }
   hide () { this.hideCalls++ }
   setLevel (level) { this.level = level }
@@ -61,40 +63,61 @@ test('a newer render supersedes the pending error hide', async () => {
   const presenter = new ToasOverlayPresenter({ view, hideDelay: 40 })
 
   presenter.render('error', 'broken')
-  presenter.render('processing')
+  presenter.render('transcribing')
   await flushAsync(80)
 
   expectEqual(view.hideCalls, 0)
-  expectEqual(view.renders[1].state, 'processing')
+  expectEqual(view.renders[1].state, 'transcribing')
   presenter.destroy()
 })
 
-test('processing and output states render truthful labels', () => {
+test('busy states render truthful stage labels', () => {
   const view = new FakeOverlayView()
   const presenter = new ToasOverlayPresenter({ view })
 
-  presenter.render('processing')
+  presenter.render('transcribing')
+  presenter.render('refining')
   presenter.render('outputting')
   presenter.render('copying')
 
   expectEqual(view.renders, [
-    { state: 'processing', message: 'Processing…' },
+    { state: 'transcribing', message: 'Transcribing…' },
+    { state: 'refining', message: 'Refining…' },
     { state: 'outputting', message: 'Inserting…' },
     { state: 'copying', message: 'Copying…' }
   ])
+  expectEqual(view.modes, ['busy', 'busy', 'busy', 'busy'])
   presenter.destroy()
 })
 
-test('spinner runs only for processing states', () => {
+test('spinner stays continuous across busy stage changes', () => {
   const view = new FakeOverlayView()
   const presenter = new ToasOverlayPresenter({ view })
 
-  presenter.render('processing')
-  expectEqual(view.spinnerStarted, true)
-  expectEqual(view.spinnerStopped ?? false, false)
+  presenter.render('transcribing')
+  presenter.render('refining')
+  presenter.render('outputting')
+  presenter.render('copying')
+
+  expectEqual(view.spinnerStarts, 1)
+  expectEqual(view.spinnerStops, 0)
 
   presenter.render('recording')
-  expectEqual(view.spinnerStopped, true)
+  expectEqual(view.spinnerStarts, 1)
+  expectEqual(view.spinnerStops, 1)
+  presenter.destroy()
+})
+
+test('error uses the terminal visual mode and stops a running spinner', () => {
+  const view = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view })
+
+  presenter.render('transcribing')
+  presenter.render('error', 'broken')
+
+  expectEqual(view.modes, ['busy', 'error'])
+  expectEqual(view.spinnerStarts, 1)
+  expectEqual(view.spinnerStops, 1)
   presenter.destroy()
 })
 

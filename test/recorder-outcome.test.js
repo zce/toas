@@ -2,10 +2,9 @@ import {
   RecorderOutcomeKind,
   recordingOutcomeOk,
   recordingOutcomeShortTap,
-  recordingOutcomeCaptureFailure,
-  RecorderOutcomeError
+  recordingOutcomeCaptureFailure
 } from '../host/audio.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { test, expectEqual, run } from './harness.js'
 
 test('ok outcome carries the recording', () => {
   const recording = { id: 'r1', path: '/tmp/r1.wav', durationMs: 4200 }
@@ -31,14 +30,6 @@ test('capture failure outcome carries the underlying error', () => {
   expectEqual(outcome.kind, RecorderOutcomeKind.CAPTURE_FAILURE)
   expectEqual(outcome.recording, null)
   expectEqual(outcome.error, cause)
-})
-
-test('outcome error exposes the outcome for classification', () => {
-  const outcome = recordingOutcomeShortTap(210)
-  const error = new RecorderOutcomeError(outcome)
-
-  expectTruthy(error instanceof Error)
-  expectEqual(error.outcome.kind, RecorderOutcomeKind.SHORT_TAP)
 })
 
 await run()

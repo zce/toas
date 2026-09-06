@@ -66,41 +66,18 @@ class DoubaoProvider extends Provider {
     })
   }
 
-  resolve ({ providerValues, values, secretPresence }) {
+  resolveSelection ({ providerValues, values }) {
     const issues = []
-
-    if (!secretPresence.key) {
-      issues.push({
-        path: 'providers.doubao.key',
-        code: 'required',
-        message: 'A Doubao Speech API key is required'
-      })
-    }
-
-    const endpoint = String(providerValues.endpoint ?? '').trim()
-    if (!endpoint) {
-      issues.push({
-        path: 'providers.doubao.endpoint',
-        code: 'required',
-        message: 'A Doubao endpoint is required'
-      })
-    } else if (!endpoint.startsWith('https://')) {
+    const endpoint = providerValues.endpoint?.trim()
+    if (endpoint && !endpoint.startsWith('https://')) {
       issues.push({
         path: 'providers.doubao.endpoint',
         code: 'invalid',
-        message: 'A Doubao endpoint must use https'
+        message: 'Doubao endpoint must use https'
       })
     }
 
     const model = values.model?.trim()
-    if (!model) {
-      issues.push({
-        path: 'values.model',
-        code: 'required',
-        message: 'A Doubao model is required'
-      })
-    }
-
     const shape = model ? MODEL_SHAPES[model] : null
     if (model && !shape) {
       issues.push({
@@ -110,25 +87,24 @@ class DoubaoProvider extends Provider {
       })
     }
 
-    if (issues.length > 0) {
-      return { config: null, capabilities: shape?.capabilities ?? null, issues }
-    }
-
     return {
-      config: {
-        endpoint,
-        model,
-        resourceId: shape.resourceId,
-        modelName: shape.modelName
-      },
-      capabilities: shape.capabilities,
-      issues: []
+      input: 'audio',
+      config: shape
+        ? {
+            endpoint,
+            model,
+            resourceId: shape.resourceId,
+            modelName: shape.modelName
+          }
+        : null,
+      capabilities: shape?.capabilities ?? null,
+      issues
     }
   }
 
   create (config, secrets, runtime) {
     if (!secrets.key) {
-      throw processingError('configuration', 'A Doubao Speech API key is required to create a processor')
+      throw processingError('configuration', 'Doubao API key is required to create a processor')
     }
     return new DoubaoProcessor(config, secrets.key, runtime)
   }
@@ -140,7 +116,7 @@ function audioCapabilities () {
   // Flash does not expose toas's free-text Context contract as a documented
   // inline request field. Keep Context off rather than guessing a hotword or
   // corpus shape. Refine stays a separate product step.
-  return { inputs: ['audio'], instructions: false, context: false, integratedRefine: false }
+  return { inputs: ['audio'], instructions: false, context: false }
 }
 
 class DoubaoProcessor {
@@ -150,12 +126,9 @@ class DoubaoProcessor {
     this._runtime = runtime
   }
 
-  async process ({ input, instructions, signal }) {
+  async process ({ input, signal }) {
     if (input.kind !== 'audio') {
       throw processingError('configuration', 'Doubao processing requires audio input')
-    }
-    if (instructions != null && instructions !== '') {
-      throw processingError('configuration', 'Doubao does not support integrated refine')
     }
 
     const clientRequestId = createRequestId()
@@ -171,14 +144,11 @@ class DoubaoProcessor {
       },
       body: encodeBody({
         user: { uid: 'toas' },
-        // Doubao Flash expects raw Base64, not a data: URI.
         audio: { data: input.base64 },
         request: {
           model_name: this._config.modelName,
           enable_itn: true,
           enable_punc: true,
-          // DDC can smooth spoken language and alter the literal transcript.
-          // toas already has an explicit Refine step, so keep it disabled.
           enable_ddc: false,
           enable_speaker_info: false
         }
@@ -196,8 +166,6 @@ class DoubaoProcessor {
       )
     }
 
-    // HTTP 200 alone is not success for the Speech API. The documented
-    // business-success code is 20000000 in X-Api-Status-Code.
     const statusCode = responseHeader(response.headers, 'x-api-status-code')
     if (!statusCode) {
       throw processingError('invalid-response', 'Doubao response is missing X-Api-Status-Code')
@@ -220,7 +188,6 @@ class DoubaoProcessor {
     return {
       text: text.trim(),
       model: this._config.model,
-      finishReason: null,
       usage: null,
       // Prefer the provider's troubleshooting id in Trace; fall back to the
       // UUID sent by the client if the response omits it.
@@ -253,8 +220,6 @@ function withLogId (error, logId) {
   return error
 }
 
-// X-Api-Request-Id is correlation-only, not a credential. A UUID-shaped
-// random value is sufficient and keeps this Kernel module runtime-agnostic.
 function createRequestId () {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
     const random = Math.floor(Math.random() * 16)

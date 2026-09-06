@@ -5,43 +5,43 @@
 const PRESENTATIONS = {
   'no-text': {
     summary: 'No speech detected',
-    guidance: 'Try again.'
+    guidance: 'Record again and make sure your voice is audible.'
   },
   configuration: {
     summary: 'Provider settings need attention',
-    guidance: 'Check your provider settings.'
+    guidance: 'Open Settings and review the selected provider, model, and endpoint.'
   },
   authentication: {
     summary: 'Provider authentication failed',
-    guidance: 'Check your API key in Settings.'
+    guidance: 'Open Settings and update the API key for this provider.'
   },
   'not-found': {
     summary: 'Provider setup not found',
-    guidance: 'Check the configured model and endpoint.'
+    guidance: 'Check that the selected model and endpoint are available for this provider.'
   },
   network: {
     summary: 'Connection problem',
-    guidance: 'Check your connection and try again.'
+    guidance: 'Check your internet connection, then try again.'
   },
   timeout: {
     summary: 'Request timed out',
-    guidance: 'Try again.'
+    guidance: 'The provider took too long to respond. Try again in a moment.'
   },
   'rate-limited': {
     summary: 'Provider rate limit reached',
-    guidance: 'Try again later.'
+    guidance: 'Give the provider a moment, then try again.'
   },
   service: {
     summary: 'Provider error',
-    guidance: 'The provider could not process this request. Try again.'
+    guidance: 'The provider is having trouble right now. Try again in a moment.'
   },
   'invalid-response': {
-    summary: 'Provider error',
-    guidance: 'The provider could not process this request. Try again.'
+    summary: 'Unexpected provider response',
+    guidance: 'Try again; if it keeps happening, check the provider setup.'
   },
   recording: {
     summary: 'Recording failed',
-    guidance: 'Check that your microphone is available.'
+    guidance: 'Check your microphone, then record again.'
   }
 }
 
@@ -51,7 +51,7 @@ export function presentFailure (error, stage = null) {
 
   return PRESENTATIONS[category] ?? {
     summary: 'Voice input failed',
-    guidance: 'Try again.'
+    guidance: 'Try once more; if it keeps failing, check your provider settings and connection.'
   }
 }
 

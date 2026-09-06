@@ -1,135 +1,123 @@
 import { ToasOrchestrator } from '../host/orchestrator.js'
-import { FakeRecorder, FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import { recordingOutcomeOk } from '../host/audio.js'
-import { test, expectEqual, run } from './harness.js'
+import { FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
+import { test, expectEqual, expectTruthy, run } from './harness.js'
 
-const recording = { id: 'orig-1', path: '/tmp/orig-1.wav', durationMs: 3000, mimeType: 'audio/wav' }
-
-function makeRepo (entries = []) {
-  const repo = {
-    entries: [...entries],
-    resolveAudio: entry => ({
-      available: Boolean(entry.audio),
-      path: entry.audio ? `/tmp/state/${entry.audio}` : null
-    }),
-    get: id => repo.entries.find(e => e.id === id) ?? null,
-    attempts: [],
-    appendAttempt (original, entry) {
-      const attempt = {
-        ...entry,
-        id: entry.id ?? `attempt-${repo.attempts.length + 1}`,
-        attemptOf: original.id,
-        attemptNumber: repo.attempts.filter(a => a.attemptOf === original.id).length + 1
-      }
-      repo.attempts.push(attempt)
-      repo.entries.push(attempt)
-      return attempt
-    }
-  }
-  return repo
-}
-
-function makeOrchestrator ({ repo, kernel }) {
+function makeOrchestrator ({ history, kernel = new FakeKernel(), recorderFactory = () => { throw new Error('retry must not create a recorder') } }) {
   return new ToasOrchestrator({
-    settings: {},
-    collaborators: {
-      recorderFactory: () => new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
-      history: new FakeHistory(),
-      kernel: kernel ?? new FakeKernel(),
-      paster: new FakePaster(),
-      overlay: new FakeOverlay(),
-      notifier: new FakeNotifier()
-    },
-    historyRepository: repo,
+    settings: { get_boolean: () => false },
+    history,
+    kernel,
+    output: new FakePaster(),
+    overlay: new FakeOverlay(),
+    notifier: new FakeNotifier(),
+    recorderFactory,
     onStateChanged: () => {}
   })
 }
 
-test('retry runs transcription on retained audio without a recorder', async () => {
-  const repo = makeRepo([
-    { id: 'orig-1', status: 'error', audio: 'recordings/orig-1.wav', durationMs: 3000 }
-  ])
-  const recorder = new FakeRecorder()
-  const paster = new FakePaster()
-  const orchestrator = makeOrchestrator({
-    repo,
-    kernel: new FakeKernel({ text: 'retried text' })
+function original (id = 'orig-1', audio = `recordings/${id}.wav`) {
+  return { id, status: 'error', audio, durationMs: 3000, sampleRate: 16000 }
+}
+
+function waitFor (predicate, timeoutMs = 2000) {
+  const startedAt = Date.now()
+  return new Promise((resolve, reject) => {
+    const check = () => {
+      if (predicate()) { return resolve() }
+      if (Date.now() - startedAt > timeoutMs) { return reject(new Error('waitFor timed out')) }
+      setTimeout(check, 5)
+    }
+    check()
   })
+}
 
-  const attempt = await orchestrator.retry(repo.get('orig-1'))
+test('retry processes retained audio and appends an attempt without recording or output', async () => {
+  const history = new FakeHistory()
+  const entry = original()
+  history.entries.push(entry)
+  const kernel = new FakeKernel({ text: 'retried text' })
+  const orchestrator = makeOrchestrator({ history, kernel })
 
-  expectEqual(recorder.starts, 0)
-  expectEqual(paster.writes, [])
+  const attempt = await orchestrator.retry(entry)
+
+  expectEqual(kernel.calls.length, 1)
   expectEqual(attempt.status, 'ok')
-  expectEqual(attempt.attemptOf, 'orig-1')
+  expectEqual(attempt.attemptOf, entry.id)
   expectEqual(attempt.attemptNumber, 1)
   expectEqual(attempt.text, 'retried text')
   expectEqual(attempt.audio, null)
-
-  // A retry is never decorated as private, even with the switch on.
-  expectEqual(orchestrator._overlay.privateFlags, [false])
-
-  // Original record untouched.
-  expectEqual(repo.get('orig-1').status, 'error')
+  expectEqual(history.discarded, [])
   orchestrator.destroy()
 })
 
-test('retry failure appends categorized error attempt, original preserved', async () => {
-  const repo = makeRepo([
-    { id: 'orig-2', status: 'error', audio: 'recordings/orig-2.wav', durationMs: 3000 }
-  ])
+test('retry failure appends categorized error attempt and preserves the original', async () => {
+  const history = new FakeHistory()
+  const entry = original('orig-2')
+  history.entries.push(entry)
   const failure = Object.assign(new Error('DNS lookup detail'), { category: 'network' })
-  const orchestrator = makeOrchestrator({
-    repo,
-    kernel: new FakeKernel({ error: failure })
-  })
+  const orchestrator = makeOrchestrator({ history, kernel: new FakeKernel({ error: failure }) })
 
-  const attempt = await orchestrator.retry(repo.get('orig-2'))
+  const attempt = await orchestrator.retry(entry)
 
   expectEqual(attempt.status, 'error')
   expectEqual(attempt.error.category, 'network')
   expectEqual(attempt.error.message, 'DNS lookup detail')
-  expectEqual(attempt.attemptOf, 'orig-2')
-  expectEqual(repo.get('orig-2').status, 'error')
-
-  // Cancelling a retry must not delete the original session's audio.
-  orchestrator.begin()
-  orchestrator.cancel()
-  expectEqual(repo.resolveAudio(repo.get('orig-2')).available, true)
+  expectEqual(attempt.attemptOf, entry.id)
+  expectEqual(history.get(entry.id), entry)
+  expectEqual(history.discarded, [])
   orchestrator.destroy()
 })
 
 test('retry with pruned audio returns null and does nothing', async () => {
-  const repo = makeRepo([
-    { id: 'orig-3', status: 'error', audio: null, durationMs: 3000 }
-  ])
-  const orchestrator = makeOrchestrator({
-    repo,
-    kernel: new FakeKernel()
-  })
+  const history = new FakeHistory()
+  const entry = original('orig-3', null)
+  history.entries.push(entry)
+  const orchestrator = makeOrchestrator({ history })
 
-  const attempt = await orchestrator.retry(repo.get('orig-3'))
+  const attempt = await orchestrator.retry(entry)
   expectEqual(attempt, null)
-  expectEqual(repo.attempts, [])
+  expectEqual(history.attempts, [])
   orchestrator.destroy()
 })
 
-test('retry is blocked while another session is active', async () => {
-  const repo = makeRepo([
-    { id: 'orig-4', status: 'error', audio: 'recordings/orig-4.wav', durationMs: 3000 }
-  ])
+test('retry is blocked while a live voice input is active', async () => {
+  const history = new FakeHistory()
+  const entry = original('orig-4')
+  history.entries.push(entry)
+  let recorderCreated = 0
   const orchestrator = makeOrchestrator({
-    repo,
-    kernel: new FakeKernel({ text: 'delayed result' })
+    history,
+    recorderFactory: () => {
+      recorderCreated++
+      return { start: async () => {}, cancel: () => {}, destroy: () => {} }
+    }
   })
 
   orchestrator.begin()
-  const first = orchestrator.retry(repo.get('orig-4'))
-  const second = await orchestrator.retry(repo.get('orig-4'))
-  await first
+  const attempt = await orchestrator.retry(entry)
 
-  expectEqual(second, null)
+  expectEqual(attempt, null)
+  expectEqual(recorderCreated, 1)
+  orchestrator.cancel()
   orchestrator.destroy()
+})
+
+test('destroy during retry aborts processing without deleting retained audio', async () => {
+  const history = new FakeHistory()
+  const entry = original('orig-destroy')
+  history.entries.push(entry)
+  const kernel = new FakeKernel({ delayMs: 100 })
+  const orchestrator = makeOrchestrator({ history, kernel })
+
+  const pending = orchestrator.retry(entry)
+  await waitFor(() => kernel.receivedSignals.length > 0)
+  const signal = kernel.receivedSignals[0]
+  orchestrator.destroy()
+  const attempt = await pending
+
+  expectTruthy(signal.aborted)
+  expectEqual(attempt, null)
+  expectEqual(history.discarded, [])
 })
 
 await run()

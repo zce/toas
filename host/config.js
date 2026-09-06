@@ -1,10 +1,10 @@
-// Generic persistence codec for the product processing Config. Provider
-// values remain opaque maps: adding a Provider field never changes this file
-// or the GSettings schema.
+// Product processing configuration persistence and Host-owned runtime
+// snapshots. Provider values remain opaque maps so adding a Provider field
+// does not change this file or the GSettings schema.
 
 import GLib from 'gi://GLib'
 
-import { resolveStep, processingError } from '../kernel/process.js'
+import { createProcessor, resolveSelection, processingError } from '../kernel/process.js'
 import { SoupHttpTransport } from './transport.js'
 
 export const DEFAULT_REFINE_INSTRUCTIONS = `Refine the speech transcript into concise, natural written text.
@@ -61,7 +61,6 @@ export function normalizeProcessingConfig (stored, providerRegistry) {
     },
     refine: {
       enabled: Boolean(source.refine?.enabled),
-      execution: source.refine?.execution === 'integrated' ? 'integrated' : 'separate',
       provider: refineProvider,
       values: selectionValues(
         source.refine?.provider === refineProvider ? source.refine?.values : null,
@@ -113,106 +112,78 @@ function isObject (value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-// Host-side snapshot of processing configuration, secrets, and Context for one
-// attempt. Secret precedence is stored value, then Provider-declared
-// environment fallback; Context remains a Host-owned setting.
-export class ConfigService {
-  constructor ({ settings, providers }) {
-    this._settings = settings
-    this._providers = providers
-  }
+export function snapshotProcessingConfig (settings, providers) {
+  const config = readProcessingConfig(settings, providers)
 
-  snapshotConfig () {
-    const config = readProcessingConfig(this._settings, this._providers)
-    for (const [providerId, provider] of this._providers) {
-      const values = config.providers[providerId] ??= {}
-      for (const field of provider.manifest.fields || []) {
-        if (field.type === 'secret' || values[field.key] != null) { continue }
-        for (const envName of field.env || []) {
-          const value = GLib.getenv(envName)?.trim()
-          if (value) {
-            values[field.key] = value
-            break
-          }
-        }
-      }
-    }
-    return config
-  }
-
-  // Secret values never enter Config.
-  snapshotSecrets () {
-    const secrets = {}
-    const stored = this._settings.get_value('provider-secrets')?.deep_unpack() ?? {}
-
-    for (const [storageKey, value] of Object.entries(stored)) {
-      const trimmed = String(value ?? '').trim()
-      if (trimmed) { secrets[storageKey] = trimmed }
-    }
-
-    for (const [providerId, provider] of this._providers) {
-      for (const field of provider.manifest.fields || []) {
-        if (field.type !== 'secret') { continue }
-
-        const key = `providers/${providerId}/${field.key}`
-        if (secrets[key]) { continue }
-
-        for (const envName of field.env || []) {
-          const value = GLib.getenv(envName)?.trim()
-          if (value) {
-            secrets[key] = value
-            break
-          }
-        }
-      }
-    }
-
-    return secrets
-  }
-
-  snapshotContext () {
-    const text = String(this._settings.get_string?.('context') ?? '').trim()
-    return { text }
-  }
-
-  // Readiness goes through the same resolution path as an attempt so the
-  // first-run guard cannot diverge from executable configuration.
-  primaryReady () {
-    const secrets = this.snapshotSecrets()
-    const config = this.snapshotConfig()
-
-    try {
-      resolveStep({
-        providers: this._providers,
-        selection: config.primary,
-        providerValues: config.providers?.[config.primary.provider] || {},
-        role: 'primary',
-        secrets,
-        runtime: { transport: null, clock: { now: () => 0 } }
-      })
-      return true
-    } catch {
-      return false
+  for (const [providerId, provider] of providers) {
+    const values = config.providers[providerId] ??= {}
+    for (const field of provider.manifest.fields || []) {
+      if (field.type === 'secret' || values[field.key] != null) { continue }
+      const envValue = firstEnvValue(field.env)
+      if (envValue) { values[field.key] = envValue }
     }
   }
 
-  destroy () {
-    this._settings = null
-    this._providers = null
+  return config
+}
+
+export function snapshotProviderSecrets (settings, providers) {
+  const secrets = {}
+  const stored = settings.get_value('provider-secrets')?.deep_unpack() ?? {}
+
+  for (const [storageKey, value] of Object.entries(stored)) {
+    const trimmed = String(value ?? '').trim()
+    if (trimmed) { secrets[storageKey] = trimmed }
+  }
+
+  for (const [providerId, provider] of providers) {
+    for (const field of provider.manifest.fields || []) {
+      if (field.type !== 'secret') { continue }
+      const key = `providers/${providerId}/${field.key}`
+      if (secrets[key]) { continue }
+      const envValue = firstEnvValue(field.env)
+      if (envValue) { secrets[key] = envValue }
+    }
+  }
+
+  return secrets
+}
+
+export function snapshotContext (settings) {
+  return { text: String(settings.get_string?.('context') ?? '').trim() }
+}
+
+export function primaryReady (settings, providers) {
+  const config = snapshotProcessingConfig(settings, providers)
+  try {
+    resolveSelection({
+      providers,
+      selection: config.primary,
+      providerValues: config.providers?.[config.primary.provider] || {},
+      role: 'primary',
+      secrets: snapshotProviderSecrets(settings, providers)
+    })
+    return true
+  } catch {
+    return false
   }
 }
 
-// Connection checks resolve the real Provider and make one harmless
-// Processor call without history or output side effects. Primary uses a short
-// silent WAV; no-text is a valid round-trip result. Refine sends fixed text
-// through its configured instructions.
-export async function runConnectionTest ({ configService, providers, role }) {
+function firstEnvValue (names = []) {
+  for (const name of names) {
+    const value = GLib.getenv(name)?.trim()
+    if (value) { return value }
+  }
+  return null
+}
+
+export async function runConnectionTest ({ settings, providers, role }) {
   if (role !== 'primary' && role !== 'refine') {
     throw processingError('configuration', `Unknown connection test role: ${String(role)}`)
   }
 
-  const config = configService.snapshotConfig()
-  const secrets = configService.snapshotSecrets()
+  const config = snapshotProcessingConfig(settings, providers)
+  const secrets = snapshotProviderSecrets(settings, providers)
 
   if (role === 'refine' && !config.refine.enabled) {
     throw processingError('configuration', 'Enable Refine first.')
@@ -222,33 +193,33 @@ export async function runConnectionTest ({ configService, providers, role }) {
     provider: config.refine.provider,
     values: config.refine.values
   }
-  const providerValues = config.providers?.[selection.provider] || {}
+  const resolved = resolveSelection({
+    providers,
+    selection,
+    providerValues: config.providers?.[selection.provider] || {},
+    role,
+    secrets
+  })
 
   const transport = new SoupHttpTransport({ timeoutMs: 20000 })
   try {
-    const resolved = resolveStep({
-      providers,
-      selection,
-      providerValues,
-      role,
+    const processor = createProcessor({
+      resolved,
       secrets,
       runtime: { transport, clock: { now: () => 0 } }
     })
-
     const input = role === 'primary'
       ? { kind: 'audio', base64: silenceWavBase64(16000), mimeType: 'audio/wav', durationMs: 250 }
       : { kind: 'text', text: 'Reply with OK.' }
 
     try {
-      await resolved.processor.process({
+      await processor.process({
         input,
         context: { text: '' },
         instructions: role === 'refine' ? config.refine.instructions || '' : null,
         signal: null
       })
     } catch (error) {
-      // Silent audio legitimately produces no text; the round trip itself is
-      // what the test proves.
       if (error.category === 'no-text') { return }
       throw error
     }
@@ -257,7 +228,6 @@ export async function runConnectionTest ({ configService, providers, role }) {
   }
 }
 
-// 0.25 s of silence, 16 kHz mono 16-bit, wrapped in a minimal WAV header.
 function silenceWavBase64 (sampleRate) {
   const durationSeconds = 0.25
   const sampleCount = Math.floor(sampleRate * durationSeconds)

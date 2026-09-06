@@ -192,7 +192,7 @@ never receive it.
 
 ### Refine
 
-Refine is optional and runs as a separate text-processing step after transcription.
+Refine is optional and currently runs as a separate text-processing step after transcription.
 
 Supported Refine providers are:
 
@@ -289,9 +289,10 @@ ${XDG_STATE_HOME:-~/.local/state}/toas/
   recordings/*.wav
 ```
 
-`History entries` defaults to 30 and limits records. `Saved recordings` defaults to 20
-and limits retained WAV files. Set `Saved recordings` to 0 to keep text history without
-retaining completed audio. Records can outlive their audio reference.
+`History entries` defaults to 30 and limits saved voice inputs. Retry attempts stay attached
+to their original voice input and do not consume additional history slots. `Saved recordings`
+defaults to 20 and limits retained WAV files. Set `Saved recordings` to 0 to keep text history
+without retaining completed audio. History entries can outlive their audio reference.
 
 The top-bar `Clear History` action asks for confirmation and is disabled while recording.
 
@@ -401,7 +402,9 @@ using the Chat Completions wire contract.
 
 ### Refine behavior
 
-Refine makes one non-streaming text request after transcription.
+Refine currently makes one non-streaming text request after transcription. This is the
+product execution path, not a Provider capability mode; Providers describe the inputs and
+capabilities they actually support.
 
 Its instructions are configurable free text. Providers that support Context also receive
 your configured Context text.
