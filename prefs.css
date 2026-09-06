@@ -14,7 +14,10 @@
   margin: 10px 12px 2px;
 }
 
-.toas-multiline-row:focus-within .toas-multiline-caption {
+.toas-multiline-row:focus-within .toas-multiline-caption,
+row.combo:focus-within label.title,
+row.spin:focus-within label.title,
+row.switch:focus-within label.title {
   color: var(--accent-color);
 }
 
