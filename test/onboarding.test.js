@@ -35,7 +35,7 @@ test('fresh unconfigured install: onboarding distinguishes installed from ready'
   const shown = onboarding.maybeShowOnboarding(false)
   expectEqual(shown, true)
   expectEqual(notifier.notifications.length, 1)
-  expectEqual(notifier.notifications[0].title, 'toas is installed')
+  expectEqual(notifier.notifications[0].title, 'Toas is installed')
 
   const body = notifier.notifications[0].body
   expectEqual(body.includes('Preferences before recording'), true)
@@ -56,7 +56,7 @@ test('fresh configured install: onboarding reports ready', () => {
 
   expectEqual(onboarding.maybeShowOnboarding(true), true)
   expectEqual(notifier.notifications.length, 1)
-  expectEqual(notifier.notifications[0].title, 'toas voice input is ready')
+  expectEqual(notifier.notifications[0].title, 'Toas voice input is ready')
 })
 
 test('upgrading user with history: silent migration', () => {
@@ -68,9 +68,10 @@ test('upgrading user with history: silent migration', () => {
 })
 
 test('unconfigured guard warns once and opens preferences', () => {
-  const { onboarding, getPrefsOpened } = make()
+  const { onboarding, notifier, getPrefsOpened } = make()
 
   expectEqual(onboarding.guardUnconfigured(false), true)
+  expectEqual(notifier.notifications[0].title, 'Toas is not configured yet')
   expectEqual(getPrefsOpened(), 1)
   expectEqual(onboarding.guardUnconfigured(true), false)
   expectEqual(getPrefsOpened(), 1)
