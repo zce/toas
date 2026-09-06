@@ -1,11 +1,15 @@
 # Changelog
 
-## Unreleased
+## Version 13 — 2026-09-06
 
-- Added Doubao BigASR Flash as a selectable transcription provider using the synchronous Speech API.
+- Added Doubao BigASR Flash as a selectable transcription provider and aligned the website/setup copy with the new option.
+- Made the minimum recording duration configurable in Preferences, with a 600 ms default to filter accidental short activations.
 - Made **Private mode** persist until explicitly disabled while leaving existing history available.
 - Added `Saved recordings = 0` to keep text history without retaining completed WAV files or retry-from-audio.
 - Reduced the default `History entries` retention from 500 to 30 to match the recent-history depth surfaced in the top-bar menu; explicitly configured larger limits remain supported.
+- Placed the voice overlay on the active target monitor instead of always using the primary monitor.
+- Aligned output, failure, retry, and history feedback with actual runtime behavior, including clipboard-only delivery and unavailable retained audio.
+- Polished product naming, privacy copy, first-run feedback, and Preferences guidance to match the current UI and behavior.
 
 ## Version 12 — 2026-09-05
 
