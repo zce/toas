@@ -4,7 +4,39 @@ export class Provider {
     this.manifest = manifest
   }
 
-  requiredIssues ({ providerValues = {}, values = {}, secretPresence = {} } = {}) {
+  resolve ({ providerValues = {}, values = {}, secretPresence = {} } = {}) {
+    const resolved = this.resolveSelection({ providerValues, values })
+    const issues = [
+      ...this.requiredIssues({
+        providerValues,
+        values,
+        secretPresence,
+        input: resolved.input ?? null
+      }),
+      ...(resolved.issues || [])
+    ]
+
+    if (issues.length > 0) {
+      return {
+        config: null,
+        capabilities: resolved.capabilities ?? null,
+        issues
+      }
+    }
+
+    return {
+      config: resolved.config,
+      capabilities: resolved.capabilities,
+      issues: []
+    }
+  }
+
+  requiredIssues ({
+    providerValues = {},
+    values = {},
+    secretPresence = {},
+    input = null
+  } = {}) {
     const issues = []
 
     for (const field of this.manifest.fields || []) {
@@ -23,6 +55,7 @@ export class Provider {
     const seen = new Set()
     for (const field of this.manifest.selectionFields || []) {
       if (!field.required || seen.has(field.key)) { continue }
+      if (input && field.inputs && !field.inputs.includes(input)) { continue }
       seen.add(field.key)
       if (!hasValue(values[field.key])) {
         issues.push(requiredIssue(
@@ -35,8 +68,8 @@ export class Provider {
     return issues
   }
 
-  resolve () {
-    throw new Error(`${this.id}.resolve() is not implemented`)
+  resolveSelection () {
+    throw new Error(`${this.id}.resolveSelection() is not implemented`)
   }
 
   create () {

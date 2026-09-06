@@ -69,8 +69,8 @@ class QwenProvider extends Provider {
     })
   }
 
-  resolve ({ providerValues, values, secretPresence }) {
-    const issues = this.requiredIssues({ providerValues, values, secretPresence })
+  resolveSelection ({ providerValues, values }) {
+    const issues = []
     const endpoint = providerValues.endpoint?.trim() || ''
     if (endpoint && !endpoint.startsWith('https://')) {
       issues.push({
@@ -90,17 +90,13 @@ class QwenProvider extends Provider {
       })
     }
 
-    if (issues.length > 0) {
-      return { config: null, capabilities: shape?.capabilities ?? null, issues }
-    }
-
     return {
-      config: {
-        endpoint: endpoint || ENDPOINTS[shape.protocol],
-        model
-      },
-      capabilities: shape.capabilities,
-      issues: []
+      input: 'audio',
+      config: shape
+        ? { endpoint: endpoint || ENDPOINTS[shape.protocol], model }
+        : null,
+      capabilities: shape?.capabilities ?? null,
+      issues
     }
   }
 

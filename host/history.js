@@ -78,10 +78,6 @@ export class HistoryStore {
       .map(entry => projectLatestAttempt(entry, attempts.get(entry.id) ?? []))
   }
 
-  get (id) {
-    return this.readEntries().find(entry => entry.id === id) ?? null
-  }
-
   appendAttempt (original, entry) {
     const entries = this.readEntries()
     const current = entries.find(candidate => candidate.id === original?.id && !candidate.attemptOf)

@@ -54,7 +54,6 @@ export class ToasOrchestrator {
     if (this._state !== 'idle') { return }
 
     const run = {
-      kind: 'live',
       createdAt: new Date().toISOString(),
       private: Boolean(this._settings?.get_boolean?.('private-mode')),
       recorder: null,
@@ -183,9 +182,7 @@ export class ToasOrchestrator {
     if (!audio.available || !audio.path) { return null }
 
     const run = {
-      kind: 'retry',
       createdAt: new Date().toISOString(),
-      originalId: originalEntry.id,
       recording: {
         id: originalEntry.id,
         path: audio.path,
@@ -317,7 +314,7 @@ export class ToasOrchestrator {
   }
 
   _appendRetryAttempt (originalEntry, run, error = null) {
-    const entry = this._historyEntry(run, error ? 'error' : 'ok', error, false)
+    const entry = this._historyEntry(run, error ? 'error' : 'ok', error)
     try {
       const attempt = this._history.appendAttempt(originalEntry, entry)
       if (!attempt) { console.warn('[toas] Retry attempt dropped: original voice input is gone') }
@@ -328,14 +325,14 @@ export class ToasOrchestrator {
     }
   }
 
-  _historyEntry (run, status, error = null, includeAudio = true) {
+  _historyEntry (run, status, error = null) {
     const result = run.result || {}
     return {
       id: GLib.uuid_string_random(),
       createdAt: run.createdAt,
       durationMs: run.recording?.durationMs ?? 0,
       status,
-      audio: includeAudio && run.recording
+      audio: run.ownsRecording && run.recording
         ? `recordings/${GLib.path_get_basename(run.recording.path)}`
         : null,
       sampleRate: run.recording?.sampleRate ?? null,

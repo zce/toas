@@ -3,6 +3,10 @@
 // Provider selection resolves before Processor creation or I/O, and
 // cancellation never degrades into a fallback result.
 
+import { processingError } from './error.js'
+
+export { processingError } from './error.js'
+
 export async function process ({ config, audio, context, secrets, runtime, signal, providers }) {
   if (signal?.aborted) {
     throw processingError('cancelled', 'Processing was cancelled')
@@ -71,23 +75,36 @@ async function runPrimary ({ primary, primaryTrace, audio, context, runtime, sig
   return { text: result.text, trace: [primaryTrace], warning: null }
 }
 
-async function runRefine ({ primary, primaryTrace, refineConfig, audio, context, secrets, runtime, signal, providers, providerValues }) {
+async function runRefine ({
+  primary,
+  primaryTrace,
+  refineConfig,
+  audio,
+  context,
+  secrets,
+  runtime,
+  signal,
+  providers,
+  providerValues
+}) {
   const primaryResult = await runPrimary({ primary, primaryTrace, audio, context, runtime, signal })
   assertNotCancelled(signal)
 
-  const refine = createStep({
-    providers,
-    selection: { provider: refineConfig.provider, values: refineConfig.values },
-    providerValues,
-    role: 'refine',
-    secrets,
-    runtime
-  })
-  const refineTrace = traceFor({ resolved: refine, context })
-  refineTrace.input = 'text'
-
   const startedAt = runtime.clock.now()
+  let refineTrace = pendingRefineTrace(refineConfig)
+
   try {
+    const refine = createStep({
+      providers,
+      selection: { provider: refineConfig.provider, values: refineConfig.values },
+      providerValues,
+      role: 'refine',
+      secrets,
+      runtime
+    })
+    refineTrace = traceFor({ resolved: refine, context })
+    refineTrace.input = 'text'
+
     const result = await refine.processor.process({
       input: { kind: 'text', text: primaryResult.text },
       context: filterContext(context, refine.capabilities),
@@ -99,18 +116,21 @@ async function runRefine ({ primary, primaryTrace, refineConfig, audio, context,
 
     requireText(result, 'refine')
     return { text: result.text, trace: [primaryTrace, refineTrace], warning: null }
-  } catch (err) {
+  } catch (error) {
     if (signal?.aborted) {
       throw processingError('cancelled', 'Processing was cancelled')
     }
-    if (refineConfig.onError === 'abort') { throw err }
+    if (refineConfig.onError === 'abort') { throw error }
     return {
       text: primaryResult.text,
-      trace: [primaryTrace, failedTrace(refineTrace, err, runtime.clock.now() - startedAt)],
+      trace: [
+        primaryTrace,
+        failedTrace(refineTrace, error, runtime.clock.now() - startedAt)
+      ],
       warning: {
         type: 'refine-failed',
         provider: refineConfig.provider,
-        message: safeMessage(err)
+        message: safeMessage(error)
       }
     }
   }
@@ -212,7 +232,9 @@ function resolveProviderValues (overrides, fields) {
 function buildSecretPresence (fields, providerId, secrets) {
   const presence = {}
   for (const field of fields) {
-    if (field.type === 'secret') { presence[field.key] = Boolean(secrets[secretKey(providerId, field.key)]) }
+    if (field.type === 'secret') {
+      presence[field.key] = Boolean(secrets[secretKey(providerId, field.key)])
+    }
   }
   return presence
 }
@@ -260,6 +282,21 @@ function traceFor ({ resolved, context }) {
   }
 }
 
+function pendingRefineTrace (refineConfig) {
+  return {
+    role: 'refine',
+    provider: refineConfig.provider,
+    model: refineConfig.values?.model ?? null,
+    input: 'text',
+    status: 'ok',
+    elapsedMs: 0,
+    context: [],
+    usage: null,
+    requestId: null,
+    responseId: null
+  }
+}
+
 function recordTraceMeta (trace, result) {
   trace.usage = result?.usage ?? null
   trace.requestId = result?.requestId ?? null
@@ -270,19 +307,13 @@ function contextInUse (context, capabilities) {
   return capabilities?.context && context.text ? ['text'] : []
 }
 
-function failedTrace (trace, err, elapsedMs) {
-  return { ...trace, status: 'error', elapsedMs, error: safeMessage(err) }
+function failedTrace (trace, error, elapsedMs) {
+  return { ...trace, status: 'error', elapsedMs, error: safeMessage(error) }
 }
 
-export function processingError (category, message, status = null) {
-  const err = new Error(message)
-  err.category = category
-  if (status !== null) { err.status = status }
-  return err
-}
-
-function safeMessage (err) {
-  const message = err?.message ?? String(err)
+function safeMessage (error) {
+  const message = error?.message ?? String(error)
+  // Bound Provider-originated diagnostics before they reach History or UI.
   return message.length > 300 ? `${message.slice(0, 300)}…` : message
 }
 

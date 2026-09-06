@@ -39,14 +39,16 @@ class OpenAICompatibleProvider extends Provider {
     })
   }
 
-  resolve ({ providerValues, values, secretPresence }) {
-    const issues = this.requiredIssues({ providerValues, values, secretPresence })
-    const endpoint = providerValues.endpoint?.trim()
-    const model = values.model?.trim()
-
-    return issues.length > 0
-      ? { config: null, capabilities: textCapabilities(), issues }
-      : { config: { endpoint, model }, capabilities: textCapabilities(), issues: [] }
+  resolveSelection ({ providerValues, values }) {
+    return {
+      input: 'text',
+      config: {
+        endpoint: providerValues.endpoint?.trim(),
+        model: values.model?.trim()
+      },
+      capabilities: textCapabilities(),
+      issues: []
+    }
   }
 
   create (config, secrets, runtime) {

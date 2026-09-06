@@ -2,6 +2,10 @@
 // Wire shapes stay inside Provider modules; nothing here leaks to the Kernel domain.
 // This module must not import GNOME/GI libraries.
 
+import { cancelledError, processingError } from '../error.js'
+
+export { cancelledError, processingError } from '../error.js'
+
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
@@ -105,15 +109,4 @@ export function serviceErrorFromStatus (status, bodyBytes, label) {
 
   if (detail) { message = `${message}: ${detail}` }
   return processingError(category, message, status)
-}
-
-export function processingError (category, message, status = null) {
-  const err = new Error(message)
-  err.category = category
-  if (status !== null) { err.status = status }
-  return err
-}
-
-export function cancelledError () {
-  return processingError('cancelled', 'Request was cancelled')
 }

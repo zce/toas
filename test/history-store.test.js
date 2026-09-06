@@ -67,7 +67,7 @@ test('appendAttempt numbers attempts and list projects the latest result in one 
   expectEqual(first.attemptNumber, 1)
   expectEqual(second.attemptNumber, 2)
   expectEqual(second.attemptOf, 'orig')
-  expectEqual(store.get('orig').status, 'error')
+  expectEqual(store.readEntries().find(entry => entry.id === 'orig').status, 'error')
 
   const listed = store.list()
   expectEqual(listed.length, 1)

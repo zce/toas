@@ -78,8 +78,8 @@ class MimoProvider extends Provider {
     })
   }
 
-  resolve ({ providerValues, values, secretPresence }) {
-    const issues = this.requiredIssues({ providerValues, values, secretPresence })
+  resolveSelection ({ providerValues, values }) {
+    const issues = []
     const endpoint = providerValues.endpoint?.trim()
     const model = values.model?.trim()
     const shape = model ? MODEL_SHAPES[model] : null
@@ -94,14 +94,13 @@ class MimoProvider extends Provider {
 
     const language = values.language?.trim() || null
 
-    if (issues.length > 0) {
-      return { config: null, capabilities: shape?.capabilities ?? null, issues }
-    }
-
     return {
-      config: { endpoint, model, ...(language ? { language } : {}) },
-      capabilities: shape.capabilities,
-      issues: []
+      input: shape?.input ?? null,
+      config: shape
+        ? { endpoint, model, ...(language ? { language } : {}) }
+        : null,
+      capabilities: shape?.capabilities ?? null,
+      issues
     }
   }
 
