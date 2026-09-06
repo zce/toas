@@ -3,16 +3,13 @@
    The Preferences window is a separate GTK4 process and cannot load this
    file — its styles live in prefs.css. */
 
+
 /* --- Overlay (ui/overlay.js) ------------------------------------------------- */
 
 .toas-overlay {
   spacing: 8px;
   padding: 8px;
 
-  /*
-   * Keep a transparent border in the normal state so Private mode can
-   * highlight the same geometry without changing the overlay size.
-   */
   border: 1px solid transparent;
   border-radius: 999px;
 
@@ -22,53 +19,53 @@
   color: white;
 }
 
+
 /*
- * The microphone occupies the same 20px side slot as the close button.
- *
- * With an 8px overlay inset:
- *   8px inset + 10px slot radius = 18px
- *
- * This aligns its center with the center of the overlay's rounded end.
+ * The microphone and close control share the same 20px side geometry,
+ * keeping them concentric with the rounded ends of the capsule.
  */
 .toas-icon {
   width: 20px;
   height: 20px;
+
   icon-size: 16px;
   opacity: 0.9;
 }
 
+
 .toas-status {
   max-width: 320px;
+
   font-size: 14px;
   font-weight: 500;
   opacity: 0.8;
 }
 
-/* Fixed height so the level bars can change height without moving the
-   overlay. Keep in sync with BAR_MAX_HEIGHT in ui/overlay.js. */
+
+/* Keep in sync with BAR_MAX_HEIGHT in ui/overlay.js. */
 .toas-bars {
   spacing: 3px;
   height: 20px;
 }
 
-/* Bar height is dynamic; CSS owns the static appearance. */
+
 .toas-bar {
   width: 4px;
+
   border-radius: 999px;
   background-color: -st-accent-color;
 }
 
-/*
- * The close button uses the same 20px geometry as the microphone slot.
- * Its circular background is therefore concentric with the overlay end cap.
- */
+
+/* Compact secondary action aligned with the capsule end. */
 .toas-close-button {
-  min-width: 20px;
-  min-height: 20px;
   width: 20px;
   height: 20px;
+  min-width: 20px;
+  min-height: 20px;
 
   padding: 0;
+
   border: none;
   border-radius: 999px;
 
@@ -76,11 +73,13 @@
   background-color: rgba(255, 255, 255, 0.06);
 }
 
+
 .toas-close-button:hover,
 .toas-close-button:focus {
   color: white;
   background-color: rgba(255, 255, 255, 0.12);
 }
+
 
 .toas-close-icon {
   icon-size: 10px;
@@ -90,14 +89,16 @@
 /* --- Panel indicator (ui/indicator.js) -------------------------------------- */
 
 .toas-status-icon {
-  transition: color 150ms ease-in-out;
   margin: 0;
   padding: 0;
+
+  transition: color 150ms ease-in-out;
 }
 
+
 /*
- * Recording is an explicit semantic state rather than a theme accent.
- * Keep a conventional recording red so the state is immediately obvious.
+ * Recording uses a conventional semantic red rather than the user's accent
+ * color so the state remains immediately recognizable.
  */
 .toas-recording {
   border: 3px solid transparent;
@@ -106,6 +107,7 @@
   color: white;
   background-color: #e01b24;
 }
+
 
 .toas-recording:hover,
 .toas-recording:focus {
@@ -120,26 +122,32 @@
   max-height: 360px;
 }
 
+
 .toas-history-preview {
   font-size: 13px;
   font-weight: 500;
 }
+
 
 .toas-history-meta {
   font-size: 11px;
   opacity: 0.65;
 }
 
+
 .toas-history-action {
   min-width: 24px;
   min-height: 24px;
+
   padding: 2px;
   margin-left: 4px;
 }
 
+
 .toas-history-action-icon {
   icon-size: 14px;
 }
+
 
 .toas-menu-icon {
   icon-size: 16px;
@@ -149,24 +157,28 @@
 
 /* --- Private mode ------------------------------------------------------------ */
 
-/*
- * Private mode dims the panel icon without competing with the stronger
- * recording state.
- */
 .toas-status-icon.toas-private,
 .panel-button.toas-private {
   opacity: 0.8;
 }
 
+
 /*
- * Keep the normal overlay elevation and use the system accent only for the
- * privacy decoration. The transparent base border prevents layout movement.
+ * Private mode changes the atmosphere of the capsule rather than adding
+ * another surface inside it. A soft accent-colored inner glow provides a
+ * persistent visual distinction without looking like a focus ring.
  */
 .toas-overlay.toas-private {
-  border-color: st-transparentize(-st-accent-color, 0.55);
+  border-color: transparent;
+  box-shadow: inset 0 0 12px st-transparentize(-st-accent-color, 0.68);
 }
 
+
+/*
+ * The shield remains a simple symbol. It deliberately has no background
+ * surface of its own.
+ */
 .toas-private-icon {
   icon-size: 14px;
-  color: st-transparentize(-st-accent-color, 0.5);
+  color: st-transparentize(-st-accent-color, 0.25);
 }
