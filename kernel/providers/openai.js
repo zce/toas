@@ -6,7 +6,8 @@ import {
   ChatCompletionsProcessor,
   extractContent,
   normalizeUsage,
-  processingError
+  processingError,
+  refineMessages
 } from './chat-completions.js'
 
 class OpenAICompatibleProvider extends Provider {
@@ -85,19 +86,13 @@ class OpenAICompatibleProcessor extends ChatCompletionsProcessor {
       throw processingError('configuration', `${this._label} processing requires text input`)
     }
 
-    const messages = []
-    const contextText = context.text?.trim()
-    if (contextText) {
-      messages.push({ role: 'system', content: contextText })
-    }
-    messages.push({
-      role: 'user',
-      content: instructions?.trim() ? `${instructions}\n\n${input.text}` : input.text
-    })
-
     const data = await this._send({
       model: this._config.model,
-      messages,
+      messages: refineMessages({
+        transcript: input.text,
+        context: context.text,
+        instructions
+      }),
       stream: false
     }, signal)
 

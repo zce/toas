@@ -3,6 +3,7 @@
 // This module must not import GNOME/GI libraries.
 
 import { cancelledError, processingError } from '../error.js'
+import { composeRefineRequest } from './refine.js'
 
 export { cancelledError, processingError } from '../error.js'
 
@@ -36,6 +37,14 @@ export class ChatCompletionsProcessor {
 
     return decodeBody(response.body)
   }
+}
+
+export function refineMessages ({ transcript, context, instructions }) {
+  const request = composeRefineRequest({ transcript, context, instructions })
+  return [
+    { role: 'system', content: request.policy },
+    { role: 'user', content: request.content }
+  ]
 }
 
 export function encodeBody (value) {

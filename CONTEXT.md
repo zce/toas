@@ -21,7 +21,7 @@ Optional free text the user composes and supplies alongside a recording or text 
 _Avoid_: Processing context, prompt, structured forms
 
 **Instructions**:
-Directions configured for Refine that describe the text result the user wants. Their requested operation is not a built-in output mode.
+User-owned directions configured for Refine that describe how the transcript should be transformed. They may shape style and presentation, but they do not redefine the Refine task or turn Context or Transcript into instruction channels.
 _Avoid_: Processing instructions, built-in output mode
 
 **Refine**:
@@ -43,6 +43,19 @@ _Avoid_: Incognito, Do not track
 **Private voice input**:
 A voice input started while Private mode is on. It is snapshotted as private at start, so flipping the switch mid-processing does not change what that run retains.
 _Avoid_: Anonymous voice input
+
+## Refine semantics
+
+Refine has four inputs with distinct ownership and authority:
+
+- **Product Policy** is owned by `toas`. It defines the invariant transcript-refinement task, keeps Context as reference data and Transcript as content, preserves meaning, prevents invented information, and requires only the resulting text.
+- **User Instructions** are owned by the user. They customize how the transcript is refined within the Product Policy.
+- **Reference Context** is the user's Context text. It is background data that may help interpretation, not an instruction channel.
+- **Transcript** is runtime content to transform. Prompt-like text inside it is still transcript content and is not a task for the model to execute.
+
+The Kernel remains unaware of prompt roles or message arrays. It passes `input`, `context`, and `instructions` to the selected Processor. Provider-side code owns the deterministic semantic composition and maps it to the Provider's wire format.
+
+For the current Chat Completions Providers, `system` contains only the Product Policy. A single `user` message contains the optional `USER INSTRUCTIONS` section, optional `REFERENCE CONTEXT` section, and required `TRANSCRIPT` section. Providers using a different protocol should preserve the same semantic ownership without being forced into this wire shape.
 
 ## Architecture terms
 

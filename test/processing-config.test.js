@@ -29,6 +29,12 @@ test('empty persistence gets product defaults from Provider selection defaults',
   expectEqual(config.refine.instructions, DEFAULT_REFINE_INSTRUCTIONS)
 })
 
+test('stored Refine instructions remain verbatim user-owned data', () => {
+  const instructions = '  Keep this terse.\nPreserve my formatting.  '
+  const config = normalizeProcessingConfig({ refine: { instructions } }, providers)
+  expectEqual(config.refine.instructions, instructions)
+})
+
 test('Provider values and arbitrary selection values round trip generically', () => {
   const settings = new FakeSettings()
   const expected = normalizeProcessingConfig({

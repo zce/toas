@@ -6,7 +6,8 @@ import {
   ChatCompletionsProcessor,
   extractContent,
   normalizeUsage,
-  processingError
+  processingError,
+  refineMessages
 } from './chat-completions.js'
 
 const MODEL_SHAPES = {
@@ -138,14 +139,10 @@ class MimoProcessor extends ChatCompletionsProcessor {
       if (input.kind !== 'text') {
         throw processingError('configuration', 'This MiMo selection requires text input')
       }
-      messages = []
-      const contextText = context.text?.trim()
-      if (contextText) {
-        messages.push({ role: 'system', content: contextText })
-      }
-      messages.push({
-        role: 'user',
-        content: instructions?.trim() ? `${instructions}\n\n${input.text}` : input.text
+      messages = refineMessages({
+        transcript: input.text,
+        context: context.text,
+        instructions
       })
     }
 
