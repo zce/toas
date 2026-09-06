@@ -266,7 +266,10 @@ export class ShellOverlayView {
 
   resetLevels () {
     this._levels.fill(0)
-    this._renderLevels()
+    this._barActors.forEach(bar => {
+      bar.remove_all_transitions()
+      bar.height = BAR_MIN_HEIGHT
+    })
   }
 
   show () {
@@ -317,18 +320,16 @@ export class ShellOverlayView {
     this._levels.unshift(safeLevel)
     this._levels.length = BAR_COUNT
 
-    this._renderLevels()
-  }
-
-  _renderLevels () {
     this._barActors.forEach((bar, index) => {
       const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
       const height = Math.round(
         BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
       )
-      // Height is per-frame audio data; it is layout state, not styling.
-      // Setting it directly avoids a CSS parse per bar on every frame.
-      bar.height = height
+      bar.ease({
+        height,
+        duration: 100,
+        mode: Clutter.AnimationMode.LINEAR
+      })
     })
   }
 
