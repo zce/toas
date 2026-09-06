@@ -1,6 +1,5 @@
 import Pango from 'gi://Pango'
 import Clutter from 'gi://Clutter'
-import GLib from 'gi://GLib'
 import St from 'gi://St'
 
 import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
@@ -120,17 +119,11 @@ const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
-const WAVEFORM_FRAME_MS = 33
-const WAVEFORM_ATTACK = 0.45
-const WAVEFORM_RELEASE = 0.2
-const WAVEFORM_SETTLE_EPSILON = 0.002
 const OVERLAY_BOTTOM_MARGIN = 112
 
 export class ShellOverlayView {
   constructor () {
     this._levels = Array(BAR_COUNT).fill(0)
-    this._displayLevels = Array(BAR_COUNT).fill(0)
-    this._waveformSourceId = null
     this._compositingHeld = false
     this._monitorIndex = null
 
@@ -235,12 +228,6 @@ export class ShellOverlayView {
     this._privateIcon.visible = recording && this._private
     this._closeButton.visible = recording || busy
 
-    if (recording) {
-      this._startWaveform()
-    } else {
-      this._stopWaveform()
-    }
-
     if (error) {
       this._actor.add_style_class_name('toas-error')
     } else {
@@ -279,8 +266,10 @@ export class ShellOverlayView {
 
   resetLevels () {
     this._levels.fill(0)
-    this._displayLevels.fill(0)
-    this._renderLevels()
+    this._barActors.forEach(bar => {
+      bar.remove_all_transitions()
+      bar.height = BAR_MIN_HEIGHT
+    })
   }
 
   show () {
@@ -307,7 +296,6 @@ export class ShellOverlayView {
 
   hide () {
     this._closeButton.visible = false
-    this._stopWaveform()
     if (!this._actor.visible) {
       this._releaseCompositing()
       return
@@ -331,60 +319,17 @@ export class ShellOverlayView {
     const safeLevel = Math.max(0, Math.min(1, level || 0))
     this._levels.unshift(safeLevel)
     this._levels.length = BAR_COUNT
-  }
 
-  _startWaveform () {
-    if (this._waveformSourceId) { return }
-
-    this._waveformSourceId = GLib.timeout_add(
-      GLib.PRIORITY_DEFAULT,
-      WAVEFORM_FRAME_MS,
-      () => {
-        if (!this._actor) {
-          this._waveformSourceId = null
-          return GLib.SOURCE_REMOVE
-        }
-
-        this._tickWaveform()
-        return GLib.SOURCE_CONTINUE
-      }
-    )
-  }
-
-  _stopWaveform () {
-    if (!this._waveformSourceId) { return }
-
-    GLib.Source.remove(this._waveformSourceId)
-    this._waveformSourceId = null
-  }
-
-  _tickWaveform () {
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const target = this._levels[i] ?? 0
-      const current = this._displayLevels[i] ?? 0
-      const delta = target - current
-
-      if (Math.abs(delta) <= WAVEFORM_SETTLE_EPSILON) {
-        this._displayLevels[i] = target
-        continue
-      }
-
-      const smoothing = delta > 0 ? WAVEFORM_ATTACK : WAVEFORM_RELEASE
-      this._displayLevels[i] = current + delta * smoothing
-    }
-
-    this._renderLevels()
-  }
-
-  _renderLevels () {
     this._barActors.forEach((bar, index) => {
-      const shaped = Math.pow(this._displayLevels[index] ?? 0, 0.45)
+      const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
       const height = Math.round(
         BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
       )
-      // Height is per-frame audio data; it is layout state, not styling.
-      // Setting it directly avoids a CSS parse per bar on every frame.
-      bar.height = height
+      bar.ease({
+        height,
+        duration: 100,
+        mode: Clutter.AnimationMode.LINEAR
+      })
     })
   }
 
@@ -423,7 +368,6 @@ export class ShellOverlayView {
 
   destroy () {
     this._spinner?.stop()
-    this._stopWaveform()
     this._onCancelRequested = null
 
     // Kill any in-flight ease before tearing down the chrome actor.
