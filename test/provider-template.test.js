@@ -11,7 +11,8 @@ class ScopedProvider extends Provider {
           { key: 'key', type: 'secret', label: 'API key', required: true }
         ],
         selectionFields: [
-          { key: 'model', type: 'string', label: 'Model', required: true },
+          { key: 'model', type: 'string', label: 'Model', required: true, inputs: ['audio'] },
+          { key: 'model', type: 'string', label: 'Model', required: true, inputs: ['text'] },
           { key: 'language', type: 'string', label: 'Language', required: true, inputs: ['audio'] },
           { key: 'style', type: 'string', label: 'Style', required: true, inputs: ['text'] }
         ],
@@ -77,7 +78,7 @@ test('required selection fields are scoped to the resolved input', () => {
   )
 })
 
-test('unresolved input does not report unrelated scoped fields', () => {
+test('unresolved input reports universally required keys only', () => {
   const resolved = provider.resolve({
     providerValues: {},
     values: {},
