@@ -32,6 +32,12 @@
       <summary>Number of recording files to retain</summary>
     </key>
 
+    <key name="minimum-recording-duration" type="u">
+      <range min="200" max="2000"/>
+      <default>600</default>
+      <summary>Minimum recording duration in milliseconds</summary>
+    </key>
+
     <key name="restore-clipboard" type="b">
       <default>true</default>
       <summary>Restore previous clipboard text after paste</summary>

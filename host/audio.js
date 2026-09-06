@@ -18,11 +18,19 @@ export const AUDIO_QUALITY_PRESETS = {
 // Sample rate used when the stored quality value predates the setting or is
 // otherwise unknown; matches the format every existing recording uses.
 export const DEFAULT_SAMPLE_RATE = AUDIO_QUALITY_PRESETS.standard.sampleRate
+export const DEFAULT_MINIMUM_RECORDING_DURATION_MS = 600
 
 export function resolveSampleRate (settings) {
   const quality = settings.get_string?.('audio-quality') ?? 'standard'
   const preset = AUDIO_QUALITY_PRESETS[quality] ?? AUDIO_QUALITY_PRESETS.standard
   return preset.sampleRate
+}
+
+export function resolveMinimumRecordingDuration (settings) {
+  const durationMs = settings.get_uint?.('minimum-recording-duration')
+  return Number.isFinite(durationMs) && durationMs > 0
+    ? durationMs
+    : DEFAULT_MINIMUM_RECORDING_DURATION_MS
 }
 
 // Structured recorder outcomes. A recording ends for exactly one reason;
@@ -94,13 +102,22 @@ export function recordingIdForNow () {
 }
 
 export class AudioRecorder {
-  constructor (recordingsDirectory, onLevel, onError, sampleRate = DEFAULT_SAMPLE_RATE) {
+  constructor (
+    recordingsDirectory,
+    onLevel,
+    onError,
+    sampleRate = DEFAULT_SAMPLE_RATE,
+    minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS
+  ) {
     this._recordingsDirectory = recordingsDirectory
     this._onLevel = onLevel
     this._onError = onError
     this._sampleRate = sampleRate || DEFAULT_SAMPLE_RATE
+    this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0
+      ? minimumDurationMs
+      : DEFAULT_MINIMUM_RECORDING_DURATION_MS
     this._bytesPerMs = this._sampleRate * BYTES_PER_SAMPLE / 1000
-    this._minimumBytes = this._bytesPerMs * 1000
+    this._minimumBytes = this._bytesPerMs * this._minimumDurationMs
     // 100 ms of PCM16 at the chosen rate.
     this._chunkBytes = this._bytesPerMs * DEFAULT_CHUNK_MS
     this._outcome = null

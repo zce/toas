@@ -387,7 +387,25 @@ export default class ToasPreferences extends ExtensionPreferences {
       settings.set_string('audio-quality', qualityValues[qualityRow.selected] ?? 'standard')
     })
 
+    const minimumRecordingRow = new Adw.SpinRow({
+      title: 'Minimum recording',
+      subtitle: 'Ignore shorter recordings · milliseconds',
+      adjustment: new Gtk.Adjustment({
+        lower: 200,
+        upper: 2000,
+        step_increment: 100,
+        page_increment: 100,
+        value: settings.get_uint('minimum-recording-duration')
+      }),
+      digits: 0,
+      numeric: true
+    })
+    minimumRecordingRow.connect('notify::value', () => {
+      settings.set_uint('minimum-recording-duration', Math.round(minimumRecordingRow.value))
+    })
+
     localGroup.add(qualityRow)
+    localGroup.add(minimumRecordingRow)
     localGroup.add(spinRow(settings, 'history-limit', 'History entries', 1, 1000))
     localGroup.add(spinRow(settings, 'recording-limit', 'Saved recordings', 0, 1000))
 
