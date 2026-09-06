@@ -52,15 +52,20 @@ export class Provider {
       }
     }
 
-    const seen = new Set()
+    const requiredByKey = new Map()
     for (const field of this.manifest.selectionFields || []) {
-      if (!field.required || seen.has(field.key)) { continue }
-      if (field.inputs && (!input || !field.inputs.includes(input))) { continue }
-      seen.add(field.key)
-      if (!hasValue(values[field.key])) {
+      if (!field.required) { continue }
+      const fields = requiredByKey.get(field.key) ?? []
+      fields.push(field)
+      requiredByKey.set(field.key, fields)
+    }
+
+    for (const [key, fields] of requiredByKey) {
+      if (!requiredForInput(fields, input, this.manifest.support?.inputs || [])) { continue }
+      if (!hasValue(values[key])) {
         issues.push(requiredIssue(
-          `values.${field.key}`,
-          `${this.manifest.label} ${field.label.toLowerCase()} is required`
+          `values.${key}`,
+          `${this.manifest.label} ${fields[0].label.toLowerCase()} is required`
         ))
       }
     }
@@ -75,6 +80,18 @@ export class Provider {
   create () {
     throw new Error(`${this.id}.create() is not implemented`)
   }
+}
+
+function requiredForInput (fields, input, supportedInputs) {
+  if (input) {
+    return fields.some(field => !field.inputs || field.inputs.includes(input))
+  }
+
+  if (fields.some(field => !field.inputs)) { return true }
+  if (supportedInputs.length === 0) { return false }
+
+  const coveredInputs = new Set(fields.flatMap(field => field.inputs || []))
+  return supportedInputs.every(supported => coveredInputs.has(supported))
 }
 
 function hasValue (value) {
