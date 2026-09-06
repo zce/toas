@@ -6,8 +6,7 @@ import {
   ChatCompletionsProcessor,
   extractContent,
   normalizeUsage,
-  processingError,
-  refineMessages
+  processingError
 } from './chat-completions.js'
 
 const MODEL_SHAPES = {
@@ -109,15 +108,15 @@ class MimoProvider extends Provider {
     if (!secrets.key) {
       throw processingError('configuration', 'MiMo API key is required to create a processor')
     }
-    return new MimoProcessor(config, secrets.key, runtime, MODEL_SHAPES[config.model])
+    return new MimoProcessor(this, config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
 }
 
 export const mimoProvider = new MimoProvider()
 
 class MimoProcessor extends ChatCompletionsProcessor {
-  constructor (config, apiKey, runtime, shape) {
-    super('MiMo', config, apiKey, runtime)
+  constructor (provider, config, apiKey, runtime, shape) {
+    super(provider, config, apiKey, runtime)
     this._shape = shape
   }
 
@@ -139,9 +138,9 @@ class MimoProcessor extends ChatCompletionsProcessor {
       if (input.kind !== 'text') {
         throw processingError('configuration', 'This MiMo selection requires text input')
       }
-      messages = refineMessages({
+      messages = this._refineMessages({
         transcript: input.text,
-        context: context.text,
+        context,
         instructions
       })
     }

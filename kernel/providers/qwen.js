@@ -14,11 +14,27 @@ import {
 } from './chat-completions.js'
 
 const MODEL_SHAPES = {
-  'qwen-audio-3.0-asr-flash': { capabilities: audioCapabilities(), protocol: 'asr3' },
-  'fun-asr-flash-2026-06-15': { capabilities: audioCapabilities(), protocol: 'asr3' },
-  'qwen3-asr-flash-2026-02-10': { capabilities: audioCapabilities(), protocol: 'compat' },
+  'qwen-audio-3.0-asr-flash': {
+    capabilities: audioCapabilities(),
+    protocol: 'asr3',
+    contextEncoding: 'input-text'
+  },
+  'fun-asr-flash-2026-06-15': {
+    capabilities: audioCapabilities(),
+    protocol: 'asr3',
+    contextEncoding: 'input-text'
+  },
+  'qwen3-asr-flash-2026-02-10': {
+    capabilities: audioCapabilities(),
+    protocol: 'compat',
+    contextEncoding: 'system-text'
+  },
   // Kept for configurations saved before the versioned id existed.
-  'qwen3-asr-flash': { capabilities: audioCapabilities(), protocol: 'multimodal' }
+  'qwen3-asr-flash': {
+    capabilities: audioCapabilities(),
+    protocol: 'multimodal',
+    contextEncoding: 'system-parts'
+  }
 }
 
 const ENDPOINTS = {
@@ -104,7 +120,7 @@ class QwenProvider extends Provider {
     if (!secrets.key) {
       throw processingError('configuration', 'Qwen API key is required to create a processor')
     }
-    return new QwenProcessor(config, secrets.key, runtime, MODEL_SHAPES[config.model])
+    return new QwenProcessor(this, config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
 }
 
@@ -115,7 +131,8 @@ function audioCapabilities () {
 }
 
 class QwenProcessor {
-  constructor (config, apiKey, runtime, shape) {
+  constructor (provider, config, apiKey, runtime, shape) {
+    this._provider = provider
     this._config = config
     this._apiKey = apiKey
     this._runtime = runtime
@@ -127,20 +144,18 @@ class QwenProcessor {
       throw processingError('configuration', 'Qwen processing requires audio input')
     }
 
-    const contextText = context.text?.trim() || null
     const audioDataUri = `data:${input.mimeType};base64,${input.base64}`
     const protocol = this._shape.protocol
+    const messages = []
+    const contextMessage = qwenContextMessage(
+      this._shape.contextEncoding,
+      this._provider.contextText(context)
+    )
+    if (contextMessage) { messages.push(contextMessage) }
+    messages.push(qwenAudioMessage(protocol, audioDataUri))
 
     let response
     if (protocol === 'compat') {
-      const messages = []
-      if (contextText) {
-        messages.push({ role: 'system', content: contextText })
-      }
-      messages.push({
-        role: 'user',
-        content: [{ type: 'input_audio', input_audio: { data: audioDataUri } }]
-      })
       response = await this._send({
         model: this._config.model,
         messages,
@@ -148,20 +163,6 @@ class QwenProcessor {
         asr_options: { enable_itn: true }
       }, signal)
     } else {
-      const messages = []
-      if (contextText) {
-        if (protocol === 'asr3') {
-          messages.push({ role: 'user', content: [{ type: 'input_text', text: contextText }] })
-        } else {
-          messages.push({ role: 'system', content: [{ text: contextText }] })
-        }
-      }
-      messages.push({
-        role: 'user',
-        content: protocol === 'asr3'
-          ? [{ type: 'input_audio', input_audio: { data: audioDataUri } }]
-          : [{ audio: audioDataUri }]
-      })
       response = await this._send({
         model: this._config.model,
         input: { messages },
@@ -210,6 +211,31 @@ class QwenProcessor {
     }
 
     return decodeBody(response.body)
+  }
+}
+
+function qwenContextMessage (encoding, text) {
+  if (!text?.trim()) { return null }
+
+  if (encoding === 'input-text') {
+    return { role: 'user', content: [{ type: 'input_text', text }] }
+  }
+  if (encoding === 'system-text') {
+    return { role: 'system', content: text }
+  }
+  if (encoding === 'system-parts') {
+    return { role: 'system', content: [{ text }] }
+  }
+
+  throw processingError('configuration', `Unsupported Qwen context encoding: ${String(encoding)}`)
+}
+
+function qwenAudioMessage (protocol, audioDataUri) {
+  return {
+    role: 'user',
+    content: protocol === 'multimodal'
+      ? [{ audio: audioDataUri }]
+      : [{ type: 'input_audio', input_audio: { data: audioDataUri } }]
   }
 }
 

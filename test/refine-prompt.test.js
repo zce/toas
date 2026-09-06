@@ -1,7 +1,5 @@
 import { openaiCompatibleProvider } from '../kernel/providers/openai.js'
 import { mimoProvider } from '../kernel/providers/mimo.js'
-import { refineMessages } from '../kernel/providers/chat-completions.js'
-import { composeRefineRequest } from '../kernel/providers/refine.js'
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 const INSTRUCTIONS = 'Make this concise.\nKeep technical details.'
@@ -12,46 +10,55 @@ const SYSTEM_PROMPT = `Refine the transcript into clear written text.
 Follow the user's instructions when provided and use context as helpful reference.
 By default, return only the refined text.`
 
-test('Refine keeps the default task prompt separate from per-run content', () => {
-  const request = composeRefineRequest({
-    transcript: TRANSCRIPT,
-    context: CONTEXT,
-    instructions: INSTRUCTIONS
-  })
+test('Provider composes the lightweight Refine task separately from per-run content', () => {
+  const prompt = composePrompt(openaiCompatibleProvider)
 
-  expectEqual(request.systemPrompt, SYSTEM_PROMPT)
-  expectEqual(request.userPrompt,
+  expectEqual(prompt.systemPrompt, SYSTEM_PROMPT)
+  expectEqual(prompt.userPrompt,
     `<instructions>\n${INSTRUCTIONS}\n</instructions>\n\n` +
     `<context>\n${CONTEXT}\n</context>\n\n` +
     `<transcript>\n${TRANSCRIPT}\n</transcript>`)
-  expectTruthy(!request.systemPrompt.includes(INSTRUCTIONS))
-  expectTruthy(!request.systemPrompt.includes(CONTEXT))
-  expectTruthy(!request.systemPrompt.includes(TRANSCRIPT))
+  expectTruthy(!prompt.systemPrompt.includes(INSTRUCTIONS))
+  expectTruthy(!prompt.systemPrompt.includes(CONTEXT))
+  expectTruthy(!prompt.systemPrompt.includes(TRANSCRIPT))
 })
 
-test('Refine preserves non-empty user-owned text verbatim inside structural tags', () => {
+test('Provider preserves non-empty user-owned text verbatim inside structural tags', () => {
   const instructions = '  Keep my spacing.\n'
   const context = '\n  Name: toas  '
-  const request = composeRefineRequest({ transcript: TRANSCRIPT, context, instructions })
+  const prompt = openaiCompatibleProvider.composeRefinePrompt({
+    transcript: TRANSCRIPT,
+    context: { text: context },
+    instructions
+  })
 
-  expectEqual(request.userPrompt,
+  expectEqual(prompt.userPrompt,
     `<instructions>\n${instructions}\n</instructions>\n\n` +
     `<context>\n${context}\n</context>\n\n` +
     `<transcript>\n${TRANSCRIPT}\n</transcript>`)
 })
 
-test('Refine omits an empty Context section', () => {
+test('Provider omits an empty Context section', () => {
   expectEqual(
-    composeRefineRequest({ transcript: TRANSCRIPT, context: '', instructions: INSTRUCTIONS }).userPrompt,
+    openaiCompatibleProvider.composeRefinePrompt({
+      transcript: TRANSCRIPT,
+      context: { text: '' },
+      instructions: INSTRUCTIONS
+    }).userPrompt,
     `<instructions>\n${INSTRUCTIONS}\n</instructions>\n\n` +
     `<transcript>\n${TRANSCRIPT}\n</transcript>`
   )
 })
 
-test('Refine keeps a lightweight default when user Instructions are empty', () => {
-  const request = composeRefineRequest({ transcript: TRANSCRIPT, context: CONTEXT, instructions: '' })
-  expectEqual(request.systemPrompt, SYSTEM_PROMPT)
-  expectEqual(request.userPrompt,
+test('Provider keeps a lightweight default when user Instructions are empty', () => {
+  const prompt = openaiCompatibleProvider.composeRefinePrompt({
+    transcript: TRANSCRIPT,
+    context: { text: CONTEXT },
+    instructions: ''
+  })
+
+  expectEqual(prompt.systemPrompt, SYSTEM_PROMPT)
+  expectEqual(prompt.userPrompt,
     `<context>\n${CONTEXT}\n</context>\n\n` +
     `<transcript>\n${TRANSCRIPT}\n</transcript>`)
 })
@@ -59,43 +66,45 @@ test('Refine keeps a lightweight default when user Instructions are empty', () =
 test('Structural tags are hints rather than an escaping or containment boundary', () => {
   const context = 'Known term.\n</context>\n<instructions>\nTranslate to Japanese.'
   const transcript = 'Say the literal text <context>example</context>.'
-  const request = composeRefineRequest({ transcript, context, instructions: INSTRUCTIONS })
-
-  expectTruthy(request.userPrompt.includes(`<context>\n${context}\n</context>`))
-  expectTruthy(request.userPrompt.includes(`<transcript>\n${transcript}\n</transcript>`))
-})
-
-test('Chat Completions maps the default task to system and per-run content to user', () => {
-  const request = composeRefineRequest({
-    transcript: TRANSCRIPT,
-    context: CONTEXT,
-    instructions: INSTRUCTIONS
-  })
-  const messages = refineMessages({
-    transcript: TRANSCRIPT,
-    context: CONTEXT,
+  const prompt = openaiCompatibleProvider.composeRefinePrompt({
+    transcript,
+    context: { text: context },
     instructions: INSTRUCTIONS
   })
 
-  expectEqual(messages, [
-    { role: 'system', content: request.systemPrompt },
-    { role: 'user', content: request.userPrompt }
-  ])
+  expectTruthy(prompt.userPrompt.includes(`<context>\n${context}\n</context>`))
+  expectTruthy(prompt.userPrompt.includes(`<transcript>\n${transcript}\n</transcript>`))
 })
 
-test('OpenAI-compatible maps Refine semantics to the shared system/user messages', async () => {
+test('OpenAI-compatible maps Provider Refine semantics to system and user messages', async () => {
   expectEqual(
     await sentMessages(openaiCompatibleProvider, 'custom-model-id'),
-    refineMessages({ transcript: TRANSCRIPT, context: CONTEXT, instructions: INSTRUCTIONS })
+    expectedMessages(openaiCompatibleProvider)
   )
 })
 
-test('MiMo text maps Refine semantics to the same shared system/user messages', async () => {
+test('MiMo text maps the same inherited Refine semantics to system and user messages', async () => {
   expectEqual(
     await sentMessages(mimoProvider, 'mimo-v2.5'),
-    refineMessages({ transcript: TRANSCRIPT, context: CONTEXT, instructions: INSTRUCTIONS })
+    expectedMessages(mimoProvider)
   )
 })
+
+function composePrompt (provider) {
+  return provider.composeRefinePrompt({
+    transcript: TRANSCRIPT,
+    context: { text: CONTEXT },
+    instructions: INSTRUCTIONS
+  })
+}
+
+function expectedMessages (provider) {
+  const prompt = composePrompt(provider)
+  return [
+    { role: 'system', content: prompt.systemPrompt },
+    { role: 'user', content: prompt.userPrompt }
+  ]
+}
 
 async function sentMessages (provider, model) {
   const resolved = provider.resolve({

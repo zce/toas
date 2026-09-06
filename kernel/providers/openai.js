@@ -6,8 +6,7 @@ import {
   ChatCompletionsProcessor,
   extractContent,
   normalizeUsage,
-  processingError,
-  refineMessages
+  processingError
 } from './chat-completions.js'
 
 class OpenAICompatibleProvider extends Provider {
@@ -56,7 +55,7 @@ class OpenAICompatibleProvider extends Provider {
     if (!secrets.key) {
       throw processingError('configuration', `${this.manifest.label} API key is required to create a processor`)
     }
-    return new OpenAICompatibleProcessor(this.manifest.label, config, secrets.key, runtime)
+    return new OpenAICompatibleProcessor(this, config, secrets.key, runtime)
   }
 }
 
@@ -88,9 +87,9 @@ class OpenAICompatibleProcessor extends ChatCompletionsProcessor {
 
     const data = await this._send({
       model: this._config.model,
-      messages: refineMessages({
+      messages: this._refineMessages({
         transcript: input.text,
-        context: context.text,
+        context,
         instructions
       }),
       stream: false

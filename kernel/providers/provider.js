@@ -1,3 +1,7 @@
+const REFINE_SYSTEM_PROMPT = `Refine the transcript into clear written text.
+Follow the user's instructions when provided and use context as helpful reference.
+By default, return only the refined text.`
+
 export class Provider {
   constructor ({ id, manifest }) {
     this.id = id
@@ -73,6 +77,26 @@ export class Provider {
     return issues
   }
 
+  // Context is one toas-level reference-text contract. Providers decide only
+  // how that reference text maps to a documented native protocol capability.
+  contextText (context) {
+    return typeof context?.text === 'string' ? context.text : ''
+  }
+
+  composeRefinePrompt ({ transcript, context = { text: '' }, instructions = '' }) {
+    const sections = []
+    const contextText = this.contextText(context)
+
+    if (instructions?.trim()) { sections.push(taggedSection('instructions', instructions)) }
+    if (contextText.trim()) { sections.push(taggedSection('context', contextText)) }
+    sections.push(taggedSection('transcript', transcript))
+
+    return {
+      systemPrompt: REFINE_SYSTEM_PROMPT,
+      userPrompt: sections.join('\n\n')
+    }
+  }
+
   resolveSelection () {
     throw new Error(`${this.id}.resolveSelection() is not implemented`)
   }
@@ -80,6 +104,10 @@ export class Provider {
   create () {
     throw new Error(`${this.id}.create() is not implemented`)
   }
+}
+
+function taggedSection (name, content) {
+  return `<${name}>\n${content}\n</${name}>`
 }
 
 function requiredForInput (fields, input, supportedInputs) {

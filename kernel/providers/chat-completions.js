@@ -3,7 +3,6 @@
 // This module must not import GNOME/GI libraries.
 
 import { cancelledError, processingError } from '../error.js'
-import { composeRefineRequest } from './refine.js'
 
 export { cancelledError, processingError } from '../error.js'
 
@@ -11,11 +10,20 @@ const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
 export class ChatCompletionsProcessor {
-  constructor (label, config, apiKey, runtime) {
-    this._label = label
+  constructor (provider, config, apiKey, runtime) {
+    this._provider = provider
+    this._label = provider.manifest.label
     this._config = config
     this._apiKey = apiKey
     this._runtime = runtime
+  }
+
+  _refineMessages ({ transcript, context, instructions }) {
+    const prompt = this._provider.composeRefinePrompt({ transcript, context, instructions })
+    return [
+      { role: 'system', content: prompt.systemPrompt },
+      { role: 'user', content: prompt.userPrompt }
+    ]
   }
 
   async _send (requestBody, signal) {
@@ -37,14 +45,6 @@ export class ChatCompletionsProcessor {
 
     return decodeBody(response.body)
   }
-}
-
-export function refineMessages ({ transcript, context, instructions }) {
-  const request = composeRefineRequest({ transcript, context, instructions })
-  return [
-    { role: 'system', content: request.systemPrompt },
-    { role: 'user', content: request.userPrompt }
-  ]
 }
 
 export function encodeBody (value) {
