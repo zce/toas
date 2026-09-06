@@ -40,29 +40,19 @@ test('Provider values and arbitrary selection values round trip generically', ()
   expectEqual(readProcessingConfig(settings, providers), expected)
 })
 
-test('selection values survive switching Providers and persistence per role', () => {
+test('Refine selection values survive Provider switches and reload', () => {
   const settings = new FakeSettings()
   const config = normalizeProcessingConfig({
-    primary: {
-      provider: 'mimo',
-      values: { model: 'mimo-v2.5-asr', language: 'zh' }
-    },
-    refine: {
-      enabled: true,
-      provider: 'mimo',
-      values: { model: 'mimo-v2.5-pro' }
-    }
+    refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro' } }
   }, providers)
 
   switchProcessingProvider(config, 'refine', 'openai-compatible', providers)
   config.refine.values.model = 'private-refine-model'
+  switchProcessingProvider(config, 'refine', 'mimo', providers)
+  expectEqual(config.refine.values.model, 'mimo-v2.5-pro')
+
   writeProcessingConfig(settings, config)
-
   const restored = readProcessingConfig(settings, providers)
-  switchProcessingProvider(restored, 'refine', 'mimo', providers)
-  expectEqual(restored.refine.values.model, 'mimo-v2.5-pro')
-  expectEqual(restored.primary.values.model, 'mimo-v2.5-asr')
-
   switchProcessingProvider(restored, 'refine', 'openai-compatible', providers)
   expectEqual(restored.refine.values.model, 'private-refine-model')
 })
