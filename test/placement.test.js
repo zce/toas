@@ -26,4 +26,15 @@ test('overlay position includes the monitor origin', () => {
   )
 })
 
+test('monitor-bottom placement stays centered on the selected monitor', () => {
+  const monitor = selectMonitor([primary, secondary], primary, 1)
+  const width = 240
+  const height = 8
+  const position = calculateOverlayPosition(monitor, width, height, 0)
+
+  expectEqual(position, { x: 3080, y: 1312 })
+  expectEqual(position.x + width / 2, monitor.x + monitor.width / 2)
+  expectEqual(position.y + height, monitor.y + monitor.height)
+})
+
 await run()

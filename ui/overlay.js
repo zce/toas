@@ -127,6 +127,12 @@ export class ShellOverlayView {
     this._compositingHeld = false
     this._monitorIndex = null
 
+    this._glow = new St.Widget({
+      style_class: 'toas-overlay-glow',
+      reactive: false,
+      visible: false
+    })
+
     this._actor = new St.BoxLayout({
       style_class: 'toas-overlay',
       reactive: false,
@@ -194,8 +200,9 @@ export class ShellOverlayView {
     this._actor.add_child(this._status)
     this._actor.add_child(this._closeButton)
 
-    // This is transient system feedback, so keep it above application windows.
-    // Do not use trackFullscreen: tracked actors are hidden in fullscreen.
+    // The glow is decorative only, so keep it outside chrome tracking.
+    // Add it first so the interactive capsule is always painted above it.
+    Main.layoutManager.uiGroup.add_child(this._glow)
     Main.layoutManager.addTopChrome(this._actor)
 
     this._monitorsChangedId = Main.layoutManager.connect(
@@ -230,8 +237,10 @@ export class ShellOverlayView {
 
     if (error) {
       this._actor.add_style_class_name('toas-error')
+      this._glow.add_style_class_name('toas-error')
     } else {
       this._actor.remove_style_class_name('toas-error')
+      this._glow.remove_style_class_name('toas-error')
     }
   }
 
@@ -249,9 +258,9 @@ export class ShellOverlayView {
   setPrivate (enabled) {
     this._private = Boolean(enabled)
     if (this._private) {
-      this._actor.add_style_class_name('toas-private')
+      this._glow.add_style_class_name('toas-private')
     } else {
-      this._actor.remove_style_class_name('toas-private')
+      this._glow.remove_style_class_name('toas-private')
     }
     this._privateIcon.visible = this._privateIcon.visible && this._private
   }
@@ -276,31 +285,41 @@ export class ShellOverlayView {
     this._reposition()
     // A new recording can start while the previous hide animation is still
     // running. Stop it so the stale onStopped callback cannot hide this run.
+    this._glow.remove_all_transitions()
     this._actor.remove_all_transitions()
     this._acquireCompositing()
 
     if (this._actor.visible) {
+      this._glow.show()
+      this._glow.opacity = 255
       this._actor.opacity = 255
       return
     }
 
-    this._actor.show()
-    // Keep stage changes steady; only the first appearance fades in.
-    this._actor.opacity = 0
-    this._actor.ease({
-      opacity: 255,
-      duration: 150,
-      mode: Clutter.AnimationMode.EASE_OUT_QUAD
-    })
+    for (const actor of [this._glow, this._actor]) {
+      actor.show()
+      actor.opacity = 0
+      actor.ease({
+        opacity: 255,
+        duration: 150,
+        mode: Clutter.AnimationMode.EASE_OUT_QUAD
+      })
+    }
   }
 
   hide () {
     this._closeButton.visible = false
     if (!this._actor.visible) {
+      this._glow.hide()
       this._releaseCompositing()
       return
     }
 
+    this._glow.ease({
+      opacity: 0,
+      duration: 150,
+      mode: Clutter.AnimationMode.EASE_OUT_QUAD
+    })
     this._actor.ease({
       opacity: 0,
       duration: 150,
@@ -308,6 +327,7 @@ export class ShellOverlayView {
       onStopped: () => {
         // Only hide if nothing re-showed during the transition.
         if (this._actor && this._actor.opacity === 0) {
+          this._glow?.hide()
           this._actor.hide()
           this._releaseCompositing()
         }
@@ -339,7 +359,17 @@ export class ShellOverlayView {
       Main.layoutManager.primaryMonitor,
       this._monitorIndex
     )
-    if (!monitor || !this._actor) { return }
+    if (!monitor || !this._actor || !this._glow) { return }
+
+    const [, glowWidth] = this._glow.get_preferred_width(-1)
+    const [, glowHeight] = this._glow.get_preferred_height(glowWidth)
+    const glowPosition = calculateOverlayPosition(
+      monitor,
+      glowWidth,
+      glowHeight,
+      0
+    )
+    this._glow.set_position(glowPosition.x, glowPosition.y)
 
     const [, width] = this._actor.get_preferred_width(-1)
     const [, height] = this._actor.get_preferred_height(width)
@@ -370,7 +400,8 @@ export class ShellOverlayView {
     this._spinner?.stop()
     this._onCancelRequested = null
 
-    // Kill any in-flight ease before tearing down the chrome actor.
+    // Kill any in-flight ease before tearing down the overlay actors.
+    this._glow?.remove_all_transitions()
     this._actor?.remove_all_transitions()
     this._releaseCompositing()
 
@@ -380,7 +411,9 @@ export class ShellOverlayView {
       Main.layoutManager.removeChrome(this._actor)
       this._actor.destroy()
     }
+    this._glow?.destroy()
 
+    this._glow = null
     this._actor = null
     this._icon = null
     this._spinner = null
