@@ -2,9 +2,11 @@
 // Wire shapes stay inside Provider modules; nothing here leaks to the Kernel domain.
 // This module must not import GNOME/GI libraries.
 
-import { cancelledError, processingError } from '../error.js'
-
-export { cancelledError, processingError } from '../error.js'
+import {
+  cancelledError,
+  processingError,
+  serviceErrorFromHttpStatus
+} from '../error.js'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -40,25 +42,14 @@ export class ChatCompletionsProcessor {
     if (signal?.aborted) { throw cancelledError() }
 
     if (response.status < 200 || response.status >= 300) {
-      throw serviceErrorFromStatus(response.status, response.body, this._label)
+      throw serviceErrorFromHttpStatus(
+        response.status,
+        this._label,
+        chatCompletionsErrorDetail(response.body)
+      )
     }
 
     return decodeBody(response.body)
-  }
-}
-
-export function encodeBody (value) {
-  return encoder.encode(JSON.stringify(value))
-}
-
-export function decodeBody (bytes) {
-  if (!bytes || bytes.length === 0) {
-    throw processingError('invalid-response', 'The service returned an empty body')
-  }
-  try {
-    return JSON.parse(decoder.decode(bytes))
-  } catch {
-    throw processingError('invalid-response', 'The service returned invalid JSON')
   }
 }
 
@@ -74,11 +65,11 @@ export function extractContent (data) {
   return ''
 }
 
-export function normalizeUsage (usage, { inputKey = 'prompt_tokens', outputKey = 'completion_tokens' } = {}) {
+export function normalizeUsage (usage) {
   if (!usage) { return null }
   return {
-    inputTokens: usage[inputKey] ?? null,
-    outputTokens: usage[outputKey] ?? null,
+    inputTokens: usage.prompt_tokens ?? null,
+    outputTokens: usage.completion_tokens ?? null,
     totalTokens: usage.total_tokens ?? null
   }
 }
@@ -89,33 +80,25 @@ export function normalizeChatCompletionsUrl (endpoint) {
   return `${base}/chat/completions`
 }
 
-export function serviceErrorFromStatus (status, bodyBytes, label) {
-  let detail = ''
+function encodeBody (value) {
+  return encoder.encode(JSON.stringify(value))
+}
+
+function decodeBody (bytes) {
+  if (!bytes || bytes.length === 0) {
+    throw processingError('invalid-response', 'The service returned an empty body')
+  }
   try {
-    const parsed = JSON.parse(decoder.decode(bodyBytes))
-    detail = parsed?.error?.message ?? ''
+    return JSON.parse(decoder.decode(bytes))
   } catch {
-    // Body stays private; the category and label are enough for the user.
+    throw processingError('invalid-response', 'The service returned invalid JSON')
   }
-  if (detail.length > 200) { detail = detail.slice(0, 200) }
+}
 
-  let category = 'service'
-  let message = `${label} service error (HTTP ${status})`
-
-  if (status === 401 || status === 403) {
-    category = 'authentication'
-    message = `${label} rejected the API key (HTTP ${status})`
-  } else if (status === 404) {
-    category = 'not-found'
-    message = `${label} endpoint or model not found (HTTP 404)`
-  } else if (status === 429) {
-    category = 'rate-limited'
-    message = `${label} rate limit exceeded (HTTP 429)`
-  } else if (status >= 500) {
-    category = 'service'
-    message = `${label} service unavailable (HTTP ${status})`
+function chatCompletionsErrorDetail (bodyBytes) {
+  try {
+    return JSON.parse(decoder.decode(bodyBytes))?.error?.message ?? ''
+  } catch {
+    return ''
   }
-
-  if (detail) { message = `${message}: ${detail}` }
-  return processingError(category, message, status)
 }
