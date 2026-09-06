@@ -54,7 +54,7 @@ export class ToasOrchestrator {
     if (this._state !== 'idle') { return }
 
     const run = {
-      createdAt: new Date().toISOString(),
+      time: new Date().toISOString(),
       private: Boolean(this._settings?.get_boolean?.('private-mode')),
       recorder: null,
       recording: null,
@@ -163,18 +163,18 @@ export class ToasOrchestrator {
     if (result.warning?.type === 'refine-failed') {
       this._notifier.notify(
         delivery?.mode === 'copied'
-          ? 'Copied the primary result'
-          : 'Inserted the primary result',
-        'Refine failed, so the unrefined primary text was used.'
+          ? 'Copied the transcription'
+          : 'Inserted the transcription',
+        'Refine failed, so the original transcription was used.'
       )
     }
 
     this._transition('idle')
   }
 
-  // Retry is deliberately a different workflow: it borrows retained audio,
-  // processes it with the current config, and appends an attempt. It never
-  // records, owns/deletes source audio, or delivers text to another app.
+  // Retry borrows retained audio, processes it with the current config, and
+  // appends another attempt. It never records, owns/deletes source audio, or
+  // delivers text to another app.
   async retry (originalEntry) {
     if (this._state !== 'idle') { return null }
 
@@ -182,14 +182,14 @@ export class ToasOrchestrator {
     if (!audio.available || !audio.path) { return null }
 
     const run = {
-      createdAt: new Date().toISOString(),
+      time: new Date().toISOString(),
       recording: {
         id: originalEntry.id,
         path: audio.path,
         mimeType: 'audio/wav',
-        sampleRate: originalEntry.sampleRate ?? DEFAULT_SAMPLE_RATE,
+        sampleRate: originalEntry.audio?.sampleRate ?? DEFAULT_SAMPLE_RATE,
         channels: 1,
-        durationMs: originalEntry.durationMs ?? 0
+        durationMs: originalEntry.audio?.durationMs ?? 0
       },
       ownsRecording: false,
       result: null
@@ -330,20 +330,35 @@ export class ToasOrchestrator {
 
   _historyEntry (run, status, error = null) {
     const result = run.result || {}
-    return {
+    const trace = result.trace ?? error?.trace ?? []
+    const transcribeTrace = trace.find(item => item.role === 'primary' || item.role === 'transcribe')
+    const refineTrace = trace.find(item => item.role === 'refine')
+    const entry = {
       id: GLib.uuid_string_random(),
-      createdAt: run.createdAt,
-      durationMs: run.recording?.durationMs ?? 0,
-      status,
-      audio: run.ownsRecording && run.recording
-        ? `recordings/${GLib.path_get_basename(run.recording.path)}`
-        : null,
-      sampleRate: run.recording?.sampleRate ?? null,
-      text: result.text || null,
-      trace: result.trace || [],
-      ...(result.warning ? { warning: result.warning } : {}),
-      ...(error ? { error } : {})
+      time: run.time,
+      status
     }
+
+    if (run.ownsRecording && run.recording) {
+      entry.audio = {
+        file: GLib.path_get_basename(run.recording.path),
+        durationMs: run.recording.durationMs ?? 0,
+        sampleRate: run.recording.sampleRate ?? DEFAULT_SAMPLE_RATE
+      }
+    }
+    if (typeof result.text === 'string' && result.text) { entry.text = result.text }
+
+    if (transcribeTrace) {
+      entry.transcribe = historyStep(transcribeTrace)
+      if (!entry.transcribe.text && !refineTrace && entry.text) {
+        entry.transcribe.text = entry.text
+      }
+    } else if (error) {
+      entry.transcribe = { error: historyError(error) }
+    }
+
+    if (refineTrace) { entry.refine = historyStep(refineTrace) }
+    return entry
   }
 
   _presentError (presentation) {
@@ -396,6 +411,32 @@ function failureFrom (error, stage) {
   return {
     stage,
     message: error?.message ?? String(error),
-    ...(error?.category ? { category: error.category } : {})
+    ...(error?.category ? { category: error.category } : {}),
+    ...(error?.trace ? { trace: error.trace } : {})
+  }
+}
+
+function historyStep (trace) {
+  const step = {}
+  if (trace.provider) { step.provider = trace.provider }
+  if (trace.model) { step.model = trace.model }
+  if (trace.text) { step.text = trace.text }
+  if (Number.isFinite(trace.elapsedMs)) { step.latencyMs = Math.round(trace.elapsedMs) }
+  if (trace.usage) { step.usage = trace.usage }
+  if (trace.requestId) { step.requestId = trace.requestId }
+  if (trace.responseId) { step.responseId = trace.responseId }
+  if (trace.status === 'error' || trace.error) {
+    step.error = historyError({
+      category: trace.errorCategory,
+      message: trace.error ?? 'Processing failed'
+    })
+  }
+  return step
+}
+
+function historyError (error) {
+  return {
+    ...(error?.category ? { code: error.category } : {}),
+    message: error?.message ?? String(error)
   }
 }

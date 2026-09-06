@@ -276,7 +276,7 @@ was captured.
 Recent voice inputs are listed directly in the top-bar menu. Each row has a copy action;
 failed voice inputs also offer retry while their recording is still retained.
 
-Retry reprocesses the stored recording and appends the attempt to history without pasting.
+Retry reprocesses the stored recording and appends a linked attempt without pasting.
 
 The **Private mode** switch above the list suspends retention for new voice inputs.
 Existing history stays visible and `Clear History` keeps working while it is on.
@@ -292,7 +292,8 @@ ${XDG_STATE_HOME:-~/.local/state}/toas/
 `History entries` defaults to 30 and limits saved voice inputs. Retry attempts stay attached
 to their original voice input and do not consume additional history slots. `Saved recordings`
 defaults to 20 and limits retained WAV files. Set `Saved recordings` to 0 to keep text history
-without retaining completed audio. History entries can outlive their audio reference.
+without retaining completed audio. Recording duration and sample-rate metadata remain even
+when the WAV file is no longer retained.
 
 The top-bar `Clear History` action asks for confirmation and is disabled while recording.
 
@@ -305,14 +306,15 @@ Voice processing runs through a small runtime-agnostic kernel with pluggable pro
 
 A voice input resolves to an ephemeral plan of one or two physical steps:
 
-1. primary audio-to-text processing
+1. audio-to-text transcription
 2. an optional separate text Refine step
 
 Each provider owns its protocol mapping. The GNOME host owns HTTP execution, persistence,
 recording, and output.
 
-History stores the final text plus a per-call trace of the steps that actually ran — never
-raw HTTP bodies or credentials.
+History stores the final text together with structured `audio`, `transcribe`, and optional
+`refine` details. Processing stages retain their own text, provider/model, latency, available
+usage, and request/response IDs — never raw HTTP bodies or credentials.
 
 ### Qwen transcription
 

@@ -16,109 +16,93 @@ test('duration formatting', () => {
   expectEqual(formatDuration(null), '0s')
 })
 
-test('preview truncates on output first, falls back to transcript', () => {
-  expectEqual(previewText({ output: 'final text', transcript: 'raw' }), 'final text')
-  expectEqual(previewText({ output: null, transcript: 'raw only' }), 'raw only')
+test('preview uses final history text only', () => {
+  expectEqual(previewText({ text: 'final text' }), 'final text')
   expectEqual(previewText({}), '(no text)')
 
   const long = 'x'.repeat(100)
-  const preview = previewText({ output: long })
+  const preview = previewText({ text: long })
   expectEqual(preview.length, 60)
   expectEqual(preview.endsWith('…'), true)
 })
 
 test('whitespace is collapsed for previews', () => {
-  expectEqual(previewText({ output: 'line one\nline two\ttab' }), 'line one line two tab')
+  expectEqual(previewText({ text: 'line one\nline two\ttab' }), 'line one line two tab')
 })
 
-test('failed preview shows stable failure context instead of raw detail', () => {
+test('failed preview shows stable stage error context instead of raw detail', () => {
   expectEqual(previewText({
     status: 'error',
-    error: { category: 'no-text', stage: 'processing', message: 'No speech was recognized' }
+    transcribe: { error: { code: 'no-text', message: 'No speech was recognized' } }
   }), 'No speech detected')
 
   const provider = previewText({
     status: 'error',
-    error: {
-      category: 'service',
-      stage: 'processing',
-      message: 'Provider HTTP 500: raw response detail'
+    transcribe: {
+      error: { code: 'service', message: 'Provider HTTP 500: raw response detail' }
     }
   })
   expectEqual(provider, 'Provider error')
   expectEqual(provider.includes('500'), false)
 })
 
-test('retry success replaces visible failure state and clears the old error', () => {
+test('retry success replaces processing result while preserving root audio metadata', () => {
   const original = {
     id: 'original',
+    time: '2026-01-01',
     status: 'error',
-    text: null,
-    error: { category: 'no-text', stage: 'processing', message: 'No speech was recognized' }
+    audio: { file: 'original.wav', durationMs: 3000, sampleRate: 16000 },
+    transcribe: { error: { code: 'no-text', message: 'No speech was recognized' } }
   }
-  const projected = projectLatestAttempt(original, [{
+  const projected = projectLatestAttempt(original, {
+    id: 'retry',
+    retryOf: 'original',
+    time: '2026-01-02',
     status: 'ok',
     text: 'recovered text',
-    attemptNumber: 1
-  }])
+    transcribe: { provider: 'qwen', model: 'asr', text: 'recovered text' }
+  })
 
   expectEqual(projected.status, 'ok')
   expectEqual(projected.text, 'recovered text')
-  expectEqual(projected.error, null)
-  expectEqual(projected.attemptNumber, 1)
+  expectEqual(projected.transcribe.text, 'recovered text')
+  expectEqual(projected.audio.file, 'original.wav')
   expectEqual(previewText(projected), 'recovered text')
 })
 
-test('retry failure clears stale visible text', () => {
+test('retry failure clears stale visible text and uses latest stage error', () => {
   const original = {
     id: 'original',
     status: 'error',
     text: 'stale text from an earlier visible state',
-    error: { category: 'no-text', stage: 'processing', message: 'No speech was recognized' }
+    transcribe: { error: { code: 'no-text', message: 'No speech was recognized' } }
   }
-  const projected = projectLatestAttempt(original, [{
+  const projected = projectLatestAttempt(original, {
     status: 'error',
-    text: null,
-    error: { category: 'network', stage: 'processing', message: 'DNS detail' },
-    attemptNumber: 1
-  }])
+    transcribe: { error: { code: 'network', message: 'DNS detail' } }
+  })
 
   expectEqual(projected.status, 'error')
-  expectEqual(projected.text, null)
+  expectEqual(Object.hasOwn(projected, 'text'), false)
   expectEqual(previewText(projected), 'Connection problem')
 })
 
-test('retry failure uses the latest attempt error instead of the original error', () => {
+test('latest retry can replace a prior refine stage with transcribe-only processing', () => {
   const original = {
     id: 'original',
-    status: 'error',
-    text: null,
-    error: { category: 'no-text', stage: 'processing', message: 'No speech was recognized' }
+    status: 'ok',
+    text: 'refined',
+    transcribe: { text: 'raw' },
+    refine: { text: 'refined' }
   }
-  const latestError = {
-    category: 'network',
-    stage: 'processing',
-    message: 'DNS detail that should not be shown'
-  }
-  const projected = projectLatestAttempt(original, [
-    {
-      status: 'error',
-      text: null,
-      error: { category: 'service', stage: 'processing', message: 'older retry detail' },
-      attemptNumber: 1
-    },
-    {
-      status: 'error',
-      text: null,
-      error: latestError,
-      attemptNumber: 2
-    }
-  ])
+  const projected = projectLatestAttempt(original, {
+    status: 'ok',
+    text: 'new raw',
+    transcribe: { text: 'new raw' }
+  })
 
-  expectEqual(projected.status, 'error')
-  expectEqual(projected.error, latestError)
-  expectEqual(projected.attemptNumber, 2)
-  expectEqual(previewText(projected), 'Connection problem')
+  expectEqual(projected.text, 'new raw')
+  expectEqual(Object.hasOwn(projected, 'refine'), false)
 })
 
 await run()

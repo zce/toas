@@ -114,9 +114,79 @@ test('normal live voice input records, processes, persists, and delivers once', 
   expectEqual(history.appends.length, 1)
   expectEqual(history.appends[0].status, 'ok')
   expectEqual(history.appends[0].text, 'hello')
+  expectEqual(history.appends[0].audio.file, 'rec-1.wav')
+  expectEqual(history.appends[0].transcribe.text, 'hello')
   expectEqual(history.discarded, [])
   expectEqual(overlay.resets, 1)
   expectEqual(state.events.filter(event => event.state === 'idle').length, 1)
+  orchestrator.destroy()
+})
+
+test('history separates audio, transcription, refine, usage, and tracing fields', async () => {
+  const recording = {
+    id: 'rec-structure',
+    path: '/tmp/rec-structure.wav',
+    durationMs: 4050,
+    mimeType: 'audio/wav',
+    sampleRate: 8000
+  }
+  const trace = [
+    {
+      role: 'primary',
+      provider: 'doubao',
+      model: 'volc.bigasr.auc_turbo',
+      status: 'ok',
+      elapsedMs: 509.4,
+      usage: null,
+      requestId: 'doubao-request',
+      responseId: null,
+      text: 'raw transcript'
+    },
+    {
+      role: 'refine',
+      provider: 'openai-compatible',
+      model: 'nvidia/Gemma-4-31B-IT-NVFP4',
+      status: 'ok',
+      elapsedMs: 606.4,
+      usage: { inputTokens: 473, outputTokens: 4, totalTokens: 477 },
+      requestId: null,
+      responseId: 'refine-response',
+      text: 'refined text'
+    }
+  ]
+  const { orchestrator, history } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    kernel: new FakeKernel({ text: 'refined text', trace })
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  const entry = history.appends[0]
+  expectTruthy(entry.time)
+  expectEqual(entry.audio, {
+    file: 'rec-structure.wav',
+    durationMs: 4050,
+    sampleRate: 8000
+  })
+  expectEqual(entry.transcribe, {
+    provider: 'doubao',
+    model: 'volc.bigasr.auc_turbo',
+    text: 'raw transcript',
+    latencyMs: 509,
+    requestId: 'doubao-request'
+  })
+  expectEqual(entry.refine, {
+    provider: 'openai-compatible',
+    model: 'nvidia/Gemma-4-31B-IT-NVFP4',
+    text: 'refined text',
+    latencyMs: 606,
+    usage: { inputTokens: 473, outputTokens: 4, totalTokens: 477 },
+    responseId: 'refine-response'
+  })
+  expectEqual(Object.hasOwn(entry, 'trace'), false)
+  expectEqual(Object.hasOwn(entry, 'warning'), false)
+  expectEqual(Object.hasOwn(entry, 'createdAt'), false)
   orchestrator.destroy()
 })
 
@@ -228,8 +298,8 @@ test('processing failure persists raw diagnostics but presents category guidance
   }])
   expectEqual(history.appends.length, 1)
   expectEqual(history.appends[0].status, 'error')
-  expectEqual(history.appends[0].error.category, 'authentication')
-  expectEqual(history.appends[0].error.message.includes('401'), true)
+  expectEqual(history.appends[0].transcribe.error.code, 'authentication')
+  expectEqual(history.appends[0].transcribe.error.message.includes('401'), true)
   orchestrator.destroy()
 })
 
@@ -265,7 +335,7 @@ test('refine fallback remains a successful delivery with a soft warning', async 
   await orchestrator.end()
 
   expectEqual(history.appends[0].status, 'ok')
-  expectEqual(notifier.notifications[0].title, 'Inserted the primary result')
+  expectEqual(notifier.notifications[0].title, 'Inserted the transcription')
   orchestrator.destroy()
 })
 
