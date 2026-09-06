@@ -1,4 +1,5 @@
 /* toas Shell-side styles (St CSS, loaded by GNOME Shell).
+
    The Preferences window is a separate GTK4 process and cannot load this
    file — its styles live in prefs.css. */
 
@@ -6,15 +7,32 @@
 
 .toas-overlay {
   spacing: 8px;
-  padding: 8px 14px;
-  border: 1px solid rgba(100, 100, 100, 0.08);
+  padding: 8px;
+
+  /*
+   * Keep a transparent border in the normal state so Private mode can
+   * highlight the same geometry without changing the overlay size.
+   */
+  border: 1px solid transparent;
   border-radius: 999px;
+
   background-color: rgba(24, 24, 28, 0.88);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.16);
+
   color: white;
 }
 
+/*
+ * The microphone occupies the same 20px side slot as the close button.
+ *
+ * With an 8px overlay inset:
+ *   8px inset + 10px slot radius = 18px
+ *
+ * This aligns its center with the center of the overlay's rounded end.
+ */
 .toas-icon {
+  width: 20px;
+  height: 20px;
   icon-size: 16px;
   opacity: 0.9;
 }
@@ -33,55 +51,67 @@
   height: 20px;
 }
 
-/* Bar height is dynamic (per-audio-frame data) and set directly on the
-   actor; CSS owns everything static about the bars. */
+/* Bar height is dynamic; CSS owns the static appearance. */
 .toas-bar {
   width: 4px;
   border-radius: 999px;
   background-color: -st-accent-color;
 }
 
-/* Compact ghost close button; only reactive element on the overlay. */
+/*
+ * The close button uses the same 20px geometry as the microphone slot.
+ * Its circular background is therefore concentric with the overlay end cap.
+ */
 .toas-close-button {
-  min-width: 16px;
-  min-height: 16px;
-  padding: 1px;
+  min-width: 20px;
+  min-height: 20px;
+  width: 20px;
+  height: 20px;
+
+  padding: 0;
+  border: none;
   border-radius: 999px;
-  color: rgba(255, 255, 255, 0.75);
+
+  color: rgba(255, 255, 255, 0.58);
   background-color: rgba(255, 255, 255, 0.06);
 }
 
-.toas-close-button:hover {
+.toas-close-button:hover,
+.toas-close-button:focus {
   color: white;
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(255, 255, 255, 0.12);
 }
 
 .toas-close-icon {
   icon-size: 10px;
 }
 
+
 /* --- Panel indicator (ui/indicator.js) -------------------------------------- */
 
-/* Smooth state-icon transitions while recording toggles. */
 .toas-status-icon {
   transition: color 150ms ease-in-out;
   margin: 0;
   padding: 0;
 }
 
-/* Recording keeps its dedicated red state while using the Shell foreground
-   token for icon contrast. */
+/*
+ * Recording is an explicit semantic state rather than a theme accent.
+ * Keep a conventional recording red so the state is immediately obvious.
+ */
 .toas-recording {
   border: 3px solid transparent;
   border-radius: 999px;
-  color: -st-accent-fg-color;
-  box-shadow: inset 0 0 0 100px #af2325;
+
+  color: white;
+  background-color: #e01b24;
 }
 
 .toas-recording:hover,
 .toas-recording:focus {
-  box-shadow: inset 0 0 0 100px st-lighten(#af2325, 8%);
+  background-color: st-lighten(#e01b24, 8%);
 }
+
 
 /* --- History menu (ui/indicator.js) ----------------------------------------- */
 
@@ -116,21 +146,24 @@
   margin-right: 8px;
 }
 
+
 /* --- Private mode ------------------------------------------------------------ */
 
-/* Private mode dims the panel icon so the zero-retention state stays visible
-   without competing with the recording indicator. Scoped to the panel button
-   so the same class on the overlay cannot dim the whole overlay. */
+/*
+ * Private mode dims the panel icon without competing with the stronger
+ * recording state.
+ */
 .toas-status-icon.toas-private,
 .panel-button.toas-private {
   opacity: 0.8;
 }
 
-/* A private voice input decorates the overlay itself: accent border plus a
-   shield beside the microphone. No text label. St CSS reliably supports a
-   single box-shadow value, so the inset ring replaces the usual drop shadow. */
+/*
+ * Keep the normal overlay elevation and use the system accent only for the
+ * privacy decoration. The transparent base border prevents layout movement.
+ */
 .toas-overlay.toas-private {
-  box-shadow: inset 0 0 5px st-transparentize(-st-accent-color, 0.4);
+  border-color: st-transparentize(-st-accent-color, 0.55);
 }
 
 .toas-private-icon {
