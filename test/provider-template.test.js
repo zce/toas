@@ -77,4 +77,17 @@ test('required selection fields are scoped to the resolved input', () => {
   )
 })
 
+test('unresolved input does not report unrelated scoped fields', () => {
+  const resolved = provider.resolve({
+    providerValues: {},
+    values: {},
+    secretPresence
+  })
+
+  expectEqual(
+    resolved.issues.map(issue => issue.path),
+    ['values.model']
+  )
+})
+
 await run()
