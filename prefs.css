@@ -42,8 +42,6 @@
   margin: 8px 12px 0;
 }
 
-/* Configuration failures stay visible at the top of the Preferences page.
-   Use libadwaita semantic colors so warning/error feedback follows the theme. */
 .toas-config-banner.warning {
   background-color: var(--warning-bg-color);
   color: var(--warning-fg-color);
