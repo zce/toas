@@ -7,8 +7,4 @@ export class ShellNotifier {
   notify (title, body = '') {
     Main.notify(title, body)
   }
-
-  cancel () {
-    // GNOME notifications are transient and need no explicit cancellation.
-  }
 }

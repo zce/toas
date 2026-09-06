@@ -1,19 +1,10 @@
 // Runtime-agnostic processing kernel.
-//
-// Contract (ADR 0001, spec #22 with review amendments):
-// - One primary audio-to-text Step, optionally followed by one separate
-//   Refine text-to-text Step, or one integrated primary Step carrying
-//   Refine Instructions.
-// - Config is validated and Providers are resolved before any I/O.
-// - Context is attempt input: the Host supplies one immutable free-text
-//   snapshot and a Processor receives it only if its capabilities allow.
-// - Result carries final text, one Trace entry per physical Processor call,
-//   and a nullable warning. Cancellation never degrades into a fallback or a
-//   user-facing Provider failure.
+// A plan is one primary audio-to-text Step plus optional Refine, either as a
+// separate text Step or integrated into the primary call. Config and Providers
+// resolve before I/O, and cancellation never degrades into a fallback result.
 
-// `providers` is optional: the Host passes its registry (identical to the
-// static one) so tests and future Hosts can exercise the Kernel without
-// monkey-patching module state.
+// Providers can be injected so tests exercise the same resolution path without
+// mutating the static registry.
 export async function process ({ config, audio, context, secrets, runtime, signal, providers: injectedProviders = null }) {
   if (signal?.aborted) {
     throw processingError('cancelled', 'Processing was cancelled')
@@ -94,8 +85,6 @@ function validateConfigShape (config) {
   }
 }
 
-// --- Primary-only -----------------------------------------------------------
-
 async function runPrimary ({ primary, primaryTrace, audio, context, runtime, signal }) {
   assertNotCancelled(signal)
 
@@ -115,8 +104,6 @@ async function runPrimary ({ primary, primaryTrace, audio, context, runtime, sig
   return { text: result.text, trace: [primaryTrace], warning: null }
 }
 
-// --- Integrated Refine: exactly one Processor call --------------------------
-
 async function runIntegrated ({ primary, primaryTrace, refineConfig, audio, context, runtime, signal }) {
   // The capability check happens before any Processor call: an unsupported
   // integrated configuration must fail without contacting the Provider.
@@ -129,7 +116,6 @@ async function runIntegrated ({ primary, primaryTrace, refineConfig, audio, cont
 
   assertNotCancelled(signal)
 
-  // No Refine Processor is created and no second call is made.
   primaryTrace.input = 'audio+instructions'
   primaryTrace.integratedRefine = true
 
@@ -148,8 +134,6 @@ async function runIntegrated ({ primary, primaryTrace, refineConfig, audio, cont
 
   return { text: result.text, trace: [primaryTrace], warning: null }
 }
-
-// --- Separate Refine: primary Step then Refine Step --------------------------
 
 async function runSeparate ({ primary, primaryTrace, refineConfig, audio, context, secrets, runtime, signal, providers, providerValues }) {
   const primaryResult = await runPrimary({ primary, primaryTrace, audio, context, runtime, signal })
@@ -214,8 +198,6 @@ async function runSeparate ({ primary, primaryTrace, refineConfig, audio, contex
     }
   }
 }
-
-// --- Resolution -------------------------------------------------------------
 
 // Prepares the manifest-derived halves of a Provider.resolve() input:
 // Provider values with defaults applied, and secret presence. Exported so
@@ -299,8 +281,7 @@ function resolveProviderValues (overrides, fields) {
   return values
 }
 
-// Presence is a flat map of secret field key -> boolean; Kernel and Providers
-// agree on this single shape (spec #22 section 5).
+// Providers resolve against a flat secret field key -> presence map.
 function buildSecretPresence (fields, providerId, secrets) {
   const presence = {}
 
@@ -332,8 +313,6 @@ export function secretKey (providerId, fieldKey) {
   return `providers/${providerId}/${fieldKey}`
 }
 
-// --- Context ----------------------------------------------------------------
-
 // Capability filtering: a Processor receives the Context text only when its
 // resolved selection supports it; otherwise the Processor sees empty Context.
 export function filterContext (context, capabilities) {
@@ -362,8 +341,6 @@ export function normalizeContext (context) {
 
   return { text: value.trim() }
 }
-
-// --- Trace ------------------------------------------------------------------
 
 function traceFor ({ resolved, providerId, context }) {
   return {
@@ -402,8 +379,6 @@ function failedTrace (trace, err, elapsedMs) {
     error: safeMessage(err)
   }
 }
-
-// --- Errors -----------------------------------------------------------------
 
 export function processingError (category, message, status = null) {
   const err = new Error(message)

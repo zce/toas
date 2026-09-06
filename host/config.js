@@ -83,9 +83,6 @@ function selectionValues (stored, provider, input) {
   }
 }
 
-// Discovery order for Providers statically supporting one input kind (and
-// Instructions when asked): the candidate lists Preferences and defaults
-// are chosen from.
 export function providerIdsFor (providerRegistry, input, instructions = false) {
   return [...providerRegistry]
     .filter(([, provider]) => {
@@ -116,18 +113,9 @@ function isObject (value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-// Host-side snapshot of the persisted processing configuration, secrets,
-// and Context for one processing attempt.
-//
-// GSettings shape (unreleased — no migration):
-// - processing-config: generic JSON product Config and Provider value maps
-// - provider-secrets: map keyed "providers/<provider-id>/<field-key>"
-// - context: Host-owned free-text Context (not part of Config)
-//
-// Value precedence for secrets: stored value, then Provider-declared
-// environment fallback, then missing. Environment is read only for
-// names declared by the registered Provider Manifests.
-
+// Host-side snapshot of processing configuration, secrets, and Context for one
+// attempt. Secret precedence is stored value, then Provider-declared
+// environment fallback; Context remains a Host-owned setting.
 export class ConfigService {
   constructor ({ settings, providers }) {
     this._settings = settings
@@ -152,8 +140,7 @@ export class ConfigService {
     return config
   }
 
-  // Resolves the effective secret map for the attempt: stored values, then
-  // Manifest-declared environment fallbacks. Secret values never enter Config.
+  // Secret values never enter Config.
   snapshotSecrets () {
     const secrets = {}
     const stored = this._settings.get_value('provider-secrets')?.deep_unpack() ?? {}
@@ -183,18 +170,13 @@ export class ConfigService {
     return secrets
   }
 
-  // The Context is Host-owned free text (a Host setting, not part of
-  // Config): the user decides what belongs in it — terms, background,
-  // names, any bias text. It is passed to the Kernel verbatim.
   snapshotContext () {
     const text = String(this._settings.get_string?.('context') ?? '').trim()
     return { text }
   }
 
-  // True when the primary role is configured and a credential exists. Used
-  // by the first-run guard so an attempt never fails only after speaking.
-  // Goes through the same resolve pipeline as an attempt so readiness and
-  // capability truth never diverge.
+  // Readiness goes through the same resolution path as an attempt so the
+  // first-run guard cannot diverge from executable configuration.
   primaryReady () {
     const secrets = this.snapshotSecrets()
     const config = this.snapshotConfig()
@@ -220,23 +202,10 @@ export class ConfigService {
   }
 }
 
-// Connection check for the Preferences UI. Runs the real registered Provider
-// through the same resolution pipeline the Kernel uses (resolveStep), then
-// one Processor.process call with a harmless input. No probe endpoint, no
-// duplicated payload code, no history or output side effects.
-//
-// Both roles call their own Processor directly — the test is Provider-level
-// diagnostics, not a pipeline test. The Kernel seam stays primary-first; a
-// text-only refine probe must never route through it.
-//
-// Inputs are verified live:
-// - primary: 0.25 s of silence. The ASR services answer silent audio with
-//   no-text (a 200 with empty text, or 400 ASR_RESPONSE_HAVE_NO_WORDS which
-//   the Qwen Provider normalizes); either way the round trip, the key, the
-//   model, and the response shape all proved themselves.
-// - refine: the fixed text 'Reply with OK.' with the configured instructions
-//   exercised verbatim, exactly as a real refine step would receive them.
-
+// Connection checks resolve the real Provider and make one harmless
+// Processor call without history or output side effects. Primary uses a short
+// silent WAV; no-text is a valid round-trip result. Refine sends fixed text
+// through its configured instructions.
 export async function runConnectionTest ({ configService, providers, role }) {
   if (role !== 'primary' && role !== 'refine') {
     throw processingError('configuration', `Unknown connection test role: ${String(role)}`)
@@ -278,8 +247,8 @@ export async function runConnectionTest ({ configService, providers, role }) {
         signal: null
       })
     } catch (error) {
-      // Silent audio legitimately produces no text; the round trip itself
-      // is what the test proves.
+      // Silent audio legitimately produces no text; the round trip itself is
+      // what the test proves.
       if (error.category === 'no-text') { return }
       throw error
     }

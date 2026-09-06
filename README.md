@@ -313,8 +313,6 @@ recording, and output.
 History stores the final text plus a per-call trace of the steps that actually ran — never
 raw HTTP bodies or credentials.
 
-See `docs/adr/0001-processing-kernel.md`.
-
 ### Qwen transcription
 
 Qwen exposes an explicit set of verified audio model/protocol mappings.

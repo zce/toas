@@ -21,13 +21,8 @@ export class ToasOverlayPresenter {
     this._private = false
   }
 
-  // Wire-through so the composition root does not need the raw view.
   setOnCancelRequested (handler) {
     this._view.setOnCancelRequested?.(handler)
-  }
-
-  get view () {
-    return this._view
   }
 
   setMonitor (monitorIndex) {
@@ -39,10 +34,8 @@ export class ToasOverlayPresenter {
     if (this._private === next) { return }
 
     this._private = next
-    // The view decorates the overlay through its own style class and shield
-    // icon. The flag rides the run snapshot, not the live switch: the
-    // orchestrator sets it per run so a mid-run switch never decorates a
-    // non-private run.
+    // The flag is the run snapshot, not the live switch, so changing Private
+    // mode mid-run cannot decorate a non-private run.
     this._view.setPrivate?.(next)
   }
 
@@ -53,7 +46,6 @@ export class ToasOverlayPresenter {
     if (state === 'idle') {
       // Keep whatever is on screen so the fade-out stays continuous: tearing
       // children down first would flash an empty pill or a lone spinner.
-      // hideOnStop removes the spinner as part of the same transition.
       this._view.stopSpinner()
       this._view.hide()
       return
@@ -64,8 +56,6 @@ export class ToasOverlayPresenter {
     const label = STATE_LABELS[state] ?? ''
 
     this._view.render(state, error ? (message || 'Voice input failed') : label)
-    // Errors carry their message in the label slot even though they have no
-    // STATE_LABELS entry; without the error check the pill would show empty.
     this._view.setVisible(recording, error, error || label !== '')
 
     if (!recording && !error) { this._view.startSpinner() } else { this._view.stopSpinner() }
@@ -109,9 +99,6 @@ const STATE_LABELS = {
   outputting: 'Inserting…',
   copying: 'Copying…'
 }
-
-// Shell side of the overlay: owns St/Clutter actors and GNOME Shell imports.
-// The presenter drives it through the view interface.
 
 const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
@@ -178,8 +165,6 @@ export class ShellOverlayView {
       this._onCancelRequested?.()
     })
 
-    // Same shield icon language as the top-bar menu switch; shown while a
-    // private recording runs.
     this._privateIcon = new St.Icon({
       style_class: 'toas-private-icon',
       icon_name: 'security-medium-symbolic',
@@ -212,8 +197,6 @@ export class ShellOverlayView {
   }
 
   render (state, message = '') {
-    // Copy only; visibility and spinner are owned by the presenter via
-    // setVisible/startSpinner so the two layers cannot drift.
     const error = state === 'error'
     this._status.text = error ? truncate(message || 'Voice input failed') : message
   }
@@ -222,8 +205,6 @@ export class ShellOverlayView {
     this._icon.visible = recording
     this._bars.visible = recording
     this._status.visible = statusVisible
-    // The private shield rides along with the microphone; it exists only
-    // while private mode is on, so visibility alone can never leak the hint.
     this._privateIcon.visible = recording && this._private
     // The close action is available during recording and processing, but not
     // for a terminal error state (it self-dismisses).
@@ -248,7 +229,6 @@ export class ShellOverlayView {
     } else {
       this._actor.remove_style_class_name('toas-private')
     }
-    // Re-evaluate the shield visibility for a live recording.
     this._privateIcon.visible = this._privateIcon.visible && this._private
   }
 
