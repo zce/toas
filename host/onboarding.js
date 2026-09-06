@@ -23,7 +23,7 @@ export class OnboardingManager {
 
     if (primaryReady) {
       this._notifier.notify(
-        'toas voice input is ready',
+        'Toas voice input is ready',
         'Hold the shortcut (default Ctrl+Shift+Space) or left-click the top-bar ' +
               'microphone to record; right-click for the menu. Audio is sent to ' +
               'your configured transcription service, and your words are kept ' +
@@ -31,7 +31,7 @@ export class OnboardingManager {
       )
     } else {
       this._notifier.notify(
-        'toas is installed',
+        'Toas is installed',
         'Add your provider API key in Preferences before recording. Once configured, ' +
               'audio is sent to your transcription service, and your words are kept ' +
               'locally (clear anytime from the menu).'
@@ -46,7 +46,7 @@ export class OnboardingManager {
     if (primaryReady) { return false }
 
     this._notifier.notify(
-      'toas is not configured yet',
+      'Toas is not configured yet',
       'Add your provider API key in Preferences before recording.'
     )
     this._onOpenPreferences?.()
