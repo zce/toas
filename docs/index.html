@@ -1,272 +1,320 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#0d110e">
-    <meta name="description" content="Push-to-talk voice input for GNOME. Hold a shortcut, speak, release, and keep moving.">
-    <link rel="canonical" href="https://toas.cc/">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://toas.cc/">
-    <meta property="og:title" content="toas — Talk Once, Act Smart">
-    <meta property="og:description" content="Push-to-talk voice input for GNOME. Hold a shortcut, speak, release, and keep moving.">
-    <meta property="og:site_name" content="toas">
-    <meta name="twitter:card" content="summary">
-    <title>toas — Talk Once, Act Smart</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="script.js" defer></script>
-  </head>
-  <body>
-    <a class="skip-link" href="#main">Skip to content</a>
 
-    <header class="site-header">
-      <div class="shell nav">
-        <a class="brand" href="#top" aria-label="toas home">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 32 32">
-              <path d="M16 5v14M10 13.5v4a6 6 0 0 0 12 0v-4M7 17.5a9 9 0 0 0 18 0M16 26v2" />
-            </svg>
-          </span>
-          <span class="brand-name">toas</span>
-          <span class="brand-note">talk once · act smart</span>
-        </a>
-        <nav aria-label="Main navigation">
-          <a href="#how">How it works</a>
-          <a href="#setup">Setup</a>
-          <a href="#privacy">Privacy</a>
-          <a href="#install">Install</a>
-          <a href="https://github.com/zce/toas" target="_blank" rel="noreferrer">GitHub ↗</a>
-        </nav>
-      </div>
-    </header>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d110e">
+  <meta name="description"
+    content="Push-to-talk voice input for GNOME. Hold a shortcut, speak, release, and keep moving.">
+  <link rel="canonical" href="https://toas.cc/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://toas.cc/">
+  <meta property="og:title" content="toas — Talk Once, Act Smart">
+  <meta property="og:description"
+    content="Push-to-talk voice input for GNOME. Hold a shortcut, speak, release, and keep moving.">
+  <meta property="og:site_name" content="toas">
+  <meta name="twitter:card" content="summary">
+  <title>toas — Talk Once, Act Smart</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
 
-    <main id="main">
-      <section class="hero" id="top">
-        <div class="hero-glow" aria-hidden="true"></div>
-        <div class="shell hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow"><span></span> Voice input for GNOME</p>
-            <h1>Talk once.<br><em>Keep moving.</em></h1>
-            <p class="lede">Speak naturally. Get clean text without leaving your flow.</p>
-            <div class="hero-actions">
-              <a class="button primary" href="#install">Install toas</a>
-              <a class="button secondary" href="#demo">Watch the demo ↓</a>
-            </div>
-            <div class="compat" aria-label="Compatibility">
-              <span>Fedora</span><span>GNOME 49 / 50</span><span>Wayland</span><span>PipeWire</span>
-            </div>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="shell nav">
+      <a class="brand" href="#top" aria-label="toas home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <path d="M16 5v14M10 13.5v4a6 6 0 0 0 12 0v-4M7 17.5a9 9 0 0 0 18 0M16 26v2" />
+          </svg>
+        </span>
+        <span class="brand-name">toas</span>
+        <span class="brand-note">talk once · act smart</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#how">How it works</a>
+        <a href="#setup">Setup</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/zce/toas" target="_blank" rel="noreferrer">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="shell hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> Voice input for GNOME</p>
+          <h1>Talk once.<br><em>Keep moving.</em></h1>
+          <p class="lede">Speak naturally. Get clean text without leaving your flow.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#install">Install toas</a>
+            <a class="button secondary" href="#demo">Watch the demo ↓</a>
           </div>
-
-          <div class="hero-product" aria-label="Illustration of toas transcribing into an editor" role="img">
-            <div class="hero-live-label"><span></span> live on your desktop</div>
-            <div class="product-window">
-              <div class="product-topbar">
-                <span>09:41</span>
-                <strong>Workbench</strong>
-                <span class="topbar-icons">● ▮▮</span>
-              </div>
-              <div class="product-body">
-                <aside>
-                  <strong>notes</strong>
-                  <i class="active"></i><i></i><i></i><i class="short"></i>
-                </aside>
-                <div class="editor">
-                  <div class="editor-tab"><span></span> release-notes.md</div>
-                  <div class="editor-lines">
-                    <p><small>01</small><b># Next release</b></p>
-                    <p><small>02</small>&nbsp;</p>
-                    <p><small>03</small>- keep the workflow small</p>
-                    <p><small>04</small>- make provider setup obvious</p>
-                    <p class="typing"><small>05</small>ship the simplest thing that works<span></span></p>
-                  </div>
-                </div>
-              </div>
-              <div class="voice-overlay">
-                <div class="mic-ring">
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.25a2.5 2.5 0 0 0-2.5 2.5v3.5a2.5 2.5 0 0 0 5 0v-3.5A2.5 2.5 0 0 0 10 3.25ZM5 9.25a5 5 0 0 0 10 0M10 14.25v2.5M7 16.75h6" /></svg>
-                </div>
-                <div class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-                <div class="overlay-copy"><small>toas</small><strong>Listening…</strong></div>
-              </div>
-            </div>
-            <div class="shortcut"><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Space</kbd></div>
+          <div class="compat" aria-label="Compatibility">
+            <span>Fedora</span><span>GNOME 49 / 50</span><span>Wayland</span><span>PipeWire</span>
           </div>
         </div>
-      </section>
 
-      <section class="demo" id="demo" aria-labelledby="demo-title">
-        <div class="shell narrow">
-          <div class="section-heading centered">
-            <p class="kicker">The whole idea</p>
-            <h2 id="demo-title">Speak where you type.</h2>
-            <p>One shortcut, one small overlay, and then you are back where you started.</p>
+        <div class="hero-product" aria-label="Illustration of toas transcribing into an editor" role="img">
+          <div class="hero-live-label"><span></span> live on your desktop</div>
+          <div class="product-window">
+            <div class="product-topbar">
+              <span>09:41</span>
+              <strong>Workbench</strong>
+              <span class="topbar-icons">● ▮▮</span>
+            </div>
+            <div class="product-body">
+              <aside>
+                <strong>notes</strong>
+                <i class="active"></i><i></i><i></i><i class="short"></i>
+              </aside>
+              <div class="editor">
+                <div class="editor-tab"><span></span> release-notes.md</div>
+                <div class="editor-lines">
+                  <p><small>01</small><b># Next release</b></p>
+                  <p><small>02</small>&nbsp;</p>
+                  <p><small>03</small>- keep the workflow small</p>
+                  <p><small>04</small>- make provider setup obvious</p>
+                  <p class="typing"><small>05</small>ship the simplest thing that works<span></span></p>
+                </div>
+              </div>
+            </div>
+            <div class="voice-overlay">
+              <div class="mic-ring">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path
+                    d="M10 3.25a2.5 2.5 0 0 0-2.5 2.5v3.5a2.5 2.5 0 0 0 5 0v-3.5A2.5 2.5 0 0 0 10 3.25ZM5 9.25a5 5 0 0 0 10 0M10 14.25v2.5M7 16.75h6" />
+                </svg>
+              </div>
+              <div class="wave" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <div class="overlay-copy"><small>toas</small><strong>Listening…</strong></div>
+            </div>
           </div>
+          <div class="shortcut"><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Space</kbd></div>
+        </div>
+      </div>
+    </section>
 
-          <div class="demo-frame" data-demo-frame>
-            <video class="demo-video" controls preload="metadata" playsinline data-demo-video>
-              <source src="assets/toas.mp4" type="video/mp4">
-              Your browser does not support the video element.
-            </video>
+    <section class="demo" id="demo" aria-labelledby="demo-title">
+      <div class="shell narrow">
+        <div class="section-heading centered">
+          <p class="kicker">The whole idea</p>
+          <h2 id="demo-title">Speak where you type.</h2>
+          <p>One shortcut, one small overlay, and then you are back where you started.</p>
+        </div>
 
-            <button class="demo-cover" type="button" data-demo-cover aria-label="Play toas demo video">
-              <span class="placeholder-orbit placeholder-orbit-left" aria-hidden="true"></span>
-              <span class="placeholder-orbit placeholder-orbit-right" aria-hidden="true"></span>
-              <span class="placeholder-content">
-                <span class="play-button" aria-hidden="true">
-                  <svg viewBox="0 0 24 24"><path d="m9 6 9 6-9 6V6Z" fill="currentColor"/></svg>
-                </span>
-                <span class="placeholder-label">Demo recording</span>
-                <strong>Your desktop, uninterrupted.</strong>
-                <span class="placeholder-copy">See the shortcut, the live overlay, and the moment clean text appears in the focused app.</span>
-                <span class="placeholder-note">Play demo <span aria-hidden="true">→</span></span>
+        <div class="demo-frame" data-demo-frame>
+          <video class="demo-video" controls preload="metadata" playsinline data-demo-video>
+            <source src="assets/toas.mp4" type="video/mp4">
+            Your browser does not support the video element.
+          </video>
+
+          <button class="demo-cover" type="button" data-demo-cover aria-label="Play toas demo video">
+            <span class="placeholder-orbit placeholder-orbit-left" aria-hidden="true"></span>
+            <span class="placeholder-orbit placeholder-orbit-right" aria-hidden="true"></span>
+            <span class="placeholder-content">
+              <span class="play-button" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="m9 6 9 6-9 6V6Z" fill="currentColor" />
+                </svg>
               </span>
-              <span class="placeholder-corner placeholder-corner-tl">READY / 00:00</span>
-              <span class="placeholder-corner placeholder-corner-br">TOAS / DEMO</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="how">
-        <div class="shell">
-          <div class="section-heading split">
-            <div>
-              <p class="kicker">How it works</p>
-              <h2>Hold. Speak. Release.</h2>
-            </div>
-            <p>toas stays quiet until you ask for it. No extra window, no context switching, no local model runtime to keep alive.</p>
-          </div>
-
-          <div class="steps">
-            <article>
-              <span class="number">01</span>
-              <h3>Record</h3>
-              <p>Hold <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> and speak. Release the modifiers when you are done.</p>
-            </article>
-            <article>
-              <span class="number">02</span>
-              <h3>Process</h3>
-              <p>Your completed recording goes to the transcription provider you chose. Refine can optionally clean up the result.</p>
-            </article>
-            <article>
-              <span class="number">03</span>
-              <h3>Insert</h3>
-              <p>The result returns to the focused app. If the target changes while processing, the text stays safely on your clipboard.</p>
-            </article>
-          </div>
-
-          <p class="flow" aria-label="Processing flow"><span>record</span><b>→</b><span>transcribe</span><b>→</b><span>optional refine</span><b>→</b><span>insert</span></p>
-        </div>
-      </section>
-
-      <section class="section setup" id="setup">
-        <div class="shell setup-layout">
-          <div class="setup-copy">
-            <p class="kicker">Your setup</p>
-            <h2>Choose the stack that fits you.</h2>
-            <p class="body-copy">
-              Everything important lives in GNOME Preferences. Pick a transcription provider,
-              add its API key, optionally enable Refine, and add useful Context when the provider supports it.
-            </p>
-
-            <div class="provider-summary">
-              <div>
-                <small>Transcription</small>
-                <strong>Qwen <em>recommended</em></strong>
-                <span>Doubao · MiMo</span>
-              </div>
-              <div>
-                <small>Optional Refine</small>
-                <strong>MiMo</strong>
-                <span>OpenAI · OpenAI-compatible</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="preferences-card" role="img" aria-label="Illustration of the current toas preferences">
-            <div class="preferences-titlebar">
-              <span class="window-mark"><i></i><i></i><i></i></span>
-              <strong>toas Preferences</strong>
-              <span></span>
-            </div>
-            <div class="preferences-content">
-              <div class="pref-group">
-                <div class="pref-heading"><strong>Voice Input</strong><small>Hold the shortcut to record, then release to process.</small></div>
-                <div class="pref-row"><span>Shortcut</span><b class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Space</kbd></b></div>
-                <div class="pref-row"><span>Insert automatically</span><i class="toggle"><b></b></i></div>
-              </div>
-
-              <div class="pref-group">
-                <div class="pref-heading"><strong>Processing</strong><small>Audio is sent to the selected provider after recording.</small></div>
-                <div class="pref-row"><span>Transcription provider</span><b>Qwen <i class="chevron">⌄</i></b></div>
-                <div class="pref-row"><span>Model</span><b>fun-asr-flash-2026-06-15 <i class="chevron">⌄</i></b></div>
-                <div class="pref-row"><span>Test connection</span><b class="status"><i></i> Ready</b></div>
-                <div class="pref-row refine-row"><span><b>Refine</b><small>Improve the transcript with additional instructions.</small></span><i class="toggle"><b></b></i></div>
-              </div>
-
-              <div class="pref-group context-group">
-                <div class="pref-heading"><strong>Context</strong><small>Names, terms, and background sent to providers that support context.</small></div>
-                <div class="context-box">GNOME, Wayland, GJS, OpenCode, GitHub…</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section privacy" id="privacy">
-        <div class="shell">
-          <div class="section-heading split">
-            <div>
-              <p class="kicker">Privacy</p>
-              <h2>Small local layer.<br>Clear cloud boundary.</h2>
-            </div>
-            <p>toas does not hide what leaves your machine. The local behavior is controlled by the extension; provider-side handling follows the service you choose.</p>
-          </div>
-
-          <div class="privacy-points">
-            <article>
-              <span>01</span>
-              <h3>No background listening</h3>
-              <p>Audio is captured only while you explicitly record and uploaded only after you stop.</p>
-            </article>
-            <article>
-              <span>02</span>
-              <h3>Your provider, its policy</h3>
-              <p>Completed audio goes to your transcription provider. Optional Refine sends transcript text to its configured provider.</p>
-            </article>
-            <article>
-              <span>03</span>
-              <h3>Local history, your control</h3>
-              <p>History and retained recordings stay local. Private mode disables retention for new voice inputs until you turn it off.</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="install" id="install">
-        <div class="shell install-layout">
-          <div>
-            <p class="kicker">Install</p>
-            <h2>Give your hands the shortcut.</h2>
-            <p>Install the extension, open Preferences, choose a transcription provider, and add its API key.</p>
-          </div>
-          <div class="command-card">
-            <div class="command-label"><span><i></i> shell / command</span><span>Fedora + GNOME 49 / 50</span></div>
-            <pre><code>curl -fsSL https://toas.cc/install.sh | bash</code></pre>
-            <p>Requires <code>curl</code>, <code>tar</code>, Wayland, PipeWire, and <code>pw-record</code>.</p>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer>
-      <div class="shell footer-inner">
-        <div><strong>toas</strong><span>Talk Once, Act Smart.</span></div>
-        <div class="footer-links">
-          <a href="https://github.com/zce/toas" target="_blank" rel="noreferrer">GitHub ↗</a>
-          <a href="https://github.com/zce/toas/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT License</a>
+              <span class="placeholder-label">Demo recording</span>
+              <strong>Your desktop, uninterrupted.</strong>
+              <span class="placeholder-copy">See the shortcut, the live overlay, and the moment clean text appears in
+                the focused app.</span>
+              <span class="placeholder-note">Play demo <span aria-hidden="true">→</span></span>
+            </span>
+            <span class="placeholder-corner placeholder-corner-tl">READY / 00:00</span>
+            <span class="placeholder-corner placeholder-corner-br">TOAS / DEMO</span>
+          </button>
         </div>
       </div>
-    </footer>
-  </body>
+    </section>
+
+    <section class="section" id="how">
+      <div class="shell">
+        <div class="section-heading split">
+          <div>
+            <p class="kicker">How it works</p>
+            <h2>Hold. Speak. Release.</h2>
+          </div>
+          <p>toas stays quiet until you ask for it. No extra window, no context switching, no local model runtime to
+            keep alive.</p>
+        </div>
+
+        <div class="steps">
+          <article>
+            <span class="number">01</span>
+            <h3>Record</h3>
+            <p>Hold <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> and speak. Release the modifiers when you are
+              done.</p>
+          </article>
+          <article>
+            <span class="number">02</span>
+            <h3>Process</h3>
+            <p>Your completed recording goes to the transcription provider you chose. Refine can optionally clean up the
+              result.</p>
+          </article>
+          <article>
+            <span class="number">03</span>
+            <h3>Insert</h3>
+            <p>The result returns to the focused app. If the target changes while processing, the text stays safely on
+              your clipboard.</p>
+          </article>
+        </div>
+
+        <p class="flow" aria-label="Processing flow">
+          <span>record</span><b>→</b><span>transcribe</span><b>→</b><span>optional
+            refine</span><b>→</b><span>insert</span></p>
+      </div>
+    </section>
+
+    <section class="section setup" id="setup">
+      <div class="shell setup-layout">
+        <div class="setup-copy">
+          <p class="kicker">Your setup</p>
+          <h2>Choose the stack that fits you.</h2>
+          <p class="body-copy">
+            Everything important lives in GNOME Preferences. Pick a transcription provider,
+            add its API key, optionally enable Refine, and add useful Context when the provider supports it.
+          </p>
+
+          <div class="provider-summary">
+            <div>
+              <small>Transcription</small>
+              <strong>Qwen <em>recommended</em></strong>
+              <span>Doubao · MiMo</span>
+            </div>
+            <div>
+              <small>Optional Refine</small>
+              <strong>MiMo</strong>
+              <span>OpenAI · OpenAI-compatible</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="preferences-card" role="img" aria-label="Illustration of the current toas preferences">
+          <div class="preferences-titlebar">
+            <span class="window-mark"><i></i><i></i><i></i></span>
+            <strong>toas Preferences</strong>
+            <span></span>
+          </div>
+          <div class="preferences-content">
+            <div class="pref-group">
+              <div class="pref-heading"><strong>Voice Input</strong><small>Hold the shortcut to record, then release to
+                  process.</small></div>
+              <div class="pref-row"><span>Shortcut</span><b
+                  class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Space</kbd></b></div>
+              <div class="pref-row"><span>Insert automatically</span><i class="toggle"><b></b></i></div>
+            </div>
+
+            <div class="pref-group">
+              <div class="pref-heading"><strong>Processing</strong><small>Audio is sent to the selected provider after
+                  recording.</small></div>
+              <div class="pref-row"><span>Transcription provider</span><b>Qwen <i class="chevron">⌄</i></b></div>
+              <div class="pref-row"><span>Model</span><b>fun-asr-flash-2026-06-15 <i class="chevron">⌄</i></b></div>
+              <div class="pref-row"><span>Test connection</span><b class="status"><i></i> Ready</b></div>
+              <div class="pref-row refine-row"><span><b>Refine</b><small>Improve the transcript with additional
+                    instructions.</small></span><i class="toggle"><b></b></i></div>
+            </div>
+
+            <div class="pref-group context-group">
+              <div class="pref-heading"><strong>Context</strong><small>Names, terms, and background sent to providers
+                  that support context.</small></div>
+              <div class="context-box">GNOME, Wayland, GJS, OpenCode, GitHub…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section privacy" id="privacy">
+      <div class="shell">
+        <div class="section-heading split">
+          <div>
+            <p class="kicker">Privacy</p>
+            <h2>Small local layer.<br>Clear cloud boundary.</h2>
+          </div>
+          <p>toas does not hide what leaves your machine. The local behavior is controlled by the extension;
+            provider-side handling follows the service you choose.</p>
+        </div>
+
+        <div class="privacy-points">
+          <article>
+            <span>01</span>
+            <h3>No background listening</h3>
+            <p>Audio is captured only while you explicitly record and uploaded only after you stop.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Your provider, its policy</h3>
+            <p>Completed audio goes to your transcription provider. Optional Refine sends transcript text to its
+              configured provider.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Local history, your control</h3>
+            <p>History and retained recordings stay local. Private mode disables retention for new voice inputs until
+              you turn it off.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="install" id="install">
+      <div class="shell install-layout">
+        <div>
+          <p class="kicker">Install</p>
+          <h2>Give your hands the shortcut.</h2>
+          <p>Install the extension, open Preferences, choose a transcription provider, and add its API key.</p>
+        </div>
+        <div class="command-card">
+          <div class="command-label"><span><i></i> shell / command</span><span>Fedora + GNOME 49 / 50</span></div>
+          <pre><code>curl -fsSL https://toas.cc/install.sh | bash</code></pre>
+          <p>Requires <code>curl</code>, <code>tar</code>, Wayland, PipeWire, and <code>pw-record</code>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <div><strong>toas</strong><span>Talk Once, Act Smart.</span></div>
+      <div class="footer-links">
+        <a href="https://github.com/zce/toas" target="_blank" rel="noreferrer">GitHub ↗</a>
+        <a href="https://github.com/zce/toas/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT License</a>
+      </div>
+    </div>
+  </footer>
+</body>
+
+<script>
+  const frame = document.querySelector('[data-demo-frame]')
+  const cover = frame?.querySelector('[data-demo-cover]')
+  const video = frame?.querySelector('[data-demo-video]')
+
+  if (cover && video) {
+    cover.addEventListener('click', async () => {
+      frame.classList.add('is-playing')
+      try {
+        await video.play()
+      } catch {
+        frame.classList.remove('is-playing')
+      }
+    })
+
+    video.addEventListener('ended', () => {
+      frame.classList.remove('is-playing')
+      video.currentTime = 0
+    })
+  }
+</script>
+
 </html>
