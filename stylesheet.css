@@ -3,7 +3,6 @@
    The Preferences window is a separate GTK4 process and cannot load this
    file — its styles live in prefs.css. */
 
-
 /* --- Overlay (ui/overlay.js) ------------------------------------------------- */
 
 .toas-overlay {
@@ -19,12 +18,10 @@
   color: white;
 }
 
-
 /* Error feedback has no side controls, so give the text more breathing room. */
 .toas-overlay.toas-error {
   padding: 8px 16px;
 }
-
 
 /*
  * The microphone and close control share the same 20px side geometry,
@@ -38,12 +35,10 @@
   opacity: 0.9;
 }
 
-
 /* Give the 16px Shell spinner the same effective 20px side slot. */
 .toas-spinner {
   margin: 2px;
 }
-
 
 .toas-status {
   max-width: 320px;
@@ -53,13 +48,11 @@
   opacity: 0.8;
 }
 
-
 /* Keep in sync with BAR_MAX_HEIGHT in ui/overlay.js. */
 .toas-bars {
   spacing: 3px;
   height: 20px;
 }
-
 
 .toas-bar {
   width: 4px;
@@ -67,7 +60,6 @@
   border-radius: 999px;
   background-color: -st-accent-color;
 }
-
 
 /* Compact secondary action aligned with the capsule end. */
 .toas-close-button {
@@ -85,18 +77,15 @@
   background-color: rgba(255, 255, 255, 0.06);
 }
 
-
 .toas-close-button:hover,
 .toas-close-button:focus {
   color: white;
   background-color: rgba(255, 255, 255, 0.12);
 }
 
-
 .toas-close-icon {
   icon-size: 10px;
 }
-
 
 /* --- Panel indicator (ui/indicator.js) -------------------------------------- */
 
@@ -106,7 +95,6 @@
 
   transition: color 150ms ease-in-out;
 }
-
 
 /*
  * Recording uses a conventional semantic red rather than the user's accent
@@ -120,12 +108,10 @@
   background-color: #e01b24;
 }
 
-
 .toas-recording:hover,
 .toas-recording:focus {
   background-color: st-lighten(#e01b24, 8%);
 }
-
 
 /* --- History menu (ui/indicator.js) ----------------------------------------- */
 
@@ -134,18 +120,15 @@
   max-height: 360px;
 }
 
-
 .toas-history-preview {
   font-size: 13px;
   font-weight: 500;
 }
 
-
 .toas-history-meta {
   font-size: 11px;
   opacity: 0.65;
 }
-
 
 .toas-history-action {
   min-width: 24px;
@@ -155,17 +138,14 @@
   margin-left: 4px;
 }
 
-
 .toas-history-action-icon {
   icon-size: 14px;
 }
-
 
 .toas-menu-icon {
   icon-size: 16px;
   margin-right: 8px;
 }
-
 
 /* --- Private mode ------------------------------------------------------------ */
 
@@ -173,7 +153,6 @@
 .panel-button.toas-private {
   opacity: 0.8;
 }
-
 
 /*
  * Private mode changes the atmosphere of the capsule rather than adding
@@ -185,12 +164,10 @@
   box-shadow: inset 0 0 12px st-transparentize(-st-accent-color, 0.68);
 }
 
-
 /* Terminal error feedback should not carry the Private run decoration. */
 .toas-overlay.toas-private.toas-error {
   box-shadow: 0 5px 22px rgba(0, 0, 0, 0.16);
 }
-
 
 /*
  * The shield remains a simple symbol. It deliberately has no background
