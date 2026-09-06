@@ -20,6 +20,12 @@
 }
 
 
+/* Error feedback has no side controls, so give the text more breathing room. */
+.toas-overlay.toas-error {
+  padding: 8px 16px;
+}
+
+
 /*
  * The microphone and close control share the same 20px side geometry,
  * keeping them concentric with the rounded ends of the capsule.
@@ -171,6 +177,12 @@
 .toas-overlay.toas-private {
   border-color: transparent;
   box-shadow: inset 0 0 12px st-transparentize(-st-accent-color, 0.68);
+}
+
+
+/* Terminal error feedback should not carry the Private run decoration. */
+.toas-overlay.toas-private.toas-error {
+  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.16);
 }
 
 

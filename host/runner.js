@@ -31,7 +31,7 @@ export class KernelRunner {
     return primaryReady(this._settings, this._providers)
   }
 
-  async run (recording, signal) {
+  async run (recording, signal, onStage = null) {
     const config = snapshotProcessingConfig(this._settings, this._providers)
     const secrets = snapshotProviderSecrets(this._settings, this._providers)
     const context = snapshotContext(this._settings)
@@ -47,7 +47,8 @@ export class KernelRunner {
         clock: this._clock
       },
       signal,
-      providers: this._providers
+      providers: this._providers,
+      onStage
     })
   }
 

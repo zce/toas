@@ -84,7 +84,7 @@ export class ToasOrchestrator {
     if (this._state !== 'recording') { return }
 
     const run = this._run
-    this._state = 'processing'
+    this._state = 'transcribing'
 
     let outcome
     try {
@@ -109,7 +109,7 @@ export class ToasOrchestrator {
 
     run.recording = outcome.recording
     run.ownsRecording = true
-    this._transition('processing')
+    this._transition('transcribing')
 
     if (outcome.kind === RecorderOutcomeKind.SIZE_LIMIT) {
       this._notifier.notify(
@@ -127,7 +127,7 @@ export class ToasOrchestrator {
   async _processLive (run) {
     let result
     try {
-      result = await this._process(run.recording)
+      result = await this._process(run.recording, run)
     } catch (error) {
       if (this._run !== run) { return }
       const stage = error.category === 'configuration' ? 'configuration' : 'processing'
@@ -198,10 +198,10 @@ export class ToasOrchestrator {
     this._run = run
     this._overlay.setMonitor(null)
     this._overlay.setPrivate(false)
-    this._transition('processing')
+    this._transition('transcribing')
 
     try {
-      run.result = await this._process(run.recording)
+      run.result = await this._process(run.recording, run)
       if (this._run !== run) { return null }
 
       const attempt = this._appendRetryAttempt(originalEntry, run)
@@ -214,11 +214,14 @@ export class ToasOrchestrator {
     }
   }
 
-  async _process (recording) {
+  async _process (recording, run) {
     const signal = new AttemptSignal()
     this._abortSignal = signal
     try {
-      return await this._kernel.run(recording, signal)
+      return await this._kernel.run(recording, signal, stage => {
+        if (stage !== 'refine' || signal.aborted || this._run !== run) { return }
+        this._transition('refining')
+      })
     } finally {
       if (this._abortSignal === signal) { this._abortSignal = null }
     }

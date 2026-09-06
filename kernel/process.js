@@ -7,7 +7,16 @@ import { processingError } from './error.js'
 
 export { processingError } from './error.js'
 
-export async function process ({ config, audio, context, secrets, runtime, signal, providers }) {
+export async function process ({
+  config,
+  audio,
+  context,
+  secrets,
+  runtime,
+  signal,
+  providers,
+  onStage = null
+}) {
   if (signal?.aborted) {
     throw processingError('cancelled', 'Processing was cancelled')
   }
@@ -42,7 +51,8 @@ export async function process ({ config, audio, context, secrets, runtime, signa
     runtime,
     signal,
     providers,
-    providerValues: config.providers?.[config.refine.provider] || {}
+    providerValues: config.providers?.[config.refine.provider] || {},
+    onStage
   })
 }
 
@@ -85,10 +95,13 @@ async function runRefine ({
   runtime,
   signal,
   providers,
-  providerValues
+  providerValues,
+  onStage
 }) {
   const primaryResult = await runPrimary({ primary, primaryTrace, audio, context, runtime, signal })
   assertNotCancelled(signal)
+
+  onStage?.('refine')
 
   const startedAt = runtime.clock.now()
   let refineTrace = pendingRefineTrace(refineConfig)

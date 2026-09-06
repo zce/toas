@@ -19,6 +19,7 @@ export class ToasOverlayPresenter {
     this._timer = null
     this._generation = 0
     this._private = false
+    this._mode = 'hidden'
   }
 
   setOnCancelRequested (handler) {
@@ -44,22 +45,26 @@ export class ToasOverlayPresenter {
     this._clearTimer()
 
     if (state === 'idle') {
+      if (this._mode === 'busy') { this._view.stopSpinner() }
+      this._mode = 'hidden'
       // Keep whatever is on screen so the fade-out stays continuous: tearing
       // children down first would flash an empty pill or a lone spinner.
-      this._view.stopSpinner()
       this._view.hide()
       return
     }
 
-    const recording = state === 'recording'
-    const error = state === 'error'
+    const mode = visualModeFor(state)
+    const error = mode === 'error'
     const label = STATE_LABELS[state] ?? ''
 
+    if (mode !== this._mode) {
+      if (this._mode === 'busy') { this._view.stopSpinner() }
+      if (mode === 'busy') { this._view.startSpinner() }
+    }
+    this._mode = mode
+
     this._view.render(state, error ? (message || 'Voice input failed') : label)
-    this._view.setVisible(recording, error, error || label !== '')
-
-    if (!recording && !error) { this._view.startSpinner() } else { this._view.stopSpinner() }
-
+    this._view.setMode(mode)
     this._view.show()
 
     if (error) {
@@ -83,6 +88,8 @@ export class ToasOverlayPresenter {
 
   destroy () {
     this._clearTimer()
+    if (this._mode === 'busy') { this._view.stopSpinner() }
+    this._mode = 'hidden'
     this._view.destroy?.()
   }
 
@@ -95,9 +102,17 @@ export class ToasOverlayPresenter {
 }
 
 const STATE_LABELS = {
-  processing: 'Processing…',
+  transcribing: 'Transcribing…',
+  refining: 'Refining…',
   outputting: 'Inserting…',
   copying: 'Copying…'
+}
+
+function visualModeFor (state) {
+  if (state === 'recording') { return 'recording' }
+  if (state === 'error') { return 'error' }
+  if (Object.hasOwn(STATE_LABELS, state)) { return 'busy' }
+  return 'hidden'
 }
 
 const BAR_COUNT = 9
@@ -201,14 +216,22 @@ export class ShellOverlayView {
     this._status.text = error ? truncate(message || 'Voice input failed') : message
   }
 
-  setVisible (recording, error, statusVisible) {
+  setMode (mode) {
+    const recording = mode === 'recording'
+    const busy = mode === 'busy'
+    const error = mode === 'error'
+
     this._icon.visible = recording
     this._bars.visible = recording
-    this._status.visible = statusVisible
+    this._status.visible = busy || error
     this._privateIcon.visible = recording && this._private
-    // The close action is available during recording and processing, but not
-    // for a terminal error state (it self-dismisses).
-    this._closeButton.visible = !error
+    this._closeButton.visible = recording || busy
+
+    if (error) {
+      this._actor.add_style_class_name('toas-error')
+    } else {
+      this._actor.remove_style_class_name('toas-error')
+    }
   }
 
   setOnCancelRequested (handler) {
