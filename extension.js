@@ -192,6 +192,8 @@ export default class ToasExtension extends Extension {
   }
 
   _openPreferences () {
+    // GNOME 50's Extension.openPreferences() does not consume its async result,
+    // so use the Shell D-Bus method directly to avoid an unhandled rejection.
     Gio.DBus.session.call(
       'org.gnome.Shell.Extensions',
       '/org/gnome/Shell/Extensions',
