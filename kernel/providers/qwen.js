@@ -7,7 +7,6 @@ import { Provider } from './provider.js'
 import {
   encodeBody,
   decodeBody,
-  normalizeFinishReason,
   normalizeUsage,
   serviceErrorFromStatus,
   processingError,
@@ -22,24 +21,10 @@ const MODEL_SHAPES = {
   'qwen3-asr-flash': { capabilities: audioCapabilities(), protocol: 'multimodal' }
 }
 
-// Official endpoints per protocol; an explicit endpoint override wins.
 const ENDPOINTS = {
   asr3: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
   multimodal: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
   compat: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
-}
-
-function endpointIssues (endpoint) {
-  const issues = []
-  const value = String(endpoint).trim()
-  if (!value.startsWith('https://')) {
-    issues.push({
-      path: 'providers.qwen.endpoint',
-      code: 'invalid',
-      message: 'A Qwen endpoint must use https'
-    })
-  }
-  return issues
 }
 
 class QwenProvider extends Provider {
@@ -48,14 +33,11 @@ class QwenProvider extends Provider {
       id: 'qwen',
       manifest: {
         label: 'Qwen',
-
         fields: [
           {
             key: 'endpoint',
             type: 'url',
             label: 'Endpoint',
-            // Empty lets the Provider route by model protocol; an explicit
-            // override wins.
             default: '',
             env: ['TOAS_QWEN_ENDPOINT', 'DASHSCOPE_ENDPOINT']
           },
@@ -88,36 +70,23 @@ class QwenProvider extends Provider {
   }
 
   resolve ({ providerValues, values, secretPresence }) {
-    const issues = []
-
-    if (!secretPresence.key) {
+    const issues = this.requiredIssues({ providerValues, values, secretPresence })
+    const endpoint = providerValues.endpoint?.trim() || ''
+    if (endpoint && !endpoint.startsWith('https://')) {
       issues.push({
-        path: 'providers.qwen.key',
-        code: 'required',
-        message: 'A Qwen (DashScope) API key is required'
+        path: 'providers.qwen.endpoint',
+        code: 'invalid',
+        message: 'Qwen endpoint must use https'
       })
     }
 
-    const endpoint = providerValues.endpoint
-    if (endpoint) {
-      issues.push(...endpointIssues(endpoint))
-    }
-
-    const model = values.model
-    if (!model?.trim()) {
-      issues.push({
-        path: 'values.model',
-        code: 'required',
-        message: 'A Qwen model is required'
-      })
-    }
-
-    const shape = model?.trim() ? MODEL_SHAPES[model.trim()] : null
-    if (model?.trim() && !shape) {
+    const model = values.model?.trim()
+    const shape = model ? MODEL_SHAPES[model] : null
+    if (model && !shape) {
       issues.push({
         path: 'values.model',
         code: 'unsupported',
-        message: `Unsupported Qwen model: ${model.trim()}`
+        message: `Unsupported Qwen model: ${model}`
       })
     }
 
@@ -128,7 +97,7 @@ class QwenProvider extends Provider {
     return {
       config: {
         endpoint: endpoint || ENDPOINTS[shape.protocol],
-        model: model.trim()
+        model
       },
       capabilities: shape.capabilities,
       issues: []
@@ -137,7 +106,7 @@ class QwenProvider extends Provider {
 
   create (config, secrets, runtime) {
     if (!secrets.key) {
-      throw processingError('configuration', 'A Qwen API key is required to create a processor')
+      throw processingError('configuration', 'Qwen API key is required to create a processor')
     }
     return new QwenProcessor(config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
@@ -146,7 +115,7 @@ class QwenProvider extends Provider {
 export const qwenProvider = new QwenProvider()
 
 function audioCapabilities () {
-  return { inputs: ['audio'], instructions: false, context: true, integratedRefine: false }
+  return { inputs: ['audio'], instructions: false, context: true }
 }
 
 class QwenProcessor {
@@ -157,14 +126,9 @@ class QwenProcessor {
     this._shape = shape
   }
 
-  async process ({ input, context, instructions, signal }) {
+  async process ({ input, context, signal }) {
     if (input.kind !== 'audio') {
       throw processingError('configuration', 'Qwen processing requires audio input')
-    }
-    if (instructions != null && instructions !== '') {
-      // Qwen does not advertise integrated refine; reaching this branch means
-      // the Kernel routed an unsupported plan.
-      throw processingError('configuration', 'Qwen does not support integrated refine')
     }
 
     const contextText = context.text?.trim() || null
@@ -216,16 +180,9 @@ class QwenProcessor {
       throw processingError('no-text', 'No speech was recognized')
     }
 
-    const finishReason = protocol === 'compat'
-      ? normalizeFinishReason(response?.choices?.[0]?.finish_reason)
-      : normalizeFinishReason(
-          protocol === 'asr3' ? null : response?.output?.choices?.[0]?.finish_reason
-        )
-
     return {
       text: text.trim(),
       model: this._config.model,
-      finishReason,
       usage: normalizeUsage(
         protocol === 'asr3' ? null : response?.usage,
         { inputKey: 'input_tokens', outputKey: 'output_tokens' }
@@ -249,8 +206,6 @@ class QwenProcessor {
     if (signal?.aborted) { throw cancelledError() }
 
     if (response.status < 200 || response.status >= 300) {
-      // The ASR services use HTTP 400 ASR_RESPONSE_HAVE_NO_WORDS for valid
-      // silent audio. That is no-text, not a service failure.
       const detail = safeErrorDetail(response.body)
       if (detail === 'ASR_RESPONSE_HAVE_NO_WORDS') {
         throw processingError('no-text', 'No speech was recognized')
@@ -270,7 +225,6 @@ function safeErrorDetail (bodyBytes) {
   }
 }
 
-// Qwen's supported protocols expose different response envelopes.
 function extractQwenText (data, protocol) {
   if (protocol === 'asr3') {
     const inner = data?.output?.output

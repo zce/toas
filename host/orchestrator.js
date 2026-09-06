@@ -3,7 +3,6 @@ import GLib from 'gi://GLib'
 import {
   AudioRecorder,
   DEFAULT_SAMPLE_RATE,
-  RecorderOutcomeError,
   RecorderOutcomeKind,
   resolveMinimumRecordingDuration,
   resolveSampleRate
@@ -14,47 +13,34 @@ import { AttemptSignal } from './transport.js'
 export class ToasOrchestrator {
   constructor ({
     settings,
-    collaborators = {},
-    onStateChanged = null,
-    historyRepository = null
+    history,
+    kernel,
+    output,
+    overlay,
+    notifier,
+    recorderFactory = null,
+    onStateChanged = null
   }) {
     this._settings = settings
-    this._history = collaborators.history
-    this._privacy = collaborators.privacy ?? { enabled: false }
-    this._kernel = collaborators.kernel
-    this._overlay = collaborators.overlay
-    this._output = collaborators.paster
-    this._notifier = collaborators.notifier
-    this._historyRepository = historyRepository
+    this._history = history
+    this._kernel = kernel
+    this._output = output
+    this._overlay = overlay
+    this._notifier = notifier
     this._onStateChanged = onStateChanged
 
-    // The composition root (extension.js) wires everything explicitly; missing
-    // collaborators are a programming error, so fail at construction.
     const missing = [
-      ['history', this._history],
-      ['overlay', this._overlay],
-      ['paster', this._output],
-      ['notifier', this._notifier],
-      ['kernel', this._kernel]
+      ['history', history],
+      ['kernel', kernel],
+      ['output', output],
+      ['overlay', overlay],
+      ['notifier', notifier]
     ].filter(([, value]) => !value).map(([name]) => name)
-
     if (missing.length > 0) {
-      throw new Error(
-        `ToasOrchestrator requires collaborators: ${missing.join(', ')}`
-      )
+      throw new Error(`ToasOrchestrator requires collaborators: ${missing.join(', ')}`)
     }
 
-    this._recorderFactory =
-      collaborators.recorderFactory ??
-      ((directory, onLevel, onError, sampleRate, minimumDurationMs) =>
-        new AudioRecorder(directory, onLevel, onError, sampleRate, minimumDurationMs))
-
-    if (this._output.setOnFocusMismatch) {
-      this._output.setOnFocusMismatch(message =>
-        this._notifier.notify('Copied to clipboard', message)
-      )
-    }
-
+    this._recorderFactory = recorderFactory ?? (options => new AudioRecorder(options))
     this._state = 'idle'
     this._run = null
     this._abortSignal = null
@@ -68,169 +54,137 @@ export class ToasOrchestrator {
     if (this._state !== 'idle') { return }
 
     const run = {
+      kind: 'live',
       createdAt: new Date().toISOString(),
-      // Snapshot at start: a private voice input stays private even if the
-      // user flips the switch while processing runs. The overlay hint rides
-      // the same snapshot so it can never decorate a non-private run.
-      private: Boolean(this._privacy?.enabled)
+      private: Boolean(this._settings?.get_boolean?.('private-mode')),
+      recorder: null,
+      recording: null,
+      ownsRecording: false,
+      result: null
     }
 
-    // The overlay belongs to the window context where this run starts. Read
-    // that monitor once and pin it for the run; later focus changes are output
-    // safety concerns and must not make feedback jump between displays.
-    const monitorIndex = this._output.getFocusedMonitorIndex?.() ?? null
-    this._overlay.setMonitor?.(monitorIndex)
-    this._overlay.setPrivate?.(run.private)
-    run.recorder = this._recorderFactory(
-      this._history.recordingsDirectory,
-      level => {
+    this._overlay.setMonitor(this._output.getFocusedMonitorIndex())
+    this._overlay.setPrivate(run.private)
+    run.recorder = this._recorderFactory({
+      recordingsDirectory: this._history.recordingsDirectory,
+      onLevel: level => {
         if (this._run === run && this._state === 'recording') { this._overlay.setLevel(level) }
       },
-      error => this._fail(run, 'recording', error),
-      resolveSampleRate(this._settings ?? {}),
-      resolveMinimumRecordingDuration(this._settings ?? {})
-    )
+      onError: error => this._failLive(run, 'recording', error),
+      sampleRate: resolveSampleRate(this._settings ?? {}),
+      minimumDurationMs: resolveMinimumRecordingDuration(this._settings ?? {})
+    })
 
     this._run = run
-    this._overlay.resetLevels?.()
+    this._overlay.resetLevels()
     this._transition('recording')
-    run.recorder.start().catch(error => this._fail(run, 'recording', error))
+    run.recorder.start().catch(error => this._failLive(run, 'recording', error))
   }
 
   async end () {
     if (this._state !== 'recording') { return }
 
     const run = this._run
-    // Closing the recorder takes time (pw-record must exit after SIGINT), and
-    // the next stage is only known once stop() resolves: short taps and
-    // cancels return to idle without ever transcribing. Freeze the recording
-    // visuals instead of promising a processing stage that may never start,
-    // while keeping the state off 'recording' so a second toggle cannot
-    // re-enter.
     this._state = 'processing'
 
+    let outcome
     try {
-      const outcome = await run.recorder.stop()
-      if (this._run !== run) { return }
-
-      if (outcome.kind === RecorderOutcomeKind.SHORT_TAP) {
-        this._finishRun(run)
-        this._transition('idle')
-        return
-      }
-
-      if (outcome.kind === RecorderOutcomeKind.CANCELLED) {
-        this._finishRun(run, true)
-        this._transition('idle')
-        return
-      }
-
-      if (outcome.kind === RecorderOutcomeKind.CAPTURE_FAILURE) {
-        throw new RecorderOutcomeError(outcome)
-      }
-
-      run.recording = outcome.recording
-
-      // Only now is processing actually about to start; short taps and
-      // cancels never reach this line.
-      this._transition('processing')
-
-      if (outcome.kind === RecorderOutcomeKind.SIZE_LIMIT) {
-        // The user is told the recording was truncated before feedback for
-        // the processing itself arrives.
-        this._notifier.notify(
-          'Recording limit reached',
-          'The recording hit its cap, so it was cut off and is being processed.'
-        )
-      }
-
-      // Lock the paste target BEFORE any async preparation (audio loading,
-      // config snapshot): the window focused when the user stopped recording
-      // is the window that wanted the text, and later awaits must not change it.
-      this._output.captureFocusedWindow?.()
-
-      await this._processWithKernel(run)
+      outcome = await run.recorder.stop()
     } catch (error) {
-      this._fail(run, 'recording', error)
+      this._failLive(run, 'recording', error)
+      return
     }
-  }
+    if (this._run !== run) { return }
 
-  async _processWithKernel (run, options = {}) {
-    const signal = new AttemptSignal()
-    this._abortSignal = signal
-
-    try {
-      // The kernel snapshot (Config, secrets, Context, audio) happens inside
-      // this call, after the output target is already captured.
-      const result = await this._kernel.run(run.recording, signal)
-
-      if (this._run !== run) { return }
-
-      run.result = result
-
-      if (options.skipOutput) {
-        run.savedAttempt = this._saveAttemptFromResult(run)
-        this._transition('idle')
-        return
-      }
-
-      if (!this._saveHistoryFromResult(run, 'ok')) {
-        this._history.discardRecording(run.recording)
-      }
-
-      const deliveryMode = this._output.deliveryMode?.() ?? 'insert'
-      this._transition(deliveryMode === 'clipboard' ? 'copying' : 'outputting')
-      await this._output.write(result.text)
-      if (this._run !== run) { return }
+    if (outcome.kind === RecorderOutcomeKind.SHORT_TAP ||
+        outcome.kind === RecorderOutcomeKind.CANCELLED) {
       this._finishRun(run)
-
-      // Refine fallback is a soft warning, not a voice-input failure: the
-      // primary result was still delivered, just unrefined.
-      if (result.warning?.type === 'refine-failed') {
-        this._notifier.notify(
-          deliveryMode === 'clipboard'
-            ? 'Copied the primary result'
-            : 'Inserted the primary result',
-          'Refine failed, so the unrefined primary text was used.'
-        )
-      }
-
       this._transition('idle')
-    } catch (error) {
-      if (this._run !== run) { return }
-
-      const stage = error.category === 'configuration' ? 'configuration' : 'processing'
-      this._fail(run, stage, error)
-    } finally {
-      this._abortSignal = null
+      return
     }
+
+    if (outcome.kind === RecorderOutcomeKind.CAPTURE_FAILURE) {
+      this._failLive(run, 'recording', outcome.error ?? new Error('Recording failed'))
+      return
+    }
+
+    run.recording = outcome.recording
+    run.ownsRecording = true
+    this._transition('processing')
+
+    if (outcome.kind === RecorderOutcomeKind.SIZE_LIMIT) {
+      this._notifier.notify(
+        'Recording limit reached',
+        'The recording hit its cap, so it was cut off and is being processed.'
+      )
+    }
+
+    // The window focused when recording stops owns this delivery. Capture it
+    // before config/audio loading or provider I/O can yield to another window.
+    this._output.captureFocusedWindow()
+    await this._processLive(run)
   }
 
-  cancel () {
-    if (this._state === 'idle') { return }
+  async _processLive (run) {
+    let result
+    try {
+      result = await this._process(run.recording)
+    } catch (error) {
+      if (this._run !== run) { return }
+      const stage = error.category === 'configuration' ? 'configuration' : 'processing'
+      this._failLive(run, stage, error)
+      return
+    }
+    if (this._run !== run) { return }
 
-    const run = this._run
-    this._abortSignal?.abort()
-    this._output.cancel?.()
-    run?.recorder?.cancel?.()
+    run.result = result
+    this._persistLive(run, 'ok')
 
-    // A retry does not own the original voice input's audio; never discard it.
-    this._finishRun(run, !run?.isRetry)
+    const insert = Boolean(this._settings?.get_boolean?.('auto-paste'))
+    this._transition(insert ? 'outputting' : 'copying')
+
+    let delivery
+    try {
+      delivery = await this._output.write(result.text)
+    } catch (error) {
+      if (this._run === run) { this._failDelivery(run, error) }
+      return
+    }
+    if (this._run !== run) { return }
+
+    this._finishRun(run)
+
+    if (delivery?.reason === 'focus-mismatch') {
+      this._notifier.notify(
+        'Copied to clipboard',
+        'The target window changed, so your text was copied to the clipboard.'
+      )
+    }
+
+    if (result.warning?.type === 'refine-failed') {
+      this._notifier.notify(
+        delivery?.mode === 'copied'
+          ? 'Copied the primary result'
+          : 'Inserted the primary result',
+        'Refine failed, so the unrefined primary text was used.'
+      )
+    }
+
     this._transition('idle')
   }
 
-  // Reruns processing on a retained recording from a failed voice input.
-  // No recorder is started and nothing is pasted; the result is appended as
-  // a linked attempt. Retry uses the current Config/Context/secrets snapshot.
+  // Retry is deliberately a different workflow: it borrows retained audio,
+  // processes it with the current config, and appends an attempt. It never
+  // records, owns/deletes source audio, or delivers text to another app.
   async retry (originalEntry) {
     if (this._state !== 'idle') { return null }
 
-    const audio = this._historyRepository?.resolveAudio(originalEntry)
-    if (!audio?.available || !audio.path) { return null }
+    const audio = this._history.resolveAudio(originalEntry)
+    if (!audio.available || !audio.path) { return null }
 
     const run = {
+      kind: 'retry',
       createdAt: new Date().toISOString(),
-      isRetry: true,
       originalId: originalEntry.id,
       recording: {
         id: originalEntry.id,
@@ -239,156 +193,172 @@ export class ToasOrchestrator {
         sampleRate: originalEntry.sampleRate ?? DEFAULT_SAMPLE_RATE,
         channels: 1,
         durationMs: originalEntry.durationMs ?? 0
-      }
+      },
+      ownsRecording: false,
+      result: null
     }
 
     this._run = run
-    // A retry has no live target window; clear any previous run's monitor so
-    // the overlay safely falls back to the primary display.
-    this._overlay.setMonitor?.(null)
-    // A retry never starts from a private voice input; its decoration is
-    // explicitly off even when the switch is on.
-    this._overlay.setPrivate?.(false)
+    this._overlay.setMonitor(null)
+    this._overlay.setPrivate(false)
     this._transition('processing')
 
     try {
-      await this._processWithKernel(run, { skipOutput: true })
-    } catch (error) {
-      this._fail(run, 'processing', error)
-    } finally {
-      if (this._run === run) { this._run = null }
-      this._state = 'idle'
-    }
+      run.result = await this._process(run.recording)
+      if (this._run !== run) { return null }
 
-    return run.savedAttempt ?? null
+      const attempt = this._appendRetryAttempt(originalEntry, run)
+      this._finishRun(run)
+      this._transition('idle')
+      return attempt
+    } catch (error) {
+      if (this._run !== run) { return null }
+      return this._failRetry(run, originalEntry, error)
+    }
+  }
+
+  async _process (recording) {
+    const signal = new AttemptSignal()
+    this._abortSignal = signal
+    try {
+      return await this._kernel.run(recording, signal)
+    } finally {
+      if (this._abortSignal === signal) { this._abortSignal = null }
+    }
+  }
+
+  cancel () {
+    if (this._state === 'idle') { return }
+
+    const run = this._run
+    this._abortSignal?.abort()
+    this._output.cancel()
+    run?.recorder?.cancel()
+    this._finishRun(run)
+    this._transition('idle')
   }
 
   clearHistory () {
     if (this._state !== 'idle') { return null }
-
     return this._history.clear()
   }
 
-  _fail (run, stage, error) {
+  _failLive (run, stage, error) {
     if (this._run !== run) { return }
 
-    let message = error?.message ?? String(error)
-    if (error instanceof RecorderOutcomeError) {
-      message = error.outcome.error?.message ?? message
-    }
-
-    const failure = {
-      stage,
-      message,
-      ...(error?.category ? { category: error.category } : {})
-    }
+    const failure = failureFrom(error, stage)
     const presentation = presentFailure(failure, stage)
-
-    // Cancellation can arrive from the Kernel or another collaborator. It is
-    // a terminal user action, so finish quietly before logging or persisting.
     if (!presentation) {
-      this._finishRun(run, !run.isRetry)
+      this._finishRun(run)
       this._transition('idle')
       return
     }
 
     console.error(`[toas] ${error?.stack ?? error}`)
+    if (run.recording) { this._persistLive(run, 'error', failure) }
 
-    if (run.isRetry) {
-      // Retry failures append a linked attempt and keep the original record
-      // untouched; the recording is not ours to discard.
-      run.savedAttempt = this._saveAttemptFromResult(run, failure)
-      this._state = 'idle'
-      if (this._run === run) { this._run = null }
-      this._overlay.render('error', presentation.summary)
-      this._onStateChanged?.('error', presentation.summary)
-      return
-    }
-
-    if (run.recording) {
-      const saved = this._saveHistoryFromResult(run, 'error', failure)
-      if (!saved) { this._history.discardRecording(run.recording) }
-    }
-
-    this._state = 'idle'
     this._finishRun(run)
-    this._overlay.render('error', presentation.summary)
-    this._onStateChanged?.('error', presentation.summary)
+    this._presentError(presentation)
     this._notifier.notify(presentation.summary, presentation.guidance)
   }
 
-  _historyEntryFromResult (run, status, error = null) {
-    const result = run.result || {}
-
-    return {
-      id: GLib.uuid_string_random(),
-      createdAt: run.createdAt,
-      durationMs: run.recording?.durationMs ?? 0,
-      status,
-      audio: run.isRetry
-        ? null
-        : `recordings/${GLib.path_get_basename(run.recording.path)}`,
-      sampleRate: run.recording?.sampleRate ?? null,
-      text: result.text || null,
-      trace: result.trace || [],
-      ...(result.warning ? { warning: result.warning } : {}),
-      ...(error
-        ? {
-            error: {
-              stage: error.stage,
-              message: error.message,
-              ...(error.category ? { category: error.category } : {})
-            }
-          }
-        : {})
+  _failRetry (run, originalEntry, error) {
+    const failure = failureFrom(
+      error,
+      error?.category === 'configuration' ? 'configuration' : 'processing'
+    )
+    const presentation = presentFailure(failure, failure.stage)
+    if (!presentation) {
+      this._finishRun(run)
+      this._transition('idle')
+      return null
     }
+
+    console.error(`[toas] ${error?.stack ?? error}`)
+    const attempt = this._appendRetryAttempt(originalEntry, run, failure)
+    this._finishRun(run)
+    this._presentError(presentation)
+    return attempt
   }
 
-  _saveAttemptFromResult (run, error = null) {
-    const original = this._historyRepository?.get(run.originalId)
+  _failDelivery (run, error) {
+    console.error(`[toas] ${error?.stack ?? error}`)
+    // Processing has already been persisted at this point. Delivery failure is
+    // not a second processing failure and must not append another history row.
+    this._finishRun(run)
+    const summary = 'Text delivery failed'
+    this._state = 'idle'
+    this._overlay.render('error', summary)
+    this._onStateChanged?.('error', summary)
+    this._notifier.notify(summary, 'The voice input was processed, but the text could not be delivered.')
+  }
 
-    const attempt = {
-      ...this._historyEntryFromResult(run, error ? 'error' : 'ok', error),
-      audio: null,
-      attemptOf: original?.id
+  _persistLive (run, status, error = null) {
+    if (!run.recording || !run.ownsRecording) { return false }
+
+    if (run.private) {
+      this._history.discardRecording(run.recording)
+      run.ownsRecording = false
+      return false
     }
 
     try {
-      if (original && this._historyRepository) {
-        return this._historyRepository.appendAttempt(original, attempt)
-      }
-      console.warn('[toas] Retry attempt dropped: original voice input is gone')
-      return null
+      this._history.append(this._historyEntry(run, status, error))
+      // Successful append transfers ownership to History. History may retain
+      // the WAV or delete it immediately according to recording-limit.
+      run.ownsRecording = false
+      return true
+    } catch (historyError) {
+      console.error(`[toas] Could not save history: ${historyError.message}`)
+      this._history.discardRecording(run.recording)
+      run.ownsRecording = false
+      return false
+    }
+  }
+
+  _appendRetryAttempt (originalEntry, run, error = null) {
+    const entry = this._historyEntry(run, error ? 'error' : 'ok', error, false)
+    try {
+      const attempt = this._history.appendAttempt(originalEntry, entry)
+      if (!attempt) { console.warn('[toas] Retry attempt dropped: original voice input is gone') }
+      return attempt
     } catch (historyError) {
       console.error(`[toas] Could not save retry attempt: ${historyError.message}`)
       return null
     }
   }
 
-  _saveHistoryFromResult (run, status, error = null) {
-    // A private voice input is never retained. Returning false makes every
-    // caller discard the recording immediately, mirroring a history write
-    // failure.
-    if (run.private) { return false }
-
-    try {
-      this._history.append(this._historyEntryFromResult(run, status, error))
-      return true
-    } catch (historyError) {
-      console.error(
-        `[toas] Could not save history: ${historyError.message}`
-      )
-      return false
+  _historyEntry (run, status, error = null, includeAudio = true) {
+    const result = run.result || {}
+    return {
+      id: GLib.uuid_string_random(),
+      createdAt: run.createdAt,
+      durationMs: run.recording?.durationMs ?? 0,
+      status,
+      audio: includeAudio && run.recording
+        ? `recordings/${GLib.path_get_basename(run.recording.path)}`
+        : null,
+      sampleRate: run.recording?.sampleRate ?? null,
+      text: result.text || null,
+      trace: result.trace || [],
+      ...(result.warning ? { warning: result.warning } : {}),
+      ...(error ? { error } : {})
     }
   }
 
-  _transition (state) {
-    this._state = state
-    this._overlay.render(this._state)
-    this._onStateChanged?.(this._state)
+  _presentError (presentation) {
+    this._state = 'idle'
+    this._overlay.render('error', presentation.summary)
+    this._onStateChanged?.('error', presentation.summary)
   }
 
-  _finishRun (run, discardRecording = false) {
+  _transition (state, message = '') {
+    this._state = state
+    this._overlay.render(state, message)
+    this._onStateChanged?.(state, message)
+  }
+
+  _finishRun (run) {
     if (!run) { return }
 
     try {
@@ -397,18 +367,20 @@ export class ToasOrchestrator {
       // Best effort during extension disable or voice-input cancellation.
     }
 
-    if (discardRecording) { this._history.discardRecording(run.recording) }
+    if (run.ownsRecording && run.recording) {
+      this._history.discardRecording(run.recording)
+      run.ownsRecording = false
+    }
     if (this._run === run) { this._run = null }
   }
 
   destroy () {
     this._onStateChanged = null
-    // Stop in-flight network work; the composition root destroys collaborators.
     this._abortSignal?.abort()
-    this._finishRun(this._run, true)
+    this._output?.cancel()
+    this._run?.recorder?.cancel()
+    this._finishRun(this._run)
 
-    // Collaborators are owned by the composition root (extension.js), so the
-    // orchestrator never destroys them; it only drops references.
     this._kernel = null
     this._output = null
     this._history = null
@@ -417,5 +389,13 @@ export class ToasOrchestrator {
     this._settings = null
     this._abortSignal = null
     this._state = 'idle'
+  }
+}
+
+function failureFrom (error, stage) {
+  return {
+    stage,
+    message: error?.message ?? String(error),
+    ...(error?.category ? { category: error.category } : {})
   }
 }

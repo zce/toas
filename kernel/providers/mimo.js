@@ -5,7 +5,6 @@ import { Provider } from './provider.js'
 import {
   ChatCompletionsProcessor,
   extractContent,
-  normalizeFinishReason,
   normalizeUsage,
   processingError
 } from './chat-completions.js'
@@ -13,15 +12,15 @@ import {
 const MODEL_SHAPES = {
   'mimo-v2.5-asr': {
     input: 'audio',
-    capabilities: { inputs: ['audio'], instructions: false, context: false, integratedRefine: false }
+    capabilities: { inputs: ['audio'], instructions: false, context: false }
   },
   'mimo-v2.5': {
     input: 'text',
-    capabilities: { inputs: ['text'], instructions: true, context: true, integratedRefine: false }
+    capabilities: { inputs: ['text'], instructions: true, context: true }
   },
   'mimo-v2.5-pro': {
     input: 'text',
-    capabilities: { inputs: ['text'], instructions: true, context: true, integratedRefine: false }
+    capabilities: { inputs: ['text'], instructions: true, context: true }
   }
 }
 
@@ -31,7 +30,6 @@ class MimoProvider extends Provider {
       id: 'mimo',
       manifest: {
         label: 'MiMo',
-
         fields: [
           {
             key: 'endpoint',
@@ -49,7 +47,6 @@ class MimoProvider extends Provider {
             env: ['TOAS_MIMO_API_KEY', 'MIMO_API_KEY']
           }
         ],
-
         selectionFields: [
           {
             key: 'model',
@@ -82,35 +79,11 @@ class MimoProvider extends Provider {
   }
 
   resolve ({ providerValues, values, secretPresence }) {
-    const issues = []
-
-    if (!secretPresence.key) {
-      issues.push({
-        path: 'providers.mimo.key',
-        code: 'required',
-        message: 'A MiMo API key is required'
-      })
-    }
-
-    const endpoint = providerValues.endpoint
-    if (!endpoint) {
-      issues.push({
-        path: 'providers.mimo.endpoint',
-        code: 'required',
-        message: 'A MiMo service base URL is required'
-      })
-    }
-
+    const issues = this.requiredIssues({ providerValues, values, secretPresence })
+    const endpoint = providerValues.endpoint?.trim()
     const model = values.model?.trim()
-    if (!model) {
-      issues.push({
-        path: 'values.model',
-        code: 'required',
-        message: 'A MiMo model is required'
-      })
-    }
-
     const shape = model ? MODEL_SHAPES[model] : null
+
     if (model && !shape) {
       issues.push({
         path: 'values.model',
@@ -134,7 +107,7 @@ class MimoProvider extends Provider {
 
   create (config, secrets, runtime) {
     if (!secrets.key) {
-      throw processingError('configuration', 'A MiMo API key is required to create a processor')
+      throw processingError('configuration', 'MiMo API key is required to create a processor')
     }
     return new MimoProcessor(config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
@@ -155,9 +128,6 @@ class MimoProcessor extends ChatCompletionsProcessor {
       if (input.kind !== 'audio') {
         throw processingError('configuration', 'This MiMo selection requires audio input')
       }
-      if (instructions != null && instructions !== '') {
-        throw processingError('configuration', 'MiMo does not support integrated refine')
-      }
       messages = [{
         role: 'user',
         content: [{
@@ -170,8 +140,6 @@ class MimoProcessor extends ChatCompletionsProcessor {
         throw processingError('configuration', 'This MiMo selection requires text input')
       }
       messages = []
-      // Context is Host-supplied free text the user composed; it is passed
-      // verbatim so the user's own phrasing reaches the model intact.
       const contextText = context.text?.trim()
       if (contextText) {
         messages.push({ role: 'system', content: contextText })
@@ -192,7 +160,6 @@ class MimoProcessor extends ChatCompletionsProcessor {
     }
 
     const data = await this._send(requestBody, signal)
-
     const text = extractContent(data)
     if (!text.trim()) {
       throw processingError('no-text', this._shape.input === 'audio'
@@ -203,7 +170,6 @@ class MimoProcessor extends ChatCompletionsProcessor {
     return {
       text: text.trim(),
       model: data.model || this._config.model,
-      finishReason: normalizeFinishReason(data.choices?.[0]?.finish_reason),
       usage: normalizeUsage(data.usage),
       requestId: null,
       responseId: data.id ?? null

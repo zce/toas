@@ -1,7 +1,12 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-import { ConfigService } from './config.js'
+import {
+  primaryReady,
+  snapshotContext,
+  snapshotProcessingConfig,
+  snapshotProviderSecrets
+} from './config.js'
 import { SoupHttpTransport } from './transport.js'
 import { process as runKernel } from '../kernel/process.js'
 import { providers as registry } from '../kernel/providers/registry.js'
@@ -16,22 +21,20 @@ const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
 export class KernelRunner {
   constructor ({ settings, providers = registry }) {
+    this._settings = settings
     this._providers = providers
-    this._configService = new ConfigService({ settings, providers })
     this._transport = new SoupHttpTransport({ timeoutMs: 120000 })
     this._clock = { now: () => GLib.get_monotonic_time() / 1000 }
   }
 
-  get configService () {
-    return this._configService
+  primaryReady () {
+    return primaryReady(this._settings, this._providers)
   }
 
   async run (recording, signal) {
-    // Config, secrets, Context, and audio are snapshotted once per attempt so
-    // settings changes apply only to the next one.
-    const config = this._configService.snapshotConfig()
-    const secrets = this._configService.snapshotSecrets()
-    const context = this._configService.snapshotContext()
+    const config = snapshotProcessingConfig(this._settings, this._providers)
+    const secrets = snapshotProviderSecrets(this._settings, this._providers)
+    const context = snapshotContext(this._settings)
     const audio = await this._loadAudio(recording)
 
     return await runKernel({
@@ -74,9 +77,8 @@ export class KernelRunner {
 
   destroy () {
     this._transport?.destroy()
-    this._configService?.destroy()
     this._transport = null
-    this._configService = null
+    this._settings = null
     this._providers = null
   }
 }

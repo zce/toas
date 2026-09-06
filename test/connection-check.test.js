@@ -1,14 +1,9 @@
-// Connection test behavior: the test is Provider-level diagnostics. It
-// resolves the real role config through the Kernel's resolution pipeline
-// and calls the Provider's Processor directly — the refine probe must never
-// route through the primary-first pipeline. Headless: fake providers, no
-// network, no real settings.
+// Connection test behavior: provider-level diagnostics resolve the same
+// configuration as a real attempt but call only the selected Processor.
 
 import { test, expectEqual, expectTruthy, run } from './harness.js'
 import { runConnectionTest } from '../host/config.js'
 
-// The fake provider records the process() calls it receives so tests assert
-// on the exact inputs each role sends. Fresh instances per test.
 class FakeProvider {
   constructor ({ id, input, reply = { text: 'ok' } }) {
     this.id = id
@@ -19,7 +14,8 @@ class FakeProvider {
         { key: 'key', type: 'secret', label: 'API key' }
       ],
       selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
-      support: { inputs: [input], instructions: input === 'text' }
+      support: { inputs: [input], instructions: input === 'text' },
+      defaults: { [input]: {} }
     }
     this.input = input
     this._reply = reply
@@ -37,14 +33,13 @@ class FakeProvider {
       capabilities: {
         inputs: [this.input],
         instructions: this.input === 'text',
-        context: true,
-        integratedRefine: false
+        context: true
       },
       issues: []
     }
   }
 
-  create (config, secrets, runtime) {
+  create () {
     const provider = this
     return {
       async process (call) {
@@ -62,15 +57,25 @@ function freshProviders () {
   ])
 }
 
-class FakeConfigService {
+class FakeSettings {
   constructor (config) {
     this._config = config
   }
 
-  snapshotConfig () { return this._config }
+  get_string (key) {
+    if (key === 'processing-config') { return JSON.stringify(this._config) }
+    if (key === 'context') { return '' }
+    throw new Error(`unexpected key ${key}`)
+  }
 
-  snapshotSecrets () {
-    return { 'providers/primary-audio/key': 'k1', 'providers/refine-text/key': 'k2' }
+  get_value (key) {
+    if (key !== 'provider-secrets') { throw new Error(`unexpected key ${key}`) }
+    return {
+      deep_unpack: () => ({
+        'providers/primary-audio/key': 'k1',
+        'providers/refine-text/key': 'k2'
+      })
+    }
   }
 }
 
@@ -80,7 +85,6 @@ function baseConfig ({ refineEnabled = true } = {}) {
     primary: { provider: 'primary-audio', values: { model: 'asr-1' } },
     refine: {
       enabled: refineEnabled,
-      execution: 'separate',
       provider: 'refine-text',
       values: { model: 'refine-1' },
       instructions: 'Tidy up the text.',
@@ -92,7 +96,7 @@ function baseConfig ({ refineEnabled = true } = {}) {
 test('primary test sends silent audio to the primary processor only', async () => {
   const providers = freshProviders()
   await runConnectionTest({
-    configService: new FakeConfigService(baseConfig()),
+    settings: new FakeSettings(baseConfig()),
     providers,
     role: 'primary'
   })
@@ -105,13 +109,11 @@ test('primary test sends silent audio to the primary processor only', async () =
 test('refine test sends fixed text to the refine processor only', async () => {
   const providers = freshProviders()
   await runConnectionTest({
-    configService: new FakeConfigService(baseConfig()),
+    settings: new FakeSettings(baseConfig()),
     providers,
     role: 'refine'
   })
 
-  // The heart of the fix: the refine probe reaches the refine Processor
-  // directly and never touches the primary.
   expectEqual(providers.get('primary-audio').calls.length, 0)
   expectEqual(providers.get('refine-text').calls.length, 1)
   expectEqual(providers.get('refine-text').calls[0].input.kind, 'text')
@@ -122,7 +124,7 @@ test('refine test refuses to run while refine is disabled', async () => {
   let threw = null
   try {
     await runConnectionTest({
-      configService: new FakeConfigService(baseConfig({ refineEnabled: false })),
+      settings: new FakeSettings(baseConfig({ refineEnabled: false })),
       providers: freshProviders(),
       role: 'refine'
     })
@@ -148,7 +150,7 @@ test('no-text from silent audio counts as a successful round trip', async () => 
   let threw = null
   try {
     await runConnectionTest({
-      configService: new FakeConfigService(config),
+      settings: new FakeSettings(config),
       providers: new Map([['primary-audio', silent]]),
       role: 'primary'
     })
@@ -166,7 +168,7 @@ test('configuration issues surface as errors, not fake success', async () => {
   let threw = null
   try {
     await runConnectionTest({
-      configService: new FakeConfigService(config),
+      settings: new FakeSettings(config),
       providers: freshProviders(),
       role: 'refine'
     })
@@ -182,7 +184,7 @@ test('unknown roles are rejected', async () => {
   let threw = null
   try {
     await runConnectionTest({
-      configService: new FakeConfigService(baseConfig()),
+      settings: new FakeSettings(baseConfig()),
       providers: freshProviders(),
       role: 'unknown'
     })

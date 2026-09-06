@@ -1,8 +1,6 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-// The preset changes capture rate only; mono s16 stays fixed. Higher rates
-// produce larger uploads and reach MAX_PCM_BYTES sooner.
 export const AUDIO_QUALITY_PRESETS = {
   minimum: { sampleRate: 8000 },
   low: { sampleRate: 12000 },
@@ -27,8 +25,6 @@ export function resolveMinimumRecordingDuration (settings) {
     : DEFAULT_MINIMUM_RECORDING_DURATION_MS
 }
 
-// A recording ends for exactly one structured reason; callers never infer an
-// outcome by parsing error text.
 export const RecorderOutcomeKind = {
   OK: 'ok',
   SHORT_TAP: 'short-tap',
@@ -62,14 +58,6 @@ export function recordingOutcomeCancelled () {
   return { kind: RecorderOutcomeKind.CANCELLED, recording: null, error: null }
 }
 
-export class RecorderOutcomeError extends Error {
-  constructor (outcome) {
-    super(outcome.error?.message ?? 'Recording failed')
-    this.name = 'RecorderOutcomeError'
-    this.outcome = outcome
-  }
-}
-
 Gio._promisify(
   Gio.InputStream.prototype,
   'read_bytes_async',
@@ -78,12 +66,8 @@ Gio._promisify(
 
 const DEFAULT_CHUNK_MS = 100
 const BYTES_PER_SAMPLE = 2
-// 24 MB of PCM16: the memory/upload safety cap, independent of quality.
 const MAX_PCM_BYTES = 24 * 1024 * 1024
 
-// Recording ids are UTC capture timestamps and filenames. Capture is serial,
-// so the compact ISO-like value is collision-safe here and lexical directory
-// order also reflects recency: YYYYMMDDTHHMMSSmmm.
 export function recordingIdForNow () {
   const now = new Date()
   const pad = (n, w = 2) => String(n).padStart(w, '0')
@@ -93,13 +77,13 @@ export function recordingIdForNow () {
 }
 
 export class AudioRecorder {
-  constructor (
+  constructor ({
     recordingsDirectory,
     onLevel,
     onError,
     sampleRate = DEFAULT_SAMPLE_RATE,
     minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS
-  ) {
+  }) {
     this._recordingsDirectory = recordingsDirectory
     this._onLevel = onLevel
     this._onError = onError
@@ -154,20 +138,15 @@ export class AudioRecorder {
   }
 
   async stop () {
-    // The first stop decides the outcome; later calls return it without
-    // touching a torn-down stream.
     if (this._outcome) { return this._outcome }
 
     const process = this._process
     if (!process) {
       return this._outcome = this._cancelled
         ? recordingOutcomeCancelled()
-        : recordingOutcomeCaptureFailure(
-          new Error('Audio capture is not running')
-        )
+        : recordingOutcomeCaptureFailure(new Error('Audio capture is not running'))
     }
 
-    // SIGINT lets pw-record close cleanly after its final raw PCM chunk.
     process.send_signal(2)
 
     try {
@@ -258,8 +237,6 @@ export class AudioRecorder {
   }
 
   cancel () {
-    // Marks an orchestrator-driven cancel so a racing stop() reports
-    // cancellation instead of a capture failure.
     this._cancelled = true
     try {
       this._process?.send_signal(2)
@@ -301,7 +278,9 @@ export class AudioRecorder {
     try {
       Gio.File.new_for_path(this._path).delete(null)
     } catch (error) {
-      if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND)) { console.warn(`[toas] Could not remove partial recording: ${error.message}`) }
+      if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND)) {
+        console.warn(`[toas] Could not remove partial recording: ${error.message}`)
+      }
     }
     this._path = null
   }

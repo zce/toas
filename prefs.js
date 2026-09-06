@@ -7,32 +7,27 @@ import Gtk from 'gi://Gtk'
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
 
 import {
-  ConfigService,
   providerIdsFor,
   readProcessingConfig,
   runConnectionTest,
+  snapshotProcessingConfig,
+  snapshotProviderSecrets,
   writeProcessingConfig
 } from './host/config.js'
 import { providers as providerRegistry } from './kernel/providers/registry.js'
-import { secretKey, prepareResolveInput } from './kernel/process.js'
+import { inspectSelection, secretKey } from './kernel/process.js'
 
 const REFINE_ON_ERROR_VALUES = ['fallback', 'abort']
 
 function buildShortcutControl (settings) {
-  const label = new Adw.ShortcutLabel({
-    disabled_text: 'Disabled'
-  })
-  const button = new Gtk.Button({
-    valign: Gtk.Align.CENTER,
-    child: label
-  })
+  const label = new Adw.ShortcutLabel({ disabled_text: 'Disabled' })
+  const button = new Gtk.Button({ valign: Gtk.Align.CENTER, child: label })
   button.add_css_class('flat')
 
   const showShortcut = () => {
     label.accelerator = settings.get_strv('push-to-talk')[0] || ''
     label.disabled_text = 'Disabled'
   }
-
   const showPrompt = text => {
     label.accelerator = ''
     label.disabled_text = text
@@ -63,7 +58,6 @@ function buildShortcutControl (settings) {
 
     editing = true
     showPrompt('Press shortcut…')
-
     controller = new Gtk.EventControllerKey()
     button.add_controller(controller)
 
@@ -74,7 +68,6 @@ function buildShortcutControl (settings) {
       }
 
       mask &= Gtk.accelerator_get_default_mod_mask()
-
       if (mask === 0) {
         if (keyval === Gdk.KEY_Escape) {
           stopEditing()
@@ -107,14 +100,12 @@ function buildShortcutControl (settings) {
 
       label.accelerator = accelerator
       label.disabled_text = ''
-
       debounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
         debounceId = 0
         settings.set_strv('push-to-talk', [accelerator])
         stopEditing()
         return GLib.SOURCE_REMOVE
       })
-
       return Gdk.EVENT_STOP
     })
   })
@@ -135,13 +126,10 @@ export default class ToasPreferences extends ExtensionPreferences {
       icon_name: 'audio-input-microphone-symbolic'
     })
 
-    // --- Voice Input ---------------------------------------------------------
-
     const inputGroup = new Adw.PreferencesGroup({
       title: 'Voice Input',
       description: 'Hold the shortcut to record, then release to process.'
     })
-
     const shortcutControl = buildShortcutControl(settings)
     const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' })
     shortcutRow.add_suffix(shortcutControl)
@@ -164,207 +152,177 @@ export default class ToasPreferences extends ExtensionPreferences {
     inputGroup.add(autoInsert)
     inputGroup.add(restoreClipboard)
 
-    // --- Processing ----------------------------------------------------------
-
     const processingGroup = new Adw.PreferencesGroup({
       title: 'Processing',
       description: 'Audio is sent to the selected provider after recording.'
     })
-
     const processingConfig = readProcessingConfig(settings, providerRegistry)
     const saveProcessingConfig = () => writeProcessingConfig(settings, processingConfig)
     const providerLabel = id => providerRegistry.get(id)?.manifest?.label ?? id
     const primaryProviderIds = providerIdsFor(providerRegistry, 'audio')
     const refineProviderIds = providerIdsFor(providerRegistry, 'text', true)
-    const primaryProviderId = () => primaryProviderIds[providerRow.selected] ?? primaryProviderIds[0]
-    const refineProviderId = () => refineProviderIds[refineProviderRow.selected] ?? refineProviderIds[0]
 
-    const providerRow = new Adw.ComboRow({
-      title: 'Transcription provider',
-      model: Gtk.StringList.new(primaryProviderIds.map(providerLabel)),
-      selected: Math.max(0, primaryProviderIds.indexOf(processingConfig.primary.provider))
-    })
-
-    const primaryFields = dynamicFieldRows({
-      settings,
-      providers: providerRegistry,
-      providerIds: primaryProviderIds,
-      providerId: primaryProviderId,
-      input: 'audio',
-      config: processingConfig,
-      save: saveProcessingConfig,
-      selection: processingConfig.primary
-    })
-
-    const primaryTestRow = buildConnectionRow({ settings, role: 'primary' })
-
-    const refineProviderRow = new Adw.ComboRow({
-      title: 'Provider',
-      model: Gtk.StringList.new(refineProviderIds.map(providerLabel)),
-      selected: Math.max(0, refineProviderIds.indexOf(processingConfig.refine.provider))
-    })
-
-    const refineFields = dynamicFieldRows({
-      settings,
-      providers: providerRegistry,
-      providerIds: refineProviderIds,
-      providerId: refineProviderId,
-      input: 'text',
-      config: processingConfig,
-      save: saveProcessingConfig,
-      selection: processingConfig.refine
-    })
-
-    const instructionsRow = textAreaValueRow('Instructions', {
-      text: processingConfig.refine.instructions,
-      onChanged: text => {
-        processingConfig.refine.instructions = text
-        saveProcessingConfig()
-      },
-      minHeight: 120,
-      maxHeight: 260
-    })
-
-    const refineOnErrorRow = new Adw.ComboRow({
-      title: 'On refine failure',
-      model: Gtk.StringList.new(['Use transcription', 'Fail voice input']),
-      selected: Math.max(0, REFINE_ON_ERROR_VALUES.indexOf(processingConfig.refine.onError))
-    })
-
-    const refineTestRow = buildConnectionRow({ settings, role: 'refine' })
-
-    const refineExpander = new Adw.ExpanderRow({
-      title: 'Refine',
-      subtitle: 'Additional processing may increase latency and provider usage or cost.',
-      show_enable_switch: true,
-      enable_expansion: processingConfig.refine.enabled
-    })
-
-    refineExpander.add_row(refineProviderRow)
-    refineFields.selectionRows.forEach(row => refineExpander.add_row(row))
-    refineFields.providerRows.forEach(row => refineExpander.add_row(row))
-    refineExpander.add_row(instructionsRow)
-    refineExpander.add_row(refineOnErrorRow)
-    refineExpander.add_row(refineTestRow.row)
-
-    const advancedExpander = new Adw.ExpanderRow({ title: 'Advanced' })
-    primaryFields.advancedRows.forEach(row => advancedExpander.add_row(row))
-    refineFields.advancedRows.forEach(row => advancedExpander.add_row(row))
-
-    const refineWarning = new Adw.Banner({ title: '' })
-
-    // Context is product-owned free text and only appears when an active
-    // selection can consume it. The group already labels the field, so this
-    // uses the standalone multiline variant without an internal caption.
     const contextGroup = new Adw.PreferencesGroup({
       title: 'Context',
       description: 'Names, terms, and background sent to providers that support context.'
     })
-    const contextRow = textAreaRow(settings, 'context', {
-      minHeight: 140,
-      maxHeight: 260
-    })
-    contextGroup.add(contextRow)
+    contextGroup.add(textAreaRow(settings, 'context', { minHeight: 140, maxHeight: 260 }))
 
-    const applyContextVisibility = () => {
-      let used = resolvedCapabilities(processingConfig.primary, processingConfig, providerRegistry)?.context
-      if (refineExpander.enable_expansion) {
-        used = used || resolvedCapabilities(processingConfig.refine, processingConfig, providerRegistry)?.context
-      }
-      contextGroup.visible = Boolean(used)
+    let processingRows = []
+    const replaceProcessingRows = rows => {
+      for (const row of processingRows) { processingGroup.remove(row) }
+      processingRows = rows
+      for (const row of processingRows) { processingGroup.add(row) }
     }
 
-    const applyRefineWarning = () => {
-      const model = String(processingConfig.refine.values.model || '').trim()
-      const missing = []
-      if (!model) { missing.push('a model') }
-      if (!refineFields.secretsPresent()) {
-        missing.push(`${providerLabel(refineProviderId())} API key`)
+    const renderProcessing = () => {
+      let refreshMeta = () => {}
+      const rows = []
+
+      const primaryProviderRow = new Adw.ComboRow({
+        title: 'Transcription provider',
+        model: Gtk.StringList.new(primaryProviderIds.map(providerLabel)),
+        selected: Math.max(0, primaryProviderIds.indexOf(processingConfig.primary.provider))
+      })
+      primaryProviderRow.connect('notify::selected', () => {
+        const id = primaryProviderIds[primaryProviderRow.selected] ?? primaryProviderIds[0]
+        if (!id || id === processingConfig.primary.provider) { return }
+        processingConfig.primary.provider = id
+        processingConfig.primary.values = { ...(providerRegistry.get(id)?.manifest?.defaults?.audio || {}) }
+        saveProcessingConfig()
+        renderProcessing()
+      })
+      rows.push(primaryProviderRow)
+
+      const primaryFields = buildProviderRows({
+        settings,
+        providerId: processingConfig.primary.provider,
+        input: 'audio',
+        config: processingConfig,
+        selection: processingConfig.primary,
+        includeProviderFields: true,
+        save: saveProcessingConfig,
+        onChanged: () => refreshMeta()
+      })
+      rows.push(...primaryFields.selectionRows, ...primaryFields.providerRows)
+      rows.push(buildConnectionRow({ settings, role: 'primary' }).row)
+
+      const refineExpander = new Adw.ExpanderRow({
+        title: 'Refine',
+        subtitle: 'Additional processing may increase latency and provider usage or cost.',
+        show_enable_switch: true,
+        enable_expansion: processingConfig.refine.enabled
+      })
+      const refineProviderRow = new Adw.ComboRow({
+        title: 'Provider',
+        model: Gtk.StringList.new(refineProviderIds.map(providerLabel)),
+        selected: Math.max(0, refineProviderIds.indexOf(processingConfig.refine.provider))
+      })
+      refineProviderRow.connect('notify::selected', () => {
+        const id = refineProviderIds[refineProviderRow.selected] ?? refineProviderIds[0]
+        if (!id || id === processingConfig.refine.provider) { return }
+        processingConfig.refine.provider = id
+        processingConfig.refine.values = { ...(providerRegistry.get(id)?.manifest?.defaults?.text || {}) }
+        saveProcessingConfig()
+        renderProcessing()
+      })
+      refineExpander.add_row(refineProviderRow)
+
+      const refineFields = buildProviderRows({
+        settings,
+        providerId: processingConfig.refine.provider,
+        input: 'text',
+        config: processingConfig,
+        selection: processingConfig.refine,
+        includeProviderFields: processingConfig.refine.provider !== processingConfig.primary.provider,
+        save: saveProcessingConfig,
+        onChanged: () => refreshMeta()
+      })
+      for (const row of [...refineFields.selectionRows, ...refineFields.providerRows]) {
+        refineExpander.add_row(row)
       }
 
-      refineWarning.revealed = refineExpander.enable_expansion && missing.length > 0
-      if (refineWarning.revealed) {
-        refineWarning.title = `Refine needs ${missing.join(' and ')}`
+      refineExpander.add_row(textAreaValueRow('Instructions', {
+        text: processingConfig.refine.instructions,
+        onChanged: text => {
+          processingConfig.refine.instructions = text
+          saveProcessingConfig()
+        },
+        minHeight: 120,
+        maxHeight: 260
+      }))
+
+      const refineOnErrorRow = new Adw.ComboRow({
+        title: 'On refine failure',
+        model: Gtk.StringList.new(['Use transcription', 'Fail voice input']),
+        selected: Math.max(0, REFINE_ON_ERROR_VALUES.indexOf(processingConfig.refine.onError))
+      })
+      refineOnErrorRow.connect('notify::selected', () => {
+        processingConfig.refine.onError = REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
+        saveProcessingConfig()
+      })
+      refineExpander.add_row(refineOnErrorRow)
+      refineExpander.add_row(buildConnectionRow({ settings, role: 'refine' }).row)
+      refineExpander.connect('notify::enable-expansion', () => {
+        if (processingConfig.refine.enabled === refineExpander.enable_expansion) { return }
+        processingConfig.refine.enabled = refineExpander.enable_expansion
+        saveProcessingConfig()
+        renderProcessing()
+      })
+      rows.push(refineExpander)
+
+      const advancedRows = [
+        ...primaryFields.advancedRows,
+        ...(processingConfig.refine.enabled ? refineFields.advancedRows : [])
+      ]
+      if (advancedRows.length > 0) {
+        const advancedExpander = new Adw.ExpanderRow({ title: 'Advanced' })
+        for (const row of advancedRows) { advancedExpander.add_row(row) }
+        rows.push(advancedExpander)
       }
+
+      const refineWarning = new Adw.Banner({ title: '' })
+      rows.push(refineWarning)
+
+      const securityNote = new Gtk.Label({
+        label: 'API keys entered here are stored as plain text in GNOME settings. Environment variables can be used instead.',
+        xalign: 0,
+        wrap: true
+      })
+      securityNote.add_css_class('caption')
+      securityNote.add_css_class('dimmed')
+      securityNote.add_css_class('toas-group-note')
+      rows.push(securityNote)
+
+      refreshMeta = () => {
+        const resolvedConfig = snapshotProcessingConfig(settings, providerRegistry)
+        const secrets = snapshotProviderSecrets(settings, providerRegistry)
+        const inspect = (selection, role) => inspectSelection({
+          providers: providerRegistry,
+          selection,
+          providerValues: resolvedConfig.providers[selection.provider] || {},
+          role,
+          secrets
+        })
+        const primary = inspect(processingConfig.primary, 'primary')
+        const refine = inspect(processingConfig.refine, 'refine')
+
+        contextGroup.visible = Boolean(
+          primary.capabilities?.context ||
+          (processingConfig.refine.enabled && refine.capabilities?.context)
+        )
+
+        refineWarning.revealed = processingConfig.refine.enabled && refine.issues.length > 0
+        refineWarning.title = refineWarning.revealed
+          ? `Refine: ${refine.issues[0]?.message ?? 'Provider settings need attention'}`
+          : ''
+      }
+
+      replaceProcessingRows(rows)
+      refreshMeta()
     }
 
-    const syncProcessingVisibility = () => {
-      // Provider configuration is shared by provider id. If transcription and
-      // Refine use the same service, show endpoint/key once instead of making
-      // the product architecture look duplicated to the user.
-      refineFields.setProviderFieldsVisible(
-        refineExpander.enable_expansion && refineProviderId() !== primaryProviderId()
-      )
-      advancedExpander.visible =
-        primaryFields.hasVisibleAdvanced() || refineFields.hasVisibleAdvanced()
-    }
-
-    providerRow.connect('notify::selected', () => {
-      const nextId = primaryProviderId()
-      processingConfig.primary.provider = nextId
-      processingConfig.primary.values = { ...(providerRegistry.get(nextId)?.manifest?.defaults?.audio || {}) }
-      saveProcessingConfig()
-      primaryFields.refresh()
-      primaryTestRow.resetStatus()
-      syncProcessingVisibility()
-      applyContextVisibility()
-      applyRefineWarning()
-    })
-
-    refineProviderRow.connect('notify::selected', () => {
-      const nextId = refineProviderId()
-      processingConfig.refine.provider = nextId
-      processingConfig.refine.values = { ...(providerRegistry.get(nextId)?.manifest?.defaults?.text || {}) }
-      saveProcessingConfig()
-      refineFields.refresh()
-      refineTestRow.resetStatus()
-      syncProcessingVisibility()
-      applyContextVisibility()
-      applyRefineWarning()
-    })
-
-    refineOnErrorRow.connect('notify::selected', () => {
-      processingConfig.refine.onError =
-        REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
-      saveProcessingConfig()
-    })
-
-    refineExpander.connect('notify::enable-expansion', () => {
-      processingConfig.refine.enabled = refineExpander.enable_expansion
-      saveProcessingConfig()
-      syncProcessingVisibility()
-      applyContextVisibility()
-      applyRefineWarning()
-    })
-
-    primaryFields.onChange(() => {
-      applyContextVisibility()
-      applyRefineWarning()
-    })
-    refineFields.onChange(() => {
-      applyContextVisibility()
-      applyRefineWarning()
-    })
-
-    processingGroup.add(providerRow)
-    primaryFields.selectionRows.forEach(row => processingGroup.add(row))
-    primaryFields.providerRows.forEach(row => processingGroup.add(row))
-    processingGroup.add(primaryTestRow.row)
-    processingGroup.add(refineExpander)
-    processingGroup.add(advancedExpander)
-    processingGroup.add(refineWarning)
-
-    const securityNote = new Gtk.Label({
-      label: 'API keys entered here are stored as plain text in GNOME settings. Environment variables can be used instead.',
-      xalign: 0,
-      wrap: true
-    })
-    securityNote.add_css_class('caption')
-    securityNote.add_css_class('dimmed')
-    securityNote.add_css_class('toas-group-note')
-    processingGroup.add(securityNote)
-
-    // --- Recording & History -------------------------------------------------
+    renderProcessing()
 
     const localGroup = new Adw.PreferencesGroup({
       title: 'Recording & History',
@@ -414,169 +372,85 @@ export default class ToasPreferences extends ExtensionPreferences {
     page.add(contextGroup)
     page.add(localGroup)
     window.add(page)
-
-    syncProcessingVisibility()
-    applyContextVisibility()
-    applyRefineWarning()
   }
 }
 
-// Build rows from Provider manifests while keeping product UI concerns out of
-// Providers. Selection fields and shared Provider fields are returned
-// separately so Preferences can present them according to the user's task.
-function dynamicFieldRows ({ settings, providers, providerIds, providerId, input, config, save, selection }) {
-  const changed = []
-  const controls = []
-  let refreshing = false
-  let providerFieldsVisible = true
+// Build only the rows for the currently selected Provider. Provider changes
+// rebuild the small Processing group instead of maintaining hidden controls
+// for every possible Provider.
+function buildProviderRows ({
+  settings,
+  providerId,
+  input,
+  config,
+  selection,
+  includeProviderFields,
+  save,
+  onChanged
+}) {
+  const provider = providerRegistry.get(providerId)
+  const selectionRows = []
+  const providerRows = []
+  const advancedRows = []
 
-  const emitChanged = () => changed.forEach(handler => handler())
-  const appliesToInput = field =>
-    field.inputs === undefined || field.inputs.includes(input)
-
-  for (const id of providerIds) {
-    const provider = providers.get(id)
-    if (!provider) { continue }
-
-    for (const field of provider.manifest.fields || []) {
+  if (includeProviderFields) {
+    for (const field of provider?.manifest?.fields || []) {
       if (field.type === 'secret') {
-        const control = secretRow({
-          settings,
-          providerId: id,
-          fieldKey: field.key,
-          title: field.label
-        })
-        control.onChange(emitChanged)
-        controls.push({
-          id,
-          field,
-          scope: 'provider',
-          advanced: false,
-          kind: 'secret',
-          row: control.row,
-          control
-        })
+        const control = secretRow({ settings, providerId, field })
+        control.onChange(onChanged)
+        providerRows.push(control.row)
         continue
       }
 
       const advanced = field.type === 'url' && Object.hasOwn(field, 'default')
       const row = new Adw.EntryRow({
-        title: advanced ? `${provider.manifest.label} ${field.label}` : field.label
+        title: advanced ? `${provider.manifest.label} ${field.label}` : field.label,
+        text: String(config.providers[providerId]?.[field.key] ?? field.default ?? '')
       })
       row.connect('changed', () => {
-        if (refreshing || providerId() !== id) { return }
-        const target = (config.providers[id] ??= {})
-        target[field.key] = row.get_text()
+        const values = (config.providers[providerId] ??= {})
+        values[field.key] = row.get_text()
         save()
-        emitChanged()
+        onChanged()
       })
-      controls.push({ id, field, scope: 'provider', advanced, kind: 'value', row })
+      ;(advanced ? advancedRows : providerRows).push(row)
     }
+  }
 
-    for (const field of (provider.manifest.selectionFields || []).filter(appliesToInput)) {
-      const control = selectionFieldControl(field, value => {
-        if (refreshing || providerId() !== id) { return }
+  for (const field of (provider?.manifest?.selectionFields || [])) {
+    if (field.inputs !== undefined && !field.inputs.includes(input)) { continue }
+    selectionRows.push(selectionFieldRow(
+      field,
+      selection.values[field.key] ?? field.default ?? '',
+      value => {
         selection.values[field.key] = value
         save()
-        emitChanged()
-      })
-      controls.push({ id, field, scope: 'selection', advanced: false, kind: 'selection', ...control })
-    }
-  }
-
-  const refresh = () => {
-    refreshing = true
-    const currentId = providerId()
-    const providerValues = config.providers[currentId] || {}
-
-    for (const item of controls) {
-      item.row.visible = item.id === currentId &&
-        (item.scope === 'selection' || providerFieldsVisible)
-
-      if (item.id !== currentId) { continue }
-
-      if (item.kind === 'value') {
-        const target = item.scope === 'provider' ? providerValues : selection.values
-        const value = target[item.field.key] ?? item.field.default ?? ''
-        if (item.row.get_text() !== String(value)) {
-          item.row.set_text(String(value))
-        }
-      } else if (item.kind === 'selection') {
-        const value = selection.values[item.field.key] ?? item.field.default ?? ''
-        item.setValue(String(value))
+        onChanged()
       }
-    }
-    refreshing = false
+    ))
   }
 
-  const selectionRows = controls
-    .filter(item => item.scope === 'selection')
-    .map(item => item.row)
-  const providerRows = controls
-    .filter(item => item.scope === 'provider' && !item.advanced)
-    .map(item => item.row)
-  const advancedRows = controls
-    .filter(item => item.advanced)
-    .map(item => item.row)
-
-  refresh()
-
-  return {
-    selectionRows,
-    providerRows,
-    advancedRows,
-    refresh,
-    setProviderFieldsVisible: visible => {
-      providerFieldsVisible = visible
-      refresh()
-    },
-    hasVisibleAdvanced: () => advancedRows.some(row => row.visible),
-    secretsPresent: () => controls
-      .filter(item => item.id === providerId() && item.kind === 'secret')
-      .every(item => item.control.hasValue()),
-    onChange: handler => changed.push(handler)
-  }
+  return { selectionRows, providerRows, advancedRows }
 }
 
-function selectionFieldControl (field, onChanged) {
+function selectionFieldRow (field, value, onChanged) {
   if (Array.isArray(field.choices) && field.choices.length > 0) {
+    const selected = field.choices.findIndex(choice => String(choice.value) === String(value))
     const row = new Adw.ComboRow({
       title: field.label,
-      model: Gtk.StringList.new(field.choices.map(choice => choice.label ?? choice.value))
+      model: Gtk.StringList.new(field.choices.map(choice => choice.label ?? choice.value)),
+      selected: Math.max(0, selected)
     })
     row.connect('notify::selected', () => {
       const choice = field.choices[row.selected]
       if (choice) { onChanged(String(choice.value)) }
     })
-    return {
-      row,
-      setValue: value => {
-        const index = field.choices.findIndex(choice => String(choice.value) === value)
-        row.selected = Math.max(0, index)
-      }
-    }
+    return row
   }
 
-  const row = new Adw.EntryRow({ title: field.label })
+  const row = new Adw.EntryRow({ title: field.label, text: String(value) })
   row.connect('changed', () => onChanged(row.get_text()))
-  return {
-    row,
-    setValue: value => {
-      if (row.get_text() !== value) { row.set_text(value) }
-    }
-  }
-}
-
-// Capabilities depend on the resolved selection, not credentials. Providers
-// report them alongside credential issues, so this probe needs no secrets.
-function resolvedCapabilities (selection, config, providers) {
-  const provider = providers.get(selection.provider)
-  const { providerValues } = prepareResolveInput(
-    provider.manifest.fields || [],
-    selection.provider,
-    config.providers[selection.provider] || {}
-  )
-  return provider.resolve({ providerValues, values: selection.values, secretPresence: {} }).capabilities
+  return row
 }
 
 function textAreaValueRow (title, { text = '', onChanged, minHeight = 92, maxHeight = 200 } = {}) {
@@ -594,14 +468,8 @@ function textAreaRow (settings, key, { defaultText = '', minHeight = 92, maxHeig
   return row
 }
 
-// Two visual forms share one editor implementation: embedded rows carry a
-// compact field caption, while standalone rows rely on their surrounding
-// PreferencesGroup for identity and render as a pure text area.
 function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
-  const row = new Adw.PreferencesRow({
-    activatable: false,
-    selectable: false
-  })
+  const row = new Adw.PreferencesRow({ activatable: false, selectable: false })
   row.add_css_class('toas-multiline-row')
   if (!title) { row.add_css_class('toas-multiline-standalone') }
 
@@ -609,10 +477,7 @@ function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
   row.set_child(box)
 
   if (title) {
-    const caption = new Gtk.Label({
-      label: title,
-      xalign: 0
-    })
+    const caption = new Gtk.Label({ label: title, xalign: 0 })
     caption.add_css_class('toas-multiline-caption')
     box.append(caption)
   }
@@ -624,16 +489,14 @@ function buildTextAreaRow ({ title = null, minHeight, maxHeight }) {
     accepts_tab: false,
     hexpand: true
   })
-
-  const scrolled = new Gtk.ScrolledWindow({
+  box.append(new Gtk.ScrolledWindow({
     hscrollbar_policy: Gtk.PolicyType.NEVER,
     vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
     min_content_height: minHeight,
     max_content_height: maxHeight,
     propagate_natural_height: true,
     child: view
-  })
-  box.append(scrolled)
+  }))
 
   return { row, buffer }
 }
@@ -667,94 +530,61 @@ function spinRow (settings, key, title, lower, upper) {
   return row
 }
 
-// Secrets are stored only in provider-secrets. Empty means the Provider can
-// fall back to its declared environment variables; environment values are
-// never copied into the UI.
-function secretRow ({ settings, providerId, fieldKey, title }) {
-  const entry = new Adw.PasswordEntryRow({ title })
+function secretRow ({ settings, providerId, field }) {
+  const entry = new Adw.PasswordEntryRow({ title: field.label })
   const envIcon = new Gtk.Image({
     icon_name: 'emblem-ok-symbolic',
     tooltip_text: 'Using an environment variable'
   })
   entry.add_suffix(envIcon)
-
   const changeHandlers = []
+  const storageKey = secretKey(providerId, field.key)
 
   const readStored = () => {
     const map = settings.get_value('provider-secrets').deep_unpack()
-    return map[secretKey(providerId, fieldKey)] ?? ''
+    return map[storageKey] ?? ''
   }
-
-  const updateEnvIndicator = () => {
-    envIcon.visible = !readStored() && envFallbackPresent(providerId, fieldKey)
-  }
-
-  const writeStored = value => {
-    const map = settings.get_value('provider-secrets').deep_unpack()
-    const key = secretKey(providerId, fieldKey)
-    if (value) { map[key] = value } else { delete map[key] }
-    settings.set_value('provider-secrets', new GLib.Variant('a{ss}', map))
-    updateEnvIndicator()
-    changeHandlers.forEach(handler => handler())
-  }
+  const envPresent = () => (field.env ?? []).some(name => Boolean(GLib.getenv(name)?.trim()))
+  const updateEnvIndicator = () => { envIcon.visible = !readStored() && envPresent() }
 
   entry.text = readStored()
   updateEnvIndicator()
-
   entry.connect('changed', () => {
-    writeStored(entry.get_text().trim())
+    const map = settings.get_value('provider-secrets').deep_unpack()
+    const value = entry.get_text().trim()
+    if (value) { map[storageKey] = value } else { delete map[storageKey] }
+    settings.set_value('provider-secrets', new GLib.Variant('a{ss}', map))
+    updateEnvIndicator()
+    changeHandlers.forEach(handler => handler())
   })
 
-  return {
-    row: entry,
-    hasValue: () => Boolean(readStored() || envFallbackPresent(providerId, fieldKey)),
-    onChange: handler => changeHandlers.push(handler)
-  }
-}
-
-function envFallbackPresent (providerId, fieldKey) {
-  const provider = providerRegistry.get(providerId)
-  const field = (provider?.manifest?.fields ?? []).find(f => f.key === fieldKey)
-  return (field?.env ?? []).some(name => Boolean(GLib.getenv(name)?.trim()))
+  return { row: entry, onChange: handler => changeHandlers.push(handler) }
 }
 
 function buildConnectionRow ({ settings, role }) {
   const description = 'Verify the current settings.'
-  const button = new Gtk.Button({
-    valign: Gtk.Align.CENTER,
-    label: 'Test'
-  })
-  const row = new Adw.ActionRow({
-    title: 'Connection',
-    subtitle: description
-  })
+  const button = new Gtk.Button({ valign: Gtk.Align.CENTER, label: 'Test' })
+  const row = new Adw.ActionRow({ title: 'Connection', subtitle: description })
   row.add_suffix(button)
   row.activatable_widget = button
 
   let busy = false
-  const setStatus = text => { row.subtitle = text || description }
-
   button.connect('clicked', async () => {
     if (busy) { return }
     busy = true
     button.sensitive = false
-    setStatus('Testing…')
+    row.subtitle = 'Testing…'
 
     try {
-      const configService = new ConfigService({ settings, providers: providerRegistry })
-      try {
-        await runConnectionTest({ configService, providers: providerRegistry, role })
-      } finally {
-        configService.destroy()
-      }
-      setStatus('Connection works')
+      await runConnectionTest({ settings, providers: providerRegistry, role })
+      row.subtitle = 'Connection works'
     } catch (error) {
-      setStatus(error.message ?? 'Could not reach the service')
+      row.subtitle = error.message ?? 'Could not reach the service'
     } finally {
       busy = false
       button.sensitive = true
     }
   })
 
-  return { row, resetStatus: () => setStatus(description) }
+  return { row }
 }

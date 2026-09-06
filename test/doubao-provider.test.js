@@ -37,8 +37,7 @@ test('Doubao manifest exposes BigASR Flash as an audio-only selection', () => {
   expectEqual(resolved.capabilities, {
     inputs: ['audio'],
     instructions: false,
-    context: false,
-    integratedRefine: false
+    context: false
   })
 })
 
@@ -69,7 +68,6 @@ test('Doubao Flash sends the documented headers, raw Base64, and model_name', as
   const result = await processor.process({
     input: AUDIO,
     context: { text: 'must not be sent' },
-    instructions: null,
     signal: null
   })
 
@@ -115,7 +113,7 @@ test('Doubao does not treat HTTP 200 as business success', async () => {
   const processor = doubaoProvider.create(resolved.config, { key: 'doubao-secret' }, { transport })
   let threw = null
   try {
-    await processor.process({ input: AUDIO, instructions: null, signal: null })
+    await processor.process({ input: AUDIO, signal: null })
   } catch (error) {
     threw = error
   }
@@ -140,7 +138,7 @@ test('Doubao requires the documented business status header', async () => {
   const processor = doubaoProvider.create(resolved.config, { key: 'doubao-secret' }, { transport })
   let threw = null
   try {
-    await processor.process({ input: AUDIO, instructions: null, signal: null })
+    await processor.process({ input: AUDIO, signal: null })
   } catch (error) {
     threw = error
   }

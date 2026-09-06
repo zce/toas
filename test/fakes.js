@@ -1,7 +1,6 @@
-// Fake implementations for orchestrator collaborators. Fakes record the calls
-// they receive so tests assert on behavior through the same public interfaces
-// production code uses. Pure GJS + GLib only: no St/Clutter, no Shell
-// resources, so the suite runs with `gjs -m`.
+// Fake implementations for orchestrator collaborators. Fakes implement the
+// same required contracts as production instead of making production code
+// optional-chain around incomplete test doubles.
 
 export class FakeRecorder {
   constructor ({ recording = null, stopError = null } = {}) {
@@ -11,12 +10,9 @@ export class FakeRecorder {
     this.stops = 0
     this.cancels = 0
     this.destroys = 0
-    this.onLevel = null
   }
 
-  async start () {
-    this.starts++
-  }
+  async start () { this.starts++ }
 
   async stop () {
     this.stops++
@@ -24,18 +20,10 @@ export class FakeRecorder {
     return this.recording
   }
 
-  cancel () {
-    this.cancels++
-  }
-
-  destroy () {
-    this.destroys++
-  }
+  cancel () { this.cancels++ }
+  destroy () { this.destroys++ }
 }
 
-// Stand-in for the Host-side Kernel collaborator: same process(recording,
-// signal) seam the orchestrator calls in production. delayMs simulates
-// in-flight network work so cancellation tests can interrupt mid-attempt.
 export class FakeKernel {
   constructor ({ text = 'hello', error = null, warning = null, trace = null, delayMs = 0 } = {}) {
     this.text = text
@@ -60,7 +48,6 @@ export class FakeKernel {
         provider: 'fake',
         model: 'fake-model',
         input: 'audio',
-        text: this.text,
         status: 'ok',
         elapsedMs: 100,
         context: [],
@@ -74,40 +61,33 @@ export class FakeKernel {
 }
 
 export class FakePaster {
-  constructor ({ delayMs = 0, deliveryMode = 'insert', focusMismatchMessage = null } = {}) {
+  constructor ({ delayMs = 0, deliveryMode = 'insert', focusMismatch = false, error = null } = {}) {
     this.delayMs = delayMs
     this.mode = deliveryMode
-    this.focusMismatchMessage = focusMismatchMessage
+    this.focusMismatch = focusMismatch
+    this.error = error
     this.writes = []
     this.capturedWindows = []
     this.cancels = 0
     this.destroys = 0
     this.resolveWrite = null
-    this._onFocusMismatch = null
+    this.monitorIndex = null
   }
+
+  getFocusedMonitorIndex () { return this.monitorIndex }
 
   captureFocusedWindow () {
     this.capturedWindows.push(`capture-${this.capturedWindows.length}`)
   }
 
-  deliveryMode () {
-    return this.mode
-  }
-
-  setOnFocusMismatch (handler) {
-    this._onFocusMismatch = handler
-  }
-
   async write (text) {
     this.writes.push(text)
     if (this.delayMs) {
-      await new Promise(resolve => {
-        this.resolveWrite = resolve
-      })
+      await new Promise(resolve => { this.resolveWrite = resolve })
     }
-    if (this.focusMismatchMessage) {
-      this._onFocusMismatch?.(this.focusMismatchMessage)
-    }
+    if (this.error) { throw this.error }
+    if (this.focusMismatch) { return { mode: 'copied', reason: 'focus-mismatch' } }
+    return { mode: this.mode === 'clipboard' ? 'copied' : 'inserted' }
   }
 
   cancel () { this.cancels++ }
@@ -118,17 +98,44 @@ export class FakeHistory {
   constructor () {
     this.appends = []
     this.discarded = []
+    this.attempts = []
+    this.entries = []
     this.clears = 0
   }
 
   get recordingsDirectory () { return '/tmp/fake-recordings' }
 
-  append (entry) { this.appends.push(entry) }
+  append (entry) {
+    this.appends.push(entry)
+    this.entries.push(entry)
+    return entry
+  }
 
+  appendAttempt (original, entry) {
+    const attempt = {
+      ...entry,
+      id: entry.id ?? `attempt-${this.attempts.length + 1}`,
+      attemptOf: original.id,
+      attemptNumber: this.attempts.filter(candidate => candidate.attemptOf === original.id).length + 1,
+      audio: null
+    }
+    this.attempts.push(attempt)
+    this.entries.push(attempt)
+    return attempt
+  }
+
+  resolveAudio (entry) {
+    return {
+      available: Boolean(entry?.audio),
+      path: entry?.audio ? `/tmp/state/${entry.audio}` : null
+    }
+  }
+
+  get (id) { return this.entries.find(entry => entry.id === id) ?? null }
   discardRecording (recording) { this.discarded.push(recording) }
 
   clear () {
-    this.clears = (this.clears ?? 0) + 1
+    this.clears++
     return this.appends.length
   }
 }
@@ -140,27 +147,21 @@ export class FakeOverlay {
     this.resets = 0
     this.destroys = 0
     this.privateFlags = []
+    this.monitors = []
   }
 
-  render (state, message = '') {
-    this.states.push({ state, message })
-  }
-
+  render (state, message = '') { this.states.push({ state, message }) }
   setLevel (level) { this.levels.push(level) }
   resetLevels () { this.resets++ }
   setPrivate (enabled) { this.privateFlags.push(enabled) }
+  setMonitor (index) { this.monitors.push(index) }
   destroy () { this.destroys++ }
 }
 
 export class FakeNotifier {
-  constructor () {
-    this.notifications = []
-    this.cancels = 0
-  }
+  constructor () { this.notifications = [] }
 
   notify (title, body) {
     this.notifications.push({ title, body })
   }
-
-  cancel () { this.cancels++ }
 }

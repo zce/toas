@@ -3,6 +3,8 @@ import GLib from 'gi://GLib'
 
 import { presentFailure } from './feedback.js'
 
+const DEFAULT_PAGE_SIZE = 30
+
 export class HistoryStore {
   constructor (settings) {
     this._settings = settings
@@ -33,10 +35,6 @@ export class HistoryStore {
   }
 
   append (entry) {
-    // A zero recording limit means audio is not historical data. Processing
-    // has already finished by the time entries reach the store, so discard
-    // the WAV before persisting the text record rather than waiting for a
-    // later retention pass.
     let retainedEntry = entry
     if (entry.audio && this._settings.get_uint('recording-limit') === 0) {
       this._discardEntryRecording(entry)
@@ -53,12 +51,69 @@ export class HistoryStore {
     }
 
     this._pruneSafely()
+    return retainedEntry
+  }
+
+  // Newest-first logical voice inputs. Retry attempts are projected onto their
+  // parent from the same file snapshot, so opening History never reparses the
+  // JSONL once per row.
+  list ({ limit = DEFAULT_PAGE_SIZE, beforeId = null } = {}) {
+    const entries = this.readEntries()
+    const attempts = new Map()
+    for (const entry of entries) {
+      if (!entry.attemptOf) { continue }
+      const list = attempts.get(entry.attemptOf) ?? []
+      list.push(entry)
+      attempts.set(entry.attemptOf, list)
+    }
+
+    const newestFirst = entries.filter(entry => !entry.attemptOf).reverse()
+    const startIndex = beforeId
+      ? newestFirst.findIndex(entry => entry.id === beforeId) + 1
+      : 0
+    if (beforeId && startIndex === 0) { return [] }
+
+    return newestFirst
+      .slice(startIndex, startIndex + limit)
+      .map(entry => projectLatestAttempt(entry, attempts.get(entry.id) ?? []))
+  }
+
+  get (id) {
+    return this.readEntries().find(entry => entry.id === id) ?? null
+  }
+
+  appendAttempt (original, entry) {
+    const entries = this.readEntries()
+    const current = entries.find(candidate => candidate.id === original?.id && !candidate.attemptOf)
+    if (!current) { return null }
+
+    const attempt = {
+      ...entry,
+      id: entry.id ?? GLib.uuid_string_random(),
+      attemptOf: current.id,
+      attemptNumber: entries.filter(candidate => candidate.attemptOf === current.id).length + 1,
+      audio: null
+    }
+    this.append(attempt)
+    return attempt
+  }
+
+  resolveAudio (entry) {
+    if (!entry?.audio) { return { available: false, path: null } }
+
+    const path = GLib.build_filenamev([this.stateDirectory, entry.audio])
+    const exists = GLib.file_test(path, GLib.FileTest.EXISTS) &&
+      !GLib.file_test(path, GLib.FileTest.IS_DIR)
+    return { available: exists, path: exists ? path : null }
   }
 
   clear () {
-    const count = this.readEntries().length
+    const entries = this.readEntries()
+    const count = entries.filter(entry => !entry.attemptOf).length
 
-    if (GLib.file_test(this._historyPath, GLib.FileTest.EXISTS)) { GLib.file_set_contents(this._historyPath, '') }
+    if (GLib.file_test(this._historyPath, GLib.FileTest.EXISTS)) {
+      GLib.file_set_contents(this._historyPath, '')
+    }
 
     this._forEachRecording(name =>
       this.discardRecording({
@@ -91,32 +146,43 @@ export class HistoryStore {
 
   _prune () {
     const entries = this.readEntries()
-    const textLimit = this._settings.get_uint('history-limit')
+    const historyLimit = this._settings.get_uint('history-limit')
+    const roots = entries.filter(entry => !entry.attemptOf)
+    const retainedRoots = historyLimit > 0 ? roots.slice(-historyLimit) : []
+    const retainedRootIds = new Set(retainedRoots.map(entry => entry.id))
+    const removedRoots = roots.filter(entry => !retainedRootIds.has(entry.id))
 
-    const removed = entries.slice(0, Math.max(0, entries.length - textLimit))
-    const retained = entries.slice(-textLimit)
+    for (const entry of removedRoots) { this._discardEntryRecording(entry) }
 
-    for (const entry of removed) { this._discardEntryRecording(entry) }
-
-    const recordingLimit = this._settings.get_uint(
-      'recording-limit'
+    // Attempts are children of a logical voice input and consume no retention
+    // slots. Orphaned attempts disappear with their parent.
+    const retained = entries.filter(entry =>
+      entry.attemptOf
+        ? retainedRootIds.has(entry.attemptOf)
+        : retainedRootIds.has(entry.id)
     )
-    const withAudio = retained
-      .map((entry, index) => ({ entry, index }))
-      .filter(({ entry }) => entry.audio)
-    const dropCount = Math.max(0, withAudio.length - recordingLimit)
 
-    for (const { entry, index } of withAudio.slice(0, dropCount)) {
+    const recordingLimit = this._settings.get_uint('recording-limit')
+    const rootsWithAudio = retained
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => !entry.attemptOf && entry.audio)
+    const dropCount = Math.max(0, rootsWithAudio.length - recordingLimit)
+
+    for (const { entry, index } of rootsWithAudio.slice(0, dropCount)) {
       this._discardEntryRecording(entry)
       retained[index] = { ...entry, audio: null }
     }
 
-    if (removed.length > 0 || dropCount > 0) {
-      const contents = retained.length
-        ? `${retained.map(entry => JSON.stringify(entry)).join('\n')}\n`
-        : ''
-      GLib.file_set_contents(this._historyPath, contents)
+    if (retained.length !== entries.length || dropCount > 0) {
+      this._writeEntries(retained)
     }
+  }
+
+  _writeEntries (entries) {
+    const contents = entries.length
+      ? `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`
+      : ''
+    GLib.file_set_contents(this._historyPath, contents)
   }
 
   _discardEntryRecording (entry) {
@@ -181,67 +247,6 @@ export class HistoryStore {
   }
 }
 
-// Bounded history queries plus linked retry attempts. Pure GLib, no Shell imports.
-const DEFAULT_PAGE_SIZE = 30
-
-export class HistoryRepository {
-  constructor (store) {
-    this._store = store
-  }
-
-  // Newest-first page; beforeId is the last entry of the previous page.
-  list ({ limit = DEFAULT_PAGE_SIZE, beforeId = null } = {}) {
-    const entries = this._store.readEntries()
-    const newestFirst = [...entries].reverse()
-    const startIndex = beforeId
-      ? newestFirst.findIndex(entry => entry.id === beforeId) + 1
-      : 0
-
-    if (beforeId && startIndex === 0) { return [] }
-
-    return newestFirst
-      .slice(startIndex)
-      .filter(entry => !entry.attemptOf)
-      .slice(0, limit)
-  }
-
-  get (id) {
-    return this._store.readEntries().find(entry => entry.id === id) ?? null
-  }
-
-  attemptsOf (voiceInputId) {
-    return this._store
-      .readEntries()
-      .filter(entry => entry.attemptOf === voiceInputId)
-  }
-
-  // Retry attempts are appended; the original history item remains immutable.
-  appendAttempt (original, entry) {
-    const attempts = this.attemptsOf(original.id)
-    const attempt = {
-      ...entry,
-      id: entry.id ?? GLib.uuid_string_random(),
-      attemptOf: original.id,
-      attemptNumber: attempts.length + 1
-    }
-    this._store.append(attempt)
-    return attempt
-  }
-
-  // Resolve retained audio without loading it into memory.
-  resolveAudio (entry) {
-    if (!entry?.audio) { return { available: false, path: null } }
-
-    const path = GLib.build_filenamev([
-      this._store.stateDirectory,
-      entry.audio
-    ])
-    const exists = GLib.file_test(path, GLib.FileTest.EXISTS) &&
-      !GLib.file_test(path, GLib.FileTest.IS_DIR)
-    return { available: exists, path: exists ? path : null }
-  }
-}
-
 const PREVIEW_MAX = 60
 
 export function formatRelativeTime (isoString, nowMs = Date.now()) {
@@ -262,8 +267,6 @@ export function formatDuration (ms) {
   return `${minutes}m ${seconds % 60}s`
 }
 
-// Retry state is projected onto the immutable original history item. The
-// latest attempt is authoritative for status, text, and failure context.
 export function projectLatestAttempt (entry, attempts = []) {
   const latest = attempts[attempts.length - 1]
   if (!latest) { return entry }
@@ -278,8 +281,6 @@ export function projectLatestAttempt (entry, attempts = []) {
 }
 
 // output/transcript are compatibility fallbacks for older retained entries.
-// Failed entries without text show stable failure context instead of making
-// missing text look like the primary problem.
 export function previewText (entry) {
   const text = extractText(entry).replace(/\s+/g, ' ').trim()
   if (!text && entry?.status === 'error' && entry.error) {

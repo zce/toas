@@ -1,23 +1,20 @@
 // Runtime-agnostic processing kernel.
-// A plan is one primary audio-to-text Step plus optional Refine, either as a
-// separate text Step or integrated into the primary call. Config and Providers
-// resolve before I/O, and cancellation never degrades into a fallback result.
+// A plan is one primary audio-to-text Step plus an optional Refine text Step.
+// Provider selection resolves before Processor creation or I/O, and
+// cancellation never degrades into a fallback result.
 
-// Providers can be injected so tests exercise the same resolution path without
-// mutating the static registry.
-export async function process ({ config, audio, context, secrets, runtime, signal, providers: injectedProviders = null }) {
+export async function process ({ config, audio, context, secrets, runtime, signal, providers }) {
   if (signal?.aborted) {
     throw processingError('cancelled', 'Processing was cancelled')
   }
 
   validateConfigShape(config)
+  if (!providers) {
+    throw processingError('configuration', 'Provider registry is missing')
+  }
 
-  const { providers: registered } = await import('./providers/registry.js')
-  const providers = injectedProviders ?? registered
-
-  // Resolve the primary role fully before any I/O: an invalid primary
-  // configuration must fail with zero Processor calls.
-  const primary = resolveStep({
+  const contextSnapshot = normalizeContext(context)
+  const primary = createStep({
     providers,
     selection: config.primary,
     providerValues: config.providers?.[config.primary.provider] || {},
@@ -25,34 +22,18 @@ export async function process ({ config, audio, context, secrets, runtime, signa
     secrets,
     runtime
   })
-  const primaryTrace = traceFor({
-    resolved: primary,
-    providerId: config.primary.provider,
-    context
-  })
+  const primaryTrace = traceFor({ resolved: primary, context: contextSnapshot })
 
   if (!config.refine.enabled) {
-    return await runPrimary({ primary, primaryTrace, audio, context, runtime, signal })
+    return await runPrimary({ primary, primaryTrace, audio, context: contextSnapshot, runtime, signal })
   }
 
-  if (config.refine.execution === 'integrated') {
-    return await runIntegrated({
-      primary,
-      primaryTrace,
-      refineConfig: config.refine,
-      audio,
-      context,
-      runtime,
-      signal
-    })
-  }
-
-  return await runSeparate({
+  return await runRefine({
     primary,
     primaryTrace,
     refineConfig: config.refine,
     audio,
-    context,
+    context: contextSnapshot,
     secrets,
     runtime,
     signal,
@@ -61,8 +42,6 @@ export async function process ({ config, audio, context, secrets, runtime, signa
   })
 }
 
-// Validates the logical product shape before resolution. Field-level issues
-// surface later from Provider.resolve with stable paths.
 function validateConfigShape (config) {
   if (!config || typeof config !== 'object') {
     throw processingError('configuration', 'Processing configuration is missing')
@@ -70,18 +49,8 @@ function validateConfigShape (config) {
   if (!config.primary?.provider) {
     throw processingError('configuration', 'A primary provider is required')
   }
-
-  const refine = config.refine
-  if (refine?.enabled) {
-    if (refine.execution !== 'separate' && refine.execution !== 'integrated') {
-      throw processingError('configuration', `Unknown refine execution: ${String(refine.execution)}`)
-    }
-    if (refine.execution === 'separate' && !refine.provider) {
-      throw processingError('configuration', 'A refine provider is required for separate refine')
-    }
-    if (refine.execution === 'integrated' && !refine.instructions?.trim()) {
-      throw processingError('configuration', 'Refine instructions are required')
-    }
+  if (config.refine?.enabled && !config.refine.provider) {
+    throw processingError('configuration', 'A refine provider is required')
   }
 }
 
@@ -91,7 +60,7 @@ async function runPrimary ({ primary, primaryTrace, audio, context, runtime, sig
   const startedAt = runtime.clock.now()
   const result = await primary.processor.process({
     input: audio,
-    context: filterContext(context, primary.resolved.capabilities),
+    context: filterContext(context, primary.capabilities),
     instructions: null,
     signal
   })
@@ -99,71 +68,29 @@ async function runPrimary ({ primary, primaryTrace, audio, context, runtime, sig
   recordTraceMeta(primaryTrace, result)
 
   requireText(result, 'primary')
-  primaryTrace.text = result.text
-
   return { text: result.text, trace: [primaryTrace], warning: null }
 }
 
-async function runIntegrated ({ primary, primaryTrace, refineConfig, audio, context, runtime, signal }) {
-  // The capability check happens before any Processor call: an unsupported
-  // integrated configuration must fail without contacting the Provider.
-  if (!primary.resolved.capabilities.integratedRefine) {
-    throw processingError(
-      'configuration',
-      `Provider ${primary.providerId} does not support integrated refine`
-    )
-  }
-
-  assertNotCancelled(signal)
-
-  primaryTrace.input = 'audio+instructions'
-  primaryTrace.integratedRefine = true
-
-  const startedAt = runtime.clock.now()
-  const result = await primary.processor.process({
-    input: audio,
-    context: filterContext(context, primary.resolved.capabilities),
-    instructions: refineConfig.instructions,
-    signal
-  })
-  primaryTrace.elapsedMs = runtime.clock.now() - startedAt
-  recordTraceMeta(primaryTrace, result)
-
-  requireText(result, 'primary')
-  primaryTrace.text = result.text
-
-  return { text: result.text, trace: [primaryTrace], warning: null }
-}
-
-async function runSeparate ({ primary, primaryTrace, refineConfig, audio, context, secrets, runtime, signal, providers, providerValues }) {
+async function runRefine ({ primary, primaryTrace, refineConfig, audio, context, secrets, runtime, signal, providers, providerValues }) {
   const primaryResult = await runPrimary({ primary, primaryTrace, audio, context, runtime, signal })
   assertNotCancelled(signal)
 
-  // The configured Refine Provider is authoritative; it is resolved and
-  // called even when the primary supports integrated refine.
-  const refine = resolveStep({
+  const refine = createStep({
     providers,
-    selection: {
-      provider: refineConfig.provider,
-      values: refineConfig.values
-    },
+    selection: { provider: refineConfig.provider, values: refineConfig.values },
     providerValues,
     role: 'refine',
     secrets,
     runtime
   })
-  const refineTrace = traceFor({
-    resolved: refine,
-    providerId: refineConfig.provider,
-    context
-  })
+  const refineTrace = traceFor({ resolved: refine, context })
   refineTrace.input = 'text'
 
   const startedAt = runtime.clock.now()
   try {
     const result = await refine.processor.process({
       input: { kind: 'text', text: primaryResult.text },
-      context: filterContext(context, refine.resolved.capabilities),
+      context: filterContext(context, refine.capabilities),
       instructions: refineConfig.instructions || '',
       signal
     })
@@ -171,22 +98,12 @@ async function runSeparate ({ primary, primaryTrace, refineConfig, audio, contex
     recordTraceMeta(refineTrace, result)
 
     requireText(result, 'refine')
-    refineTrace.text = result.text
-
-    return {
-      text: result.text,
-      trace: [primaryTrace, refineTrace],
-      warning: null
-    }
+    return { text: result.text, trace: [primaryTrace, refineTrace], warning: null }
   } catch (err) {
-    // Cancellation always fails the attempt; it is never converted into a
-    // fallback warning or a user-facing Provider failure.
     if (signal?.aborted) {
       throw processingError('cancelled', 'Processing was cancelled')
     }
-    if (refineConfig.onError === 'abort') {
-      throw err
-    }
+    if (refineConfig.onError === 'abort') { throw err }
     return {
       text: primaryResult.text,
       trace: [primaryTrace, failedTrace(refineTrace, err, runtime.clock.now() - startedAt)],
@@ -199,10 +116,72 @@ async function runSeparate ({ primary, primaryTrace, refineConfig, audio, contex
   }
 }
 
-// Prepares the manifest-derived halves of a Provider.resolve() input:
-// Provider values with defaults applied, and secret presence. Exported so
-// the Host's capability probes prepare resolve inputs exactly like the
-// Kernel does.
+function createStep ({ providers, selection, providerValues, role, secrets, runtime }) {
+  const resolved = resolveSelection({ providers, selection, providerValues, role, secrets })
+  return { ...resolved, processor: createProcessor({ resolved, secrets, runtime }) }
+}
+
+// Inspect is the single pure Provider resolution path. Preferences can show
+// capabilities and issues even while a selection is incomplete; executable
+// callers use resolveSelection(), which turns the first issue into a stable
+// configuration error before Processor creation.
+export function inspectSelection ({ providers, selection, providerValues = {}, role, secrets = {} }) {
+  const providerId = selection?.provider
+  const provider = providers.get(providerId)
+  if (!provider) {
+    return {
+      provider: null,
+      providerId,
+      role,
+      config: null,
+      capabilities: null,
+      issues: [{ message: `Unknown provider: ${String(providerId)}` }]
+    }
+  }
+
+  const { providerValues: effectiveProviderValues, secretPresence } =
+    prepareResolveInput(provider.manifest.fields || [], providerId, providerValues, secrets)
+  const resolution = provider.resolve({
+    providerValues: effectiveProviderValues,
+    values: selection.values || {},
+    secretPresence
+  })
+  const issues = [...(resolution.issues || [])]
+
+  if (resolution.capabilities && !suitableForRole(resolution.capabilities, role)) {
+    const purpose = role === 'primary' ? 'primary audio processing' : 'refine'
+    issues.push({ message: `Provider ${providerId} selection cannot perform ${purpose}` })
+  }
+
+  return {
+    provider,
+    providerId,
+    role,
+    config: resolution.config,
+    capabilities: resolution.capabilities,
+    issues
+  }
+}
+
+export function resolveSelection (args) {
+  const inspected = inspectSelection(args)
+  if (inspected.issues.length > 0) {
+    const first = inspected.issues[0]
+    throw processingError('configuration', typeof first === 'string' ? first : first.message)
+  }
+  const { issues: _issues, ...resolved } = inspected
+  return resolved
+}
+
+export function createProcessor ({ resolved, secrets = {}, runtime }) {
+  const providerSecrets = collectSecrets(
+    resolved.provider.manifest.fields || [],
+    resolved.providerId,
+    secrets
+  )
+  return resolved.provider.create(resolved.config, providerSecrets, runtime)
+}
+
 export function prepareResolveInput (manifestFields, providerId, providerValues = {}, secrets = {}) {
   return {
     providerValues: resolveProviderValues(providerValues, manifestFields),
@@ -210,102 +189,41 @@ export function prepareResolveInput (manifestFields, providerId, providerValues 
   }
 }
 
-// Resolves one role against its Provider and returns the created Processor.
-// Throws a configuration error with the first field-addressed issue before
-// any Processor is created. `create()` performs no I/O.
-//
-// Exported because the Host's connection test and readiness guard resolve
-// roles the same way the Kernel does — one resolution pipeline, no
-// duplication.
-export function resolveStep ({ providers, selection, providerValues = {}, role, secrets, runtime }) {
-  const providerId = selection?.provider
-  const provider = providers.get(providerId)
-
-  if (!provider) {
-    throw processingError('configuration', `Unknown provider: ${String(providerId)}`)
-  }
-
-  const { providerValues: effectiveProviderValues, secretPresence } =
-    prepareResolveInput(provider.manifest.fields || [], providerId, providerValues, secrets)
-
-  const resolved = provider.resolve({
-    providerValues: effectiveProviderValues,
-    values: selection.values || {},
-    secretPresence
-  })
-
-  if (resolved.issues?.length > 0) {
-    const first = resolved.issues[0]
-    const detail = typeof first === 'string' ? first : first.message
-    throw processingError('configuration', detail)
-  }
-
-  assertSuitableForRole(resolved.capabilities, role, providerId)
-
-  const providerSecrets = collectSecrets(
-    provider.manifest.fields || [],
-    providerId,
-    secrets
-  )
-
-  const processor = provider.create(resolved.config, providerSecrets, runtime)
-
-  return { provider, providerId, role, resolved, processor }
-}
-
-function assertSuitableForRole (capabilities, role, providerId) {
+function suitableForRole (capabilities, role) {
   const inputs = capabilities?.inputs || []
-  const suitable = role === 'primary'
+  return role === 'primary'
     ? inputs.includes('audio')
     : role === 'refine' && inputs.includes('text') && capabilities.instructions
-
-  if (!suitable) {
-    const purpose = role === 'primary' ? 'primary audio processing' : 'separate refine'
-    throw processingError('configuration', `Provider ${providerId} selection cannot perform ${purpose}`)
-  }
 }
 
 function resolveProviderValues (overrides, fields) {
   const values = {}
-
   for (const field of fields) {
     if (field.type === 'secret') { continue }
-
     if (overrides[field.key] !== undefined && overrides[field.key] !== null) {
       values[field.key] = overrides[field.key]
     } else if (field.default !== undefined) {
       values[field.key] = field.default
     }
   }
-
   return values
 }
 
-// Providers resolve against a flat secret field key -> presence map.
 function buildSecretPresence (fields, providerId, secrets) {
   const presence = {}
-
   for (const field of fields) {
-    if (field.type !== 'secret') { continue }
-
-    presence[field.key] = Boolean(secrets[secretKey(providerId, field.key)])
+    if (field.type === 'secret') { presence[field.key] = Boolean(secrets[secretKey(providerId, field.key)]) }
   }
-
   return presence
 }
 
 function collectSecrets (fields, providerId, secrets) {
   const collected = {}
-
   for (const field of fields) {
     if (field.type !== 'secret') { continue }
-
     const key = secretKey(providerId, field.key)
-    if (secrets[key]) {
-      collected[field.key] = secrets[key]
-    }
+    if (secrets[key]) { collected[field.key] = secrets[key] }
   }
-
   return collected
 }
 
@@ -313,46 +231,29 @@ export function secretKey (providerId, fieldKey) {
   return `providers/${providerId}/${fieldKey}`
 }
 
-// Capability filtering: a Processor receives the Context text only when its
-// resolved selection supports it; otherwise the Processor sees empty Context.
 export function filterContext (context, capabilities) {
-  const snapshot = normalizeContext(context)
-  const filtered = { text: '' }
-
-  if (capabilities?.context) {
-    filtered.text = snapshot.text
-  }
-
-  return filtered
+  return capabilities?.context ? context : { text: '' }
 }
 
-// The Context is one free-text string: the user decides what belongs in it
-// (terms, background, names, any bias text). Empty text is valid; a
-// non-string value rejects the snapshot before Provider creation and I/O.
 export function normalizeContext (context) {
   if (!context) { return { text: '' } }
-
   const value = context.text
-
   if (value === undefined || value === null) { return { text: '' } }
   if (typeof value !== 'string') {
     throw processingError('configuration', 'Context text must be a string')
   }
-
   return { text: value.trim() }
 }
 
-function traceFor ({ resolved, providerId, context }) {
+function traceFor ({ resolved, context }) {
   return {
     role: resolved.role,
-    provider: providerId,
-    model: resolved.resolved?.config?.model ?? null,
+    provider: resolved.providerId,
+    model: resolved.config?.model ?? null,
     input: 'audio',
-    text: null,
     status: 'ok',
     elapsedMs: 0,
-    context: contextInUse(context, resolved.resolved?.capabilities),
-    integratedRefine: false,
+    context: contextInUse(context, resolved.capabilities),
     usage: null,
     requestId: null,
     responseId: null
@@ -365,19 +266,12 @@ function recordTraceMeta (trace, result) {
   trace.responseId = result?.responseId ?? null
 }
 
-// Records only the form names actually delivered, not Context contents.
 function contextInUse (context, capabilities) {
-  const snapshot = normalizeContext(context)
-  return capabilities?.context && snapshot.text ? ['text'] : []
+  return capabilities?.context && context.text ? ['text'] : []
 }
 
 function failedTrace (trace, err, elapsedMs) {
-  return {
-    ...trace,
-    status: 'error',
-    elapsedMs,
-    error: safeMessage(err)
-  }
+  return { ...trace, status: 'error', elapsedMs, error: safeMessage(err) }
 }
 
 export function processingError (category, message, status = null) {
@@ -389,8 +283,6 @@ export function processingError (category, message, status = null) {
 
 function safeMessage (err) {
   const message = err?.message ?? String(err)
-  // Messages come from our own safe constructors; still bound them so a rogue
-  // Provider payload cannot flood history or notifications.
   return message.length > 300 ? `${message.slice(0, 300)}…` : message
 }
 
@@ -405,7 +297,5 @@ function requireText (result, role) {
 }
 
 function assertNotCancelled (signal) {
-  if (signal?.aborted) {
-    throw processingError('cancelled', 'Processing was cancelled')
-  }
+  if (signal?.aborted) { throw processingError('cancelled', 'Processing was cancelled') }
 }

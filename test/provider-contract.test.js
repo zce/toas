@@ -13,6 +13,18 @@ test('every registered Provider extends the shared template', () => {
   }
 })
 
+test('manifest required fields are validated once by the Provider template', () => {
+  const resolved = providers.get('mimo').resolve({
+    providerValues: {},
+    values: {},
+    secretPresence: {}
+  })
+  expectEqual(
+    resolved.issues.filter(issue => issue.code === 'required').map(issue => issue.path).sort(),
+    ['providers.mimo.endpoint', 'providers.mimo.key', 'values.model']
+  )
+})
+
 test('manifest support is discovery only and resolved capabilities are explicit', () => {
   const qwen = providers.get('qwen')
   expectEqual(qwen.manifest.support.inputs, ['audio'])
@@ -22,7 +34,7 @@ test('manifest support is discovery only and resolved capabilities are explicit'
     secretPresence: PRESENT
   })
   expectEqual(resolved.capabilities, {
-    inputs: ['audio'], instructions: false, context: true, integratedRefine: false
+    inputs: ['audio'], instructions: false, context: true
   })
 })
 
