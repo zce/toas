@@ -9,13 +9,13 @@
   spacing: 8px;
   padding: 8px;
 
-  border: 1px solid transparent;
+  border: 1px solid st-darken(-st-accent-color, 0.6);
   border-radius: 999px;
 
-  background-color: rgba(24, 24, 28, 0.88);
-  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.16);
+  background-color: st-transparentize(st-darken(-st-accent-color, 0.6), 0.4);
+  box-shadow: 0 220px 240px 150px st-transparentize(-st-accent-color, 0.1);
 
-  color: white;
+  color: -st-accent-fg-color;
 }
 
 /* Error feedback has no side controls, so give the text more breathing room. */
@@ -101,7 +101,6 @@
  * color so the state remains immediately recognizable.
  */
 .toas-recording {
-  border: 3px solid transparent;
   border-radius: 999px;
 
   color: white;
@@ -151,7 +150,7 @@
 
 .toas-status-icon.toas-private,
 .panel-button.toas-private {
-  opacity: 0.8;
+  color: st-lighten(-st-accent-color, 0.4);
 }
 
 /*
@@ -160,13 +159,12 @@
  * persistent visual distinction without looking like a focus ring.
  */
 .toas-overlay.toas-private {
-  border-color: transparent;
-  box-shadow: inset 0 0 12px st-transparentize(-st-accent-color, 0.68);
+  background-color: st-transparentize(st-darken(-st-accent-color, 0.6), 0.5);
 }
 
 /* Terminal error feedback should not carry the Private run decoration. */
 .toas-overlay.toas-private.toas-error {
-  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.16);
+  background-color: st-transparentize(st-darken(-st-accent-color, 0.6), 0.3);
 }
 
 /*
