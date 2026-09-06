@@ -264,7 +264,8 @@ The **Audio quality** preference controls the sample rate for new recordings:
 
 `Standard` is the default.
 
-Audio is never uploaded during capture. Recordings shorter than one second are discarded.
+Audio is never uploaded during capture. Very short recordings are ignored to avoid accidental
+activations. The threshold is configurable in Preferences and defaults to 600 ms.
 
 Recordings are capped at 24 MB of PCM data so an accidentally open recording cannot exhaust
 GNOME Shell memory during upload. A recording that reaches the cap stops and processes what
