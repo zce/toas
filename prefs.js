@@ -389,7 +389,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     localGroup.add(qualityRow)
     localGroup.add(spinRow(settings, 'history-limit', 'History entries', 1, 1000))
-    localGroup.add(spinRow(settings, 'recording-limit', 'Saved recordings', 1, 1000))
+    localGroup.add(spinRow(settings, 'recording-limit', 'Saved recordings', 0, 1000))
 
     page.add(inputGroup)
     page.add(processingGroup)

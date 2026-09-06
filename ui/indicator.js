@@ -64,15 +64,16 @@ export class ToasIndicator extends PanelMenu.Button {
     scrollSection.actor.add_child(scrollView)
     this.menu.addMenuItem(scrollSection)
 
-    // Session-level switch: private voice inputs leave no local history and
+    // Persisted preference: private voice inputs leave no local history and
     // their recordings are deleted once processed.
     this._privateModeItem = new PopupMenu.PopupSwitchMenuItem(
       'Private mode',
       false,
       { reactive: true }
     )
+    this._syncingPrivateMode = false
     this._privateModeItem.connect('toggled', (_item, enabled) => {
-      this._onPrivateModeChanged?.(enabled)
+      if (!this._syncingPrivateMode) { this._onPrivateModeChanged?.(enabled) }
     })
     addMenuIcon(this._privateModeItem, 'security-medium-symbolic')
     this.menu.addMenuItem(this._privateModeItem)
@@ -173,7 +174,17 @@ export class ToasIndicator extends PanelMenu.Button {
   }
 
   setPrivateMode (enabled) {
-    if (enabled) {
+    const active = Boolean(enabled)
+    if (this._privateModeItem.state !== active) {
+      this._syncingPrivateMode = true
+      try {
+        this._privateModeItem.setToggleState(active)
+      } finally {
+        this._syncingPrivateMode = false
+      }
+    }
+
+    if (active) {
       this.add_style_class_name('toas-private')
     } else {
       this.remove_style_class_name('toas-private')

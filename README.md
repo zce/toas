@@ -70,8 +70,7 @@ are transcribed, refined, and inserted as usual, but nothing is written to histo
 recording is deleted as soon as processing finishes — including recordings from failed
 attempts, which are not retained for retry while Private mode is on.
 
-Private mode is session-only: it resets when you log out or the extension restarts.
-Existing history remains available.
+Private mode stays enabled until you turn it off. Existing history remains available.
 
 Private mode changes only what `toas` keeps on your disk. It does not change what is
 uploaded.
@@ -244,7 +243,8 @@ If the focused window changes while processing runs, the result stays on the cli
 with a notice.
 
 Failed processing retains its recording when possible so it can be retried from history
-without recording again. Private mode disables that retention for new voice inputs.
+without recording again. Private mode and `Saved recordings = 0` make retry-from-audio
+unavailable for affected voice inputs.
 
 ## Recording
 
@@ -288,8 +288,9 @@ ${XDG_STATE_HOME:-~/.local/state}/toas/
   recordings/*.wav
 ```
 
-`History entries` defaults to 500 and limits records. `Saved recordings` defaults to 20
-and limits retained WAV files. Records can outlive their audio reference.
+`History entries` defaults to 30 and limits records. `Saved recordings` defaults to 20
+and limits retained WAV files. Set `Saved recordings` to 0 to keep text history without
+retaining completed audio. Records can outlive their audio reference.
 
 The top-bar `Clear History` action asks for confirmation and is disabled while recording.
 

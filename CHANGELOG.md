@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Added Doubao BigASR Flash as a selectable transcription provider using the synchronous Speech API.
+- Made **Private mode** persist until explicitly disabled while leaving existing history available.
+- Added `Saved recordings = 0` to keep text history without retaining completed WAV files or retry-from-audio.
+- Reduced the default `History entries` retention from 500 to 30 to match the recent-history depth surfaced in the top-bar menu; explicitly configured larger limits remain supported.
 
 ## Version 12 — 2026-09-05
 
