@@ -1,3 +1,9 @@
+import { processingError } from '../error.js'
+
+const REFINE_SYSTEM_PROMPT = `Refine the transcript into clear written text.
+Follow the user's instructions when provided and use context as helpful reference.
+By default, return only the refined text.`
+
 export class Provider {
   constructor ({ id, manifest }) {
     this.id = id
@@ -73,13 +79,72 @@ export class Provider {
     return issues
   }
 
+  supports (input, { instructions = false } = {}) {
+    const support = this.manifest.support
+    return Boolean(
+      support?.inputs?.includes(input) &&
+      (!instructions || support.instructions)
+    )
+  }
+
+  resolveModelShape (values, shapes) {
+    const model = values.model?.trim()
+    const shape = model ? shapes[model] ?? null : null
+    return {
+      model,
+      shape,
+      issues: model && !shape
+        ? [{
+            path: 'values.model',
+            code: 'unsupported',
+            message: `Unsupported ${this.manifest.label} model: ${model}`
+          }]
+        : []
+    }
+  }
+
+  create (config, secrets = {}, runtime) {
+    for (const field of this.manifest.fields || []) {
+      if (field.type !== 'secret' || !field.required || secrets[field.key]) { continue }
+      throw processingError(
+        'configuration',
+        `${this.manifest.label} ${requirementName(field.label)} is required to create a processor`
+      )
+    }
+    return this.createProcessor(config, secrets, runtime)
+  }
+
+  // Context is one toas-level reference-text contract. Providers decide only
+  // how that reference text maps to a documented native protocol capability.
+  contextText (context) {
+    return typeof context?.text === 'string' ? context.text : ''
+  }
+
+  composeRefinePrompt ({ transcript, context = { text: '' }, instructions = '' }) {
+    const sections = []
+    const contextText = this.contextText(context)
+
+    if (instructions?.trim()) { sections.push(taggedSection('instructions', instructions)) }
+    if (contextText.trim()) { sections.push(taggedSection('context', contextText)) }
+    sections.push(taggedSection('transcript', transcript))
+
+    return {
+      systemPrompt: REFINE_SYSTEM_PROMPT,
+      userPrompt: sections.join('\n\n')
+    }
+  }
+
   resolveSelection () {
     throw new Error(`${this.id}.resolveSelection() is not implemented`)
   }
 
-  create () {
-    throw new Error(`${this.id}.create() is not implemented`)
+  createProcessor () {
+    throw new Error(`${this.id}.createProcessor() is not implemented`)
   }
+}
+
+function taggedSection (name, content) {
+  return `<${name}>\n${content}\n</${name}>`
 }
 
 function requiredForInput (fields, input, supportedInputs) {

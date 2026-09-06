@@ -10,11 +10,20 @@ const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
 export class ChatCompletionsProcessor {
-  constructor (label, config, apiKey, runtime) {
-    this._label = label
+  constructor (provider, config, apiKey, runtime) {
+    this._provider = provider
+    this._label = provider.manifest.label
     this._config = config
     this._apiKey = apiKey
     this._runtime = runtime
+  }
+
+  _refineMessages ({ transcript, context, instructions }) {
+    const prompt = this._provider.composeRefinePrompt({ transcript, context, instructions })
+    return [
+      { role: 'system', content: prompt.systemPrompt },
+      { role: 'user', content: prompt.userPrompt }
+    ]
   }
 
   async _send (requestBody, signal) {

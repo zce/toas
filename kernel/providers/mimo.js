@@ -79,19 +79,8 @@ class MimoProvider extends Provider {
   }
 
   resolveSelection ({ providerValues, values }) {
-    const issues = []
     const endpoint = providerValues.endpoint?.trim()
-    const model = values.model?.trim()
-    const shape = model ? MODEL_SHAPES[model] : null
-
-    if (model && !shape) {
-      issues.push({
-        path: 'values.model',
-        code: 'unsupported',
-        message: `Unsupported MiMo model: ${model}`
-      })
-    }
-
+    const { model, shape, issues } = this.resolveModelShape(values, MODEL_SHAPES)
     const language = values.language?.trim() || null
 
     return {
@@ -104,19 +93,16 @@ class MimoProvider extends Provider {
     }
   }
 
-  create (config, secrets, runtime) {
-    if (!secrets.key) {
-      throw processingError('configuration', 'MiMo API key is required to create a processor')
-    }
-    return new MimoProcessor(config, secrets.key, runtime, MODEL_SHAPES[config.model])
+  createProcessor (config, secrets, runtime) {
+    return new MimoProcessor(this, config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
 }
 
 export const mimoProvider = new MimoProvider()
 
 class MimoProcessor extends ChatCompletionsProcessor {
-  constructor (config, apiKey, runtime, shape) {
-    super('MiMo', config, apiKey, runtime)
+  constructor (provider, config, apiKey, runtime, shape) {
+    super(provider, config, apiKey, runtime)
     this._shape = shape
   }
 
@@ -138,14 +124,10 @@ class MimoProcessor extends ChatCompletionsProcessor {
       if (input.kind !== 'text') {
         throw processingError('configuration', 'This MiMo selection requires text input')
       }
-      messages = []
-      const contextText = context.text?.trim()
-      if (contextText) {
-        messages.push({ role: 'system', content: contextText })
-      }
-      messages.push({
-        role: 'user',
-        content: instructions?.trim() ? `${instructions}\n\n${input.text}` : input.text
+      messages = this._refineMessages({
+        transcript: input.text,
+        context,
+        instructions
       })
     }
 

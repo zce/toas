@@ -17,11 +17,11 @@ A single attempt to turn a voice input's recording into text. A retry is another
 _Avoid_: Session (when referring to a retry)
 
 **Context**:
-Optional free text the user composes and supplies alongside a recording or text — terms, background, names, anything that helps interpretation. It is sent verbatim; it may be empty and does not itself specify how the result should be transformed.
+Optional free text the user composes and supplies alongside a recording or text — terms, background, names, anything that helps interpretation. Its content is preserved verbatim; it may be empty and does not itself specify how the result should be transformed.
 _Avoid_: Processing context, prompt, structured forms
 
 **Instructions**:
-Directions configured for Refine that describe the text result the user wants. Their requested operation is not a built-in output mode.
+User-owned directions configured for Refine that describe how the transcript should be transformed. They may freely customize the Refine step's default behavior.
 _Avoid_: Processing instructions, built-in output mode
 
 **Refine**:
@@ -43,6 +43,34 @@ _Avoid_: Incognito, Do not track
 **Private voice input**:
 A voice input started while Private mode is on. It is snapshotted as private at start, so flipping the switch mid-processing does not change what that run retains.
 _Avoid_: Anonymous voice input
+
+## Context semantics
+
+Context has one product meaning: user-provided reference text that helps the selected Provider interpret the current input. `capabilities.context: true` means a resolved selection can represent that meaning through a documented native capability without redefining Context.
+
+- For **audio processing**, Context is recognition reference material. A Provider maps it to the closest documented recognition-context mechanism for that protocol. If the service exposes no semantically compatible free-text mechanism, the selection reports `context: false` rather than guessing a hotword, corpus, or prompt shape.
+- For **text processing**, Context is reference material for the transformation. Refine includes it alongside Instructions and Transcript without promoting the user's text into the product's default task prompt.
+
+Provider wire roles do not redefine this product meaning. For example, an ASR API may document a `system` message specifically as recognition context; that remains Context, not a toas system instruction.
+
+The `Provider` base class owns behavior shared by the Provider family: required-field validation, manifest-level discovery checks, known-model lookup, required-secret validation before Processor creation, and the small product-level helpers for Context and Refine composition. Subclasses supply selection-specific configuration and Processor construction; Provider/Processor implementations own protocol-specific wire encoding.
+
+## Refine semantics
+
+Refine prompt composition separates a lightweight default task from the content supplied for one run:
+
+- **Default task prompt** is owned by `toas`. It gives the model a small, predictable starting point for Refine rather than defining an invariant product policy.
+- **User Instructions** are owned by the user. They may freely customize the default Refine behavior.
+- **Reference Context** uses the same product Context described above.
+- **Transcript** is runtime content to process.
+
+The default task prompt is intentionally small. Its purpose is to help ordinary use cases behave predictably, not to prevent users from deliberately changing prompt behavior. Message roles represent task authority, not text authorship.
+
+The Kernel remains unaware of prompt roles or message arrays. It passes `input`, `context`, and `instructions` to the selected Processor. Provider-side code owns prompt composition and maps those semantic inputs to the Provider's wire format.
+
+For the current Chat Completions Providers, `system` contains only the lightweight default task prompt. A single `user` message contains optional `<instructions>` and `<context>` sections plus the required `<transcript>` section. The tags are simple, unescaped structural hints: they improve clarity for normal input but are not a security or containment boundary.
+
+In short: `toas` structures prompts for clarity, not for containment.
 
 ## Architecture terms
 

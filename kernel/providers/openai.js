@@ -51,11 +51,8 @@ class OpenAICompatibleProvider extends Provider {
     }
   }
 
-  create (config, secrets, runtime) {
-    if (!secrets.key) {
-      throw processingError('configuration', `${this.manifest.label} API key is required to create a processor`)
-    }
-    return new OpenAICompatibleProcessor(this.manifest.label, config, secrets.key, runtime)
+  createProcessor (config, secrets, runtime) {
+    return new OpenAICompatibleProcessor(this, config, secrets.key, runtime)
   }
 }
 
@@ -85,19 +82,13 @@ class OpenAICompatibleProcessor extends ChatCompletionsProcessor {
       throw processingError('configuration', `${this._label} processing requires text input`)
     }
 
-    const messages = []
-    const contextText = context.text?.trim()
-    if (contextText) {
-      messages.push({ role: 'system', content: contextText })
-    }
-    messages.push({
-      role: 'user',
-      content: instructions?.trim() ? `${instructions}\n\n${input.text}` : input.text
-    })
-
     const data = await this._send({
       model: this._config.model,
-      messages,
+      messages: this._refineMessages({
+        transcript: input.text,
+        context,
+        instructions
+      }),
       stream: false
     }, signal)
 
