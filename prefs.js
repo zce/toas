@@ -316,6 +316,8 @@ export default class ToasPreferences extends ExtensionPreferences {
           primary.capabilities?.context ||
           (processingConfig.refine.enabled && refine.capabilities?.context)
         )
+        contextGroup.remove_css_class('toas-context-unused')
+        if (!contextSupported) { contextGroup.add_css_class('toas-context-unused') }
         contextGroup.description = contextSupported
           ? 'Names, terms, and background sent to providers that support context.'
           : 'Not used by the current processing setup.'

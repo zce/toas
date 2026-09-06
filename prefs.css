@@ -53,12 +53,14 @@ row.switch:focus-within label.title {
   margin: 8px 12px 0;
 }
 
+preferencesgroup.toas-context-unused .header .body {
+  color: var(--warning-color);
+}
+
 .toas-config-banner.warning {
-  background-color: var(--warning-bg-color);
-  color: var(--warning-fg-color);
+  --banner-color: var(--warning-bg-color);
 }
 
 .toas-config-banner.error {
-  background-color: var(--error-bg-color);
-  color: var(--error-fg-color);
+  --banner-color: var(--error-bg-color);
 }
