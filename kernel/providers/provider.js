@@ -47,7 +47,7 @@ export class Provider {
       if (!present) {
         issues.push(requiredIssue(
           `providers.${this.id}.${field.key}`,
-          `${this.manifest.label} ${field.label.toLowerCase()} is required`
+          `${this.manifest.label} ${requirementName(field.label)} is required`
         ))
       }
     }
@@ -65,7 +65,7 @@ export class Provider {
       if (!hasValue(values[key])) {
         issues.push(requiredIssue(
           `values.${key}`,
-          `${this.manifest.label} ${fields[0].label.toLowerCase()} is required`
+          `${this.manifest.label} ${requirementName(fields[0].label)} is required`
         ))
       }
     }
@@ -92,6 +92,12 @@ function requiredForInput (fields, input, supportedInputs) {
 
   const coveredInputs = new Set(fields.flatMap(field => field.inputs || []))
   return supportedInputs.every(supported => coveredInputs.has(supported))
+}
+
+function requirementName (label) {
+  const value = String(label ?? '')
+  if (/^[A-Z]{2,}(?:\s|$)/.test(value)) { return value }
+  return value ? `${value[0].toLowerCase()}${value.slice(1)}` : 'value'
 }
 
 function hasValue (value) {
