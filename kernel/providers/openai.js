@@ -1,12 +1,12 @@
 // OpenAI and bring-your-own OpenAI-compatible text Providers share one
 // explicit Chat Completions contract. This module must not import GNOME/GI.
 
+import { processingError } from '../error.js'
 import { Provider } from './provider.js'
 import {
   ChatCompletionsProcessor,
   extractContent,
-  normalizeUsage,
-  processingError
+  normalizeUsage
 } from './chat-completions.js'
 
 class OpenAICompatibleProvider extends Provider {

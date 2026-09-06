@@ -3,15 +3,13 @@
 // response envelopes differ. Unknown models are rejected rather than guessed.
 // This module must not import GNOME/GI libraries.
 
+import { cancelledError, processingError } from '../error.js'
 import { Provider } from './provider.js'
 import {
-  encodeBody,
-  decodeBody,
-  normalizeUsage,
-  serviceErrorFromStatus,
-  processingError,
-  cancelledError
-} from './chat-completions.js'
+  decodeJsonBody,
+  encodeJsonBody,
+  serviceErrorFromHttpStatus
+} from './http.js'
 
 const MODEL_SHAPES = {
   'qwen-audio-3.0-asr-flash': {
@@ -170,10 +168,7 @@ class QwenProcessor {
     return {
       text: text.trim(),
       model: this._config.model,
-      usage: normalizeUsage(
-        protocol === 'asr3' ? null : response?.usage,
-        { inputKey: 'input_tokens', outputKey: 'output_tokens' }
-      ),
+      usage: protocol === 'asr3' ? null : qwenUsage(response?.usage),
       requestId: response?.request_id ?? null,
       responseId: null
     }
@@ -187,7 +182,7 @@ class QwenProcessor {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this._apiKey}`
       },
-      body: encodeBody(requestBody)
+      body: encodeJsonBody(requestBody)
     }, signal)
 
     if (signal?.aborted) { throw cancelledError() }
@@ -197,10 +192,14 @@ class QwenProcessor {
       if (detail === 'ASR_RESPONSE_HAVE_NO_WORDS') {
         throw processingError('no-text', 'No speech was recognized')
       }
-      throw serviceErrorFromStatus(response.status, response.body, 'Qwen')
+      throw serviceErrorFromHttpStatus(
+        response.status,
+        'Qwen',
+        httpErrorDetail(response.body)
+      )
     }
 
-    return decodeBody(response.body)
+    return decodeJsonBody(response.body)
   }
 }
 
@@ -229,9 +228,26 @@ function qwenAudioMessage (protocol, audioDataUri) {
   }
 }
 
+function qwenUsage (usage) {
+  if (!usage) { return null }
+  return {
+    inputTokens: usage.input_tokens ?? null,
+    outputTokens: usage.output_tokens ?? null,
+    totalTokens: usage.total_tokens ?? null
+  }
+}
+
 function safeErrorDetail (bodyBytes) {
   try {
     return JSON.parse(new TextDecoder().decode(bodyBytes))?.message ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function httpErrorDetail (bodyBytes) {
+  try {
+    return JSON.parse(new TextDecoder().decode(bodyBytes))?.error?.message ?? ''
   } catch {
     return ''
   }

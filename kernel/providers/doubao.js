@@ -7,14 +7,13 @@
 //
 // This module must not import GNOME/GI libraries.
 
+import { cancelledError, processingError } from '../error.js'
 import { Provider } from './provider.js'
 import {
-  encodeBody,
-  decodeBody,
-  serviceErrorFromStatus,
-  processingError,
-  cancelledError
-} from './chat-completions.js'
+  decodeJsonBody,
+  encodeJsonBody,
+  serviceErrorFromHttpStatus
+} from './http.js'
 
 const FLASH_ENDPOINT = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash'
 
@@ -132,7 +131,7 @@ class DoubaoProcessor {
         'X-Api-Request-Id': clientRequestId,
         'X-Api-Sequence': '-1'
       },
-      body: encodeBody({
+      body: encodeJsonBody({
         user: { uid: 'toas' },
         audio: { data: input.base64 },
         request: {
@@ -151,7 +150,11 @@ class DoubaoProcessor {
 
     if (response.status < 200 || response.status >= 300) {
       throw withLogId(
-        serviceErrorFromStatus(response.status, response.body, 'Doubao'),
+        serviceErrorFromHttpStatus(
+          response.status,
+          'Doubao',
+          doubaoHttpErrorDetail(response.body)
+        ),
         logId
       )
     }
@@ -169,7 +172,7 @@ class DoubaoProcessor {
       )
     }
 
-    const data = decodeBody(response.body)
+    const data = decodeJsonBody(response.body)
     const text = data?.result?.text
     if (typeof text !== 'string' || !text.trim()) {
       throw processingError('no-text', 'No speech was recognized')
@@ -184,6 +187,14 @@ class DoubaoProcessor {
       requestId: logId || clientRequestId,
       responseId: null
     }
+  }
+}
+
+function doubaoHttpErrorDetail (bodyBytes) {
+  try {
+    return JSON.parse(new TextDecoder().decode(bodyBytes))?.error?.message ?? ''
+  } catch {
+    return ''
   }
 }
 
