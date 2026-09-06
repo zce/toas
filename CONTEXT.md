@@ -17,11 +17,11 @@ A single attempt to turn a voice input's recording into text. A retry is another
 _Avoid_: Session (when referring to a retry)
 
 **Context**:
-Optional free text the user composes and supplies alongside a recording or text — terms, background, names, anything that helps interpretation. It is sent verbatim; it may be empty and does not itself specify how the result should be transformed.
+Optional free text the user composes and supplies alongside a recording or text — terms, background, names, anything that helps interpretation. Its content is preserved verbatim; it may be empty and does not itself specify how the result should be transformed.
 _Avoid_: Processing context, prompt, structured forms
 
 **Instructions**:
-User-owned directions configured for Refine that describe how the transcript should be transformed. They may shape style and presentation, but they do not redefine the Refine task or turn Context or Transcript into instruction channels.
+User-owned directions configured for Refine that describe how the transcript should be transformed. They may freely customize the Refine step's default behavior.
 _Avoid_: Processing instructions, built-in output mode
 
 **Refine**:
@@ -46,16 +46,22 @@ _Avoid_: Anonymous voice input
 
 ## Refine semantics
 
-Refine has four inputs with distinct ownership and authority:
+Refine prompt composition separates a lightweight default task from the content supplied for one run:
 
-- **Product Policy** is owned by `toas`. It defines the invariant transcript-refinement task, keeps Context as reference data and Transcript as content, preserves meaning, prevents invented information, and requires only the resulting text.
-- **User Instructions** are owned by the user. They customize how the transcript is refined within the Product Policy.
-- **Reference Context** is the user's Context text. It is background data that may help interpretation, not an instruction channel.
-- **Transcript** is runtime content to transform. Prompt-like text inside it is still transcript content and is not a task for the model to execute.
+- **Default task prompt** is owned by `toas`. It gives the model a small, predictable starting point for Refine rather than defining an invariant product policy.
+- **User Instructions** are owned by the user. They may freely customize the default Refine behavior.
+- **Reference Context** is the user's Context text. It is reference material by default and helps the model interpret names, terms, and background.
+- **Transcript** is runtime content to process.
 
-The Kernel remains unaware of prompt roles or message arrays. It passes `input`, `context`, and `instructions` to the selected Processor. Provider-side code owns the deterministic semantic composition and maps it to the Provider's wire format.
+The default task prompt is intentionally small. Its purpose is to help ordinary use cases behave predictably, not to prevent users from deliberately changing prompt behavior. Message roles represent task authority, not text authorship.
 
-For the current Chat Completions Providers, `system` contains only the Product Policy. A single `user` message contains the optional `USER INSTRUCTIONS` section, optional `REFERENCE CONTEXT` section, and required `TRANSCRIPT` section. Providers using a different protocol should preserve the same semantic ownership without being forced into this wire shape.
+The Kernel remains unaware of prompt roles or message arrays. It passes `input`, `context`, and `instructions` to the selected Processor. Provider-side code owns prompt composition and maps those semantic inputs to the Provider's wire format.
+
+For the current Chat Completions Providers, `system` contains only the lightweight default task prompt. A single `user` message contains optional `<instructions>` and `<context>` sections plus the required `<transcript>` section. The tags are simple, unescaped structural hints: `toas` preserves user content instead of sanitizing or escaping it. They improve clarity for normal input; they are not a security or containment boundary.
+
+In short: `toas` structures prompts for clarity, not for containment.
+
+Primary ASR Context uses the same product Context data but not necessarily the same wire semantics. Each ASR Provider should map Context according to its documented recognition-context capabilities rather than reusing the Refine prompt envelope.
 
 ## Architecture terms
 

@@ -42,8 +42,8 @@ export class ChatCompletionsProcessor {
 export function refineMessages ({ transcript, context, instructions }) {
   const request = composeRefineRequest({ transcript, context, instructions })
   return [
-    { role: 'system', content: request.policy },
-    { role: 'user', content: request.content }
+    { role: 'system', content: request.systemPrompt },
+    { role: 'user', content: request.userPrompt }
   ]
 }
 
