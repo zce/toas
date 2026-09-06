@@ -44,7 +44,7 @@ class DoubaoProvider extends Provider {
           {
             key: 'key',
             type: 'secret',
-            label: 'API key',
+            label: 'Speech API key',
             required: true,
             env: ['TOAS_DOUBAO_API_KEY', 'DOUBAO_ASR_API_KEY']
           }
@@ -56,7 +56,7 @@ class DoubaoProvider extends Provider {
             label: 'Model',
             required: true,
             choices: [
-              { value: 'volc.bigasr.auc_turbo', label: 'BigASR Flash' }
+              { value: 'volc.bigasr.auc_turbo', label: 'BigASR Flash · enable volc.bigasr.auc_turbo first' }
             ]
           }
         ],
