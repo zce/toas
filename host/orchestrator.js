@@ -73,6 +73,12 @@ export class ToasOrchestrator {
       // the same snapshot so it can never decorate a non-private run.
       private: Boolean(this._privacy?.enabled)
     }
+
+    // The overlay belongs to the window context where this run starts. Read
+    // that monitor once and pin it for the run; later focus changes are output
+    // safety concerns and must not make feedback jump between displays.
+    const monitorIndex = this._output.getFocusedMonitorIndex?.() ?? null
+    this._overlay.setMonitor?.(monitorIndex)
     this._overlay.setPrivate?.(run.private)
     run.recorder = this._recorderFactory(
       this._history.recordingsDirectory,
@@ -234,6 +240,9 @@ export class ToasOrchestrator {
     }
 
     this._run = run
+    // A retry has no live target window; clear any previous run's monitor so
+    // the overlay safely falls back to the primary display.
+    this._overlay.setMonitor?.(null)
     // A retry never starts from a private voice input; its decoration is
     // explicitly off even when the switch is on.
     this._overlay.setPrivate?.(false)

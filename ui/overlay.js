@@ -5,6 +5,8 @@ import St from 'gi://St'
 import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
+import { calculateOverlayPosition, selectMonitor } from './placement.js'
+
 // The overlay presenter owns the state machine and delegates all St/Clutter
 // work to an injected view. ShellOverlayView below owns the Shell wiring.
 
@@ -26,6 +28,10 @@ export class ToasOverlayPresenter {
 
   get view () {
     return this._view
+  }
+
+  setMonitor (monitorIndex) {
+    this._view.setMonitor?.(monitorIndex)
   }
 
   setPrivate (enabled) {
@@ -116,6 +122,7 @@ export class ShellOverlayView {
   constructor () {
     this._levels = Array(BAR_COUNT).fill(0)
     this._compositingHeld = false
+    this._monitorIndex = null
 
     this._actor = new St.BoxLayout({
       style_class: 'toas-overlay',
@@ -191,7 +198,13 @@ export class ShellOverlayView {
 
     this._monitorsChangedId = Main.layoutManager.connect(
       'monitors-changed',
-      () => this._reposition()
+      () => {
+        // Monitor indices may be reassigned after a topology change. Do not
+        // risk moving a live run to a different display: safe fallback is the
+        // primary monitor, with no attempt to build a hotplug tracker.
+        this._monitorIndex = null
+        this._reposition()
+      }
     )
 
     this._reposition()
@@ -218,6 +231,13 @@ export class ShellOverlayView {
 
   setOnCancelRequested (handler) {
     this._onCancelRequested = handler
+  }
+
+  setMonitor (monitorIndex) {
+    this._monitorIndex = Number.isInteger(monitorIndex) && monitorIndex >= 0
+      ? monitorIndex
+      : null
+    this._reposition()
   }
 
   setPrivate (enabled) {
@@ -308,14 +328,20 @@ export class ShellOverlayView {
   }
 
   _reposition () {
-    const monitor = Main.layoutManager.primaryMonitor
+    const monitor = selectMonitor(
+      Main.layoutManager.monitors,
+      Main.layoutManager.primaryMonitor,
+      this._monitorIndex
+    )
     if (!monitor || !this._actor) { return }
 
     const [, width] = this._actor.get_preferred_width(-1)
     const [, height] = this._actor.get_preferred_height(width)
-    const x = Math.round(monitor.x + (monitor.width - width) / 2)
-    const y = Math.round(
-      monitor.y + monitor.height - OVERLAY_BOTTOM_MARGIN - height
+    const { x, y } = calculateOverlayPosition(
+      monitor,
+      width,
+      height,
+      OVERLAY_BOTTOM_MARGIN
     )
     this._actor.set_position(x, y)
   }
