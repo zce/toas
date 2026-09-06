@@ -60,10 +60,32 @@ export class TextPaster {
     this._targetWindow = null
   }
 
+  // Read-only snapshot source for run-scoped UI placement. This deliberately
+  // does not mutate the paste target, which remains captured when recording
+  // ends immediately before processing starts.
+  getFocusedMonitorIndex () {
+    try {
+      const monitorIndex = global.display.focus_window?.get_monitor?.()
+      return Number.isInteger(monitorIndex) && monitorIndex >= 0
+        ? monitorIndex
+        : null
+    } catch {
+      // A disappearing focus window must never make voice input fail.
+      return null
+    }
+  }
+
   // Captures the currently focused window as the paste target.
   captureFocusedWindow () {
     this._targetWindow = global.display.focus_window
     return this._targetWindow
+  }
+
+  // Product-level delivery intent. Automatic insertion may use either direct
+  // text input or clipboard paste internally; clipboard-only means the
+  // clipboard itself is the configured deliverable.
+  deliveryMode () {
+    return this._settings.get_boolean('auto-paste') ? 'insert' : 'clipboard'
   }
 
   async write (text) {
@@ -71,7 +93,7 @@ export class TextPaster {
 
     this._cancelled = false
 
-    const autoPaste = this._settings.get_boolean('auto-paste')
+    const autoPaste = this.deliveryMode() === 'insert'
     const outputMethod = selectOutputMethod({
       text,
       autoPaste,
@@ -96,13 +118,10 @@ export class TextPaster {
     // Past this point the paste key events are irreversible.
     if (this._cancelled || !this._clipboard || !this._keyboard) { return }
 
-    // Clipboard-only mode: the text is the deliverable. Skip the paste
-    // keypresses entirely and keep the clipboard as the user left it.
+    // Clipboard-only mode is a normal configured success path. The text is
+    // the deliverable, so keep it on the clipboard without a fallback warning.
     if (!autoPaste) {
       this._targetWindow = null
-      this._onFocusMismatch?.(
-        'Voice text is on the clipboard — automatic paste is off.'
-      )
       return
     }
 
@@ -112,7 +131,7 @@ export class TextPaster {
     // the same window.
     if (!this._targetWindowMatches()) {
       this._onFocusMismatch?.(
-        'Voice text was copied to the clipboard — the target window changed while processing.'
+        'The target window changed, so your text was copied to the clipboard.'
       )
       this._targetWindow = null
       return

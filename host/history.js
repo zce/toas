@@ -1,6 +1,8 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
+import { presentFailure } from './feedback.js'
+
 export class HistoryStore {
   constructor (settings) {
     this._settings = settings
@@ -247,8 +249,8 @@ export class HistoryRepository {
   }
 }
 
-// Pure formatting helpers for history UI; imported by headless tests and the
-// Shell-side indicator menu.
+// Pure formatting/projection helpers for history UI; imported by headless
+// tests and the Shell-side indicator/menu composition root.
 
 const PREVIEW_MAX = 60
 
@@ -270,11 +272,30 @@ export function formatDuration (ms) {
   return `${minutes}m ${seconds % 60}s`
 }
 
+// Retry state is projected onto the immutable original session. The latest
+// attempt is the semantic source for status, text, and failure context.
+export function projectLatestAttempt (entry, attempts = []) {
+  const latest = attempts[attempts.length - 1]
+  if (!latest) { return entry }
+
+  return {
+    ...entry,
+    status: latest.status,
+    text: latest.text ?? null,
+    error: latest.status === 'error' ? (latest.error ?? null) : null,
+    attemptNumber: latest.attemptNumber
+  }
+}
+
 // Final text of a history entry: entries store Result text; the legacy
 // output/transcript fallbacks exist only for entries written before the
-// Result/Trace history shape.
+// Result/Trace history shape. Failed entries without text show stable failure
+// context rather than making missing text look like the primary problem.
 export function previewText (entry) {
   const text = extractText(entry).replace(/\s+/g, ' ').trim()
+  if (!text && entry?.status === 'error' && entry.error) {
+    return presentFailure(entry.error, entry.error.stage)?.summary ?? '(no text)'
+  }
   if (!text) { return '(no text)' }
   return text.length > PREVIEW_MAX ? `${text.slice(0, PREVIEW_MAX - 1)}…` : text
 }

@@ -74,17 +74,28 @@ export class FakeKernel {
 }
 
 export class FakePaster {
-  constructor ({ delayMs = 0 } = {}) {
+  constructor ({ delayMs = 0, deliveryMode = 'insert', focusMismatchMessage = null } = {}) {
     this.delayMs = delayMs
+    this.mode = deliveryMode
+    this.focusMismatchMessage = focusMismatchMessage
     this.writes = []
     this.capturedWindows = []
     this.cancels = 0
     this.destroys = 0
     this.resolveWrite = null
+    this._onFocusMismatch = null
   }
 
   captureFocusedWindow () {
     this.capturedWindows.push(`capture-${this.capturedWindows.length}`)
+  }
+
+  deliveryMode () {
+    return this.mode
+  }
+
+  setOnFocusMismatch (handler) {
+    this._onFocusMismatch = handler
   }
 
   async write (text) {
@@ -93,6 +104,9 @@ export class FakePaster {
       await new Promise(resolve => {
         this.resolveWrite = resolve
       })
+    }
+    if (this.focusMismatchMessage) {
+      this._onFocusMismatch?.(this.focusMismatchMessage)
     }
   }
 

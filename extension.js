@@ -5,7 +5,8 @@ import St from 'gi://St'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
-import { HistoryRepository, HistoryStore, extractText } from './host/history.js'
+import { presentFailure } from './host/feedback.js'
+import { HistoryRepository, HistoryStore, extractText, projectLatestAttempt } from './host/history.js'
 import { PushToTalkBinding } from './host/input.js'
 import { OnboardingManager } from './host/onboarding.js'
 import { ToasOrchestrator } from './host/orchestrator.js'
@@ -71,13 +72,12 @@ export default class ToasExtension extends Extension {
         onOpenPreferences: () => this._openPreferences(),
         hasExistingHistory: () => history.readEntries().length > 0
       })
-      this._onboarding.maybeShowOnboarding()
+      this._onboarding.maybeShowOnboarding(kernelRunner.configService.primaryReady())
 
       try {
         this._confirmDialog = new ConfirmDialog({
-          title: 'Clear your words?',
-          description: 'Your words and retained recordings will be ' +
-            'permanently deleted. This cannot be undone.',
+          title: 'Clear local history?',
+          description: 'Delete saved text and recordings from this device. This cannot be undone.',
           confirmLabel: 'Clear',
           onConfirm: () => this._doClearHistory()
         })
@@ -204,18 +204,12 @@ export default class ToasExtension extends Extension {
   }
 
   _listHistory () {
-    return this._historyRepository.list({ limit: 30 }).map(entry => {
-      const attempts = this._historyRepository.attemptsOf(entry.id)
-      const latest = attempts[attempts.length - 1]
-      if (!latest) { return entry }
-
-      return {
-        ...entry,
-        status: latest.status,
-        text: latest.text ?? entry.text,
-        attemptNumber: latest.attemptNumber
-      }
-    })
+    return this._historyRepository.list({ limit: 30 }).map(entry =>
+      projectLatestAttempt(
+        entry,
+        this._historyRepository.attemptsOf(entry.id)
+      )
+    )
   }
 
   async _retrySession (entry, notifier) {
@@ -226,9 +220,12 @@ export default class ToasExtension extends Extension {
     if (attempt?.status === 'ok') {
       notifier.notify('Retry succeeded', 'Open the menu to copy the new result.')
     } else if (attempt?.status === 'error') {
+      const presentation = presentFailure(attempt.error, attempt.error?.stage)
       notifier.notify(
         'Retry failed',
-        attempt.error?.message ?? 'It failed again.'
+        presentation
+          ? `${presentation.summary}. ${presentation.guidance}`
+          : 'Try again.'
       )
     }
   }

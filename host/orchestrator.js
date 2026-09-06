@@ -7,6 +7,7 @@ import {
   RecorderOutcomeKind,
   resolveSampleRate
 } from './audio.js'
+import { presentFailure } from './feedback.js'
 import { AttemptSignal } from './transport.js'
 
 export class ToasOrchestrator {
@@ -73,6 +74,12 @@ export class ToasOrchestrator {
       // the same snapshot so it can never decorate a non-private run.
       private: Boolean(this._privacy?.enabled)
     }
+
+    // The overlay belongs to the window context where this run starts. Read
+    // that monitor once and pin it for the run; later focus changes are output
+    // safety concerns and must not make feedback jump between displays.
+    const monitorIndex = this._output.getFocusedMonitorIndex?.() ?? null
+    this._overlay.setMonitor?.(monitorIndex)
     this._overlay.setPrivate?.(run.private)
     run.recorder = this._recorderFactory(
       this._history.recordingsDirectory,
@@ -171,16 +178,19 @@ export class ToasOrchestrator {
         this._history.discardRecording(run.recording)
       }
 
-      this._transition('outputting')
+      const deliveryMode = this._output.deliveryMode?.() ?? 'insert'
+      this._transition(deliveryMode === 'clipboard' ? 'copying' : 'outputting')
       await this._output.write(run.output)
       if (this._run !== run) { return }
       this._finishRun(run)
 
       // Refine fallback is a soft warning, not a voice-input failure: the
-      // primary result was still inserted, just unrefined.
+      // primary result was still delivered, just unrefined.
       if (result.warning?.type === 'refine-failed') {
         this._notifier.notify(
-          'Inserted the primary result',
+          deliveryMode === 'clipboard'
+            ? 'Copied the primary result'
+            : 'Inserted the primary result',
           'Refine failed, so the unrefined primary text was used.'
         )
       }
@@ -234,6 +244,9 @@ export class ToasOrchestrator {
     }
 
     this._run = run
+    // A retry has no live target window; clear any previous run's monitor so
+    // the overlay safely falls back to the primary display.
+    this._overlay.setMonitor?.(null)
     // A retry never starts from a private voice input; its decoration is
     // explicitly off even when the switch is on.
     this._overlay.setPrivate?.(false)
@@ -260,50 +273,49 @@ export class ToasOrchestrator {
   _fail (run, stage, error) {
     if (this._run !== run) { return }
 
-    console.error(`[toas] ${error?.stack ?? error}`)
-
     let message = error?.message ?? String(error)
-    let notification = {
-      title: 'Voice input failed',
-      body: `${message} — check your connection and settings, then try again.`
+    if (error instanceof RecorderOutcomeError) {
+      message = error.outcome.error?.message ?? message
     }
 
-    if (error instanceof RecorderOutcomeError) {
-      const outcome = error.outcome
-      message = outcome.error?.message ?? message
-      notification = {
-        title: 'Recording failed',
-        body: `${message} — check that your microphone is available.`
-      }
+    const failure = {
+      stage,
+      message,
+      ...(error?.category ? { category: error.category } : {})
     }
+    const presentation = presentFailure(failure, stage)
+
+    // Cancellation can arrive from the Kernel or another collaborator. It is
+    // a terminal user action, so finish quietly before logging or persisting.
+    if (!presentation) {
+      this._finishRun(run, !run.isRetry)
+      this._transition('idle')
+      return
+    }
+
+    console.error(`[toas] ${error?.stack ?? error}`)
 
     if (run.isRetry) {
       // Retry failures append a linked attempt and keep the original record
       // untouched; the recording is not ours to discard.
-      run.savedAttempt = this._saveAttemptFromResult(run, {
-        stage,
-        message
-      })
+      run.savedAttempt = this._saveAttemptFromResult(run, failure)
       this._state = 'idle'
       if (this._run === run) { this._run = null }
-      this._overlay.render('error', message)
-      this._onStateChanged?.('error', message)
+      this._overlay.render('error', presentation.summary)
+      this._onStateChanged?.('error', presentation.summary)
       return
     }
 
     if (run.recording) {
-      const saved = this._saveHistoryFromResult(run, 'error', {
-        stage,
-        message
-      })
+      const saved = this._saveHistoryFromResult(run, 'error', failure)
       if (!saved) { this._history.discardRecording(run.recording) }
     }
 
     this._state = 'idle'
     this._finishRun(run)
-    this._overlay.render('error', message)
-    this._onStateChanged?.('error', message)
-    this._notifier.notify(notification.title, notification.body)
+    this._overlay.render('error', presentation.summary)
+    this._onStateChanged?.('error', presentation.summary)
+    this._notifier.notify(presentation.summary, presentation.guidance)
   }
 
   // Final-text/Trace history shape (spec #22 section 14): one text field plus
@@ -323,7 +335,15 @@ export class ToasOrchestrator {
       text: result.text || null,
       trace: result.trace || [],
       ...(result.warning ? { warning: result.warning } : {}),
-      ...(error ? { error: { stage: error.stage, message: error.message } } : {})
+      ...(error
+        ? {
+            error: {
+              stage: error.stage,
+              message: error.message,
+              ...(error.category ? { category: error.category } : {})
+            }
+          }
+        : {})
     }
   }
 
