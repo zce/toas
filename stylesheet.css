@@ -2,7 +2,7 @@
    The Preferences window is a separate GTK4 process and cannot load this
    file — its styles live in prefs.css. */
 
-/* --- Overlay (lib/ui/shell-overlay-view.js) ---------------------------------- */
+/* --- Overlay (ui/overlay.js) ------------------------------------------------- */
 
 .toas-overlay {
   spacing: 8px;
@@ -28,7 +28,7 @@
 }
 
 /* Fixed height so the level bars can change height without moving the
-   overlay. Keep in sync with BAR_MAX_HEIGHT in lib/ui/shell-overlay-view.js. */
+   overlay. Keep in sync with BAR_MAX_HEIGHT in ui/overlay.js. */
 .toas-bars {
   spacing: 3px;
   height: 20px;
@@ -61,7 +61,7 @@
   icon-size: 10px;
 }
 
-/* --- Panel indicator (lib/ui/indicator.js) ---------------------------------- */
+/* --- Panel indicator (ui/indicator.js) -------------------------------------- */
 
 /* Smooth state-icon transitions while recording toggles. */
 .toas-status-icon {
@@ -86,7 +86,7 @@
   /* box-shadow: inset 0 0 0 100px st-lighten(-st-accent-color, 8%); */
 }
 
-/* --- History menu (lib/ui/indicator.js) ------------------------------------- */
+/* --- History menu (ui/indicator.js) ----------------------------------------- */
 
 .toas-history-menu-scroll {
   max-width: 420px;

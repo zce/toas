@@ -235,7 +235,7 @@ export default class ToasPreferences extends ExtensionPreferences {
 
     const refineExpander = new Adw.ExpanderRow({
       title: 'Refine',
-      subtitle: 'Improve the transcript with additional instructions.',
+      subtitle: 'Additional processing may increase latency and provider usage or cost.',
       show_enable_switch: true,
       enable_expansion: processingConfig.refine.enabled
     })
