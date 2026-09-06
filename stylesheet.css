@@ -39,6 +39,12 @@
 }
 
 
+/* Give the 16px Shell spinner the same effective 20px side slot. */
+.toas-spinner {
+  margin: 2px;
+}
+
+
 .toas-status {
   max-width: 320px;
 

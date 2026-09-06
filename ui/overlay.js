@@ -165,12 +165,7 @@ export class ShellOverlayView {
     this._status.get_clutter_text().set_single_line_mode(true)
 
     this._spinner = new Spinner(16, { hideOnStop: true })
-    // Give the 16px spinner the same effective 20px side slot as the
-    // microphone and close button so all three stay concentric with the pill.
-    this._spinner.set_margin_top(2)
-    this._spinner.set_margin_right(2)
-    this._spinner.set_margin_bottom(2)
-    this._spinner.set_margin_left(2)
+    this._spinner.add_style_class_name('toas-spinner')
 
     this._closeButton = new St.Button({
       style_class: 'toas-close-button icon-button',
