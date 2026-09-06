@@ -7,14 +7,15 @@
 //
 // This module must not import GNOME/GI libraries.
 
-import { Provider } from './provider.js'
 import {
-  encodeBody,
-  decodeBody,
-  serviceErrorFromStatus,
+  cancelledError,
   processingError,
-  cancelledError
-} from './chat-completions.js'
+  serviceErrorFromHttpStatus
+} from '../error.js'
+import { Provider } from './provider.js'
+
+const encoder = new TextEncoder()
+const decoder = new TextDecoder()
 
 const FLASH_ENDPOINT = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash'
 
@@ -151,7 +152,11 @@ class DoubaoProcessor {
 
     if (response.status < 200 || response.status >= 300) {
       throw withLogId(
-        serviceErrorFromStatus(response.status, response.body, 'Doubao'),
+        serviceErrorFromHttpStatus(
+          response.status,
+          'Doubao',
+          doubaoHttpErrorDetail(response.body)
+        ),
         logId
       )
     }
@@ -184,6 +189,29 @@ class DoubaoProcessor {
       requestId: logId || clientRequestId,
       responseId: null
     }
+  }
+}
+
+function encodeBody (value) {
+  return encoder.encode(JSON.stringify(value))
+}
+
+function decodeBody (bytes) {
+  if (!bytes || bytes.length === 0) {
+    throw processingError('invalid-response', 'The service returned an empty body')
+  }
+  try {
+    return JSON.parse(decoder.decode(bytes))
+  } catch {
+    throw processingError('invalid-response', 'The service returned invalid JSON')
+  }
+}
+
+function doubaoHttpErrorDetail (bodyBytes) {
+  try {
+    return JSON.parse(decoder.decode(bodyBytes))?.error?.message ?? ''
+  } catch {
+    return ''
   }
 }
 

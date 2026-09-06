@@ -1,12 +1,12 @@
 // MiMo Provider: explicit selection mappings over one shared service.
 // This module must not import GNOME/GI libraries.
 
+import { processingError } from '../error.js'
 import { Provider } from './provider.js'
 import {
   ChatCompletionsProcessor,
   extractContent,
-  normalizeUsage,
-  processingError
+  normalizeUsage
 } from './chat-completions.js'
 
 const MODEL_SHAPES = {
