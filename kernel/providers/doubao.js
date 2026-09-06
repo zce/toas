@@ -1,9 +1,7 @@
 // Doubao Provider: BigASR recording-file Flash over the Speech API.
 //
 // The selectable value below is the Speech Resource ID. It is deliberately
-// kept distinct from the request body's model_name ("bigmodel"). Seed-ASR 2.0
-// is not routed through this endpoint: its documented recording-file API uses
-// submit + query rather than Flash's single synchronous request.
+// kept distinct from the request body's model_name ("bigmodel").
 //
 // This module must not import GNOME/GI libraries.
 
@@ -97,29 +95,45 @@ class DoubaoProvider extends Provider {
   }
 
   createProcessor (config, secrets, runtime) {
-    return new DoubaoProcessor(config, secrets.key, runtime)
+    return new DoubaoProcessor(this, config, secrets.key, runtime)
   }
 }
 
 export const doubaoProvider = new DoubaoProvider()
 
 function audioCapabilities () {
-  // Flash does not expose toas's free-text Context contract as a documented
-  // inline request field. Keep Context off rather than guessing a hotword or
-  // corpus shape. Refine stays a separate product step.
-  return { inputs: ['audio'], instructions: false, context: false }
+  return { inputs: ['audio'], instructions: false, context: true }
 }
 
 class DoubaoProcessor {
-  constructor (config, apiKey, runtime) {
+  constructor (provider, config, apiKey, runtime) {
+    this._provider = provider
     this._config = config
     this._apiKey = apiKey
     this._runtime = runtime
   }
 
-  async process ({ input, signal }) {
+  async process ({ input, context, signal }) {
     if (input.kind !== 'audio') {
       throw processingError('configuration', 'Doubao processing requires audio input')
+    }
+
+    const contextText = this._provider.contextText(context)
+    const request = {
+      model_name: this._config.modelName,
+      enable_itn: true,
+      enable_punc: true,
+      enable_ddc: false,
+      enable_speaker_info: false
+    }
+
+    if (contextText.trim()) {
+      request.corpus = {
+        context: JSON.stringify({
+          context_type: 'dialog_ctx',
+          context_data: [{ text: contextText }]
+        })
+      }
     }
 
     const clientRequestId = createRequestId()
@@ -136,13 +150,7 @@ class DoubaoProcessor {
       body: encodeBody({
         user: { uid: 'toas' },
         audio: { data: input.base64 },
-        request: {
-          model_name: this._config.modelName,
-          enable_itn: true,
-          enable_punc: true,
-          enable_ddc: false,
-          enable_speaker_info: false
-        }
+        request
       })
     }, signal)
 
