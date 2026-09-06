@@ -21,7 +21,6 @@
 
 .toas-status {
   max-width: 320px;
-  /* font-family: Monospace; */
   font-size: 14px;
   font-weight: 500;
   opacity: 0.8;
@@ -70,20 +69,18 @@
   padding: 0;
 }
 
-/* Recording is an active state, not an error state. Follow GNOME Shell's
-   system accent pair instead of hardcoding a red destructive palette. */
+/* Recording keeps its dedicated red state while using the Shell foreground
+   token for icon contrast. */
 .toas-recording {
   border: 3px solid transparent;
   border-radius: 999px;
   color: -st-accent-fg-color;
   box-shadow: inset 0 0 0 100px #af2325;
-  /* box-shadow: inset 0 0 0 100px -st-accent-color; */
 }
 
 .toas-recording:hover,
 .toas-recording:focus {
   box-shadow: inset 0 0 0 100px st-lighten(#af2325, 8%);
-  /* box-shadow: inset 0 0 0 100px st-lighten(-st-accent-color, 8%); */
 }
 
 /* --- History menu (ui/indicator.js) ----------------------------------------- */

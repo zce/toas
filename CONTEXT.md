@@ -46,7 +46,7 @@ _Avoid_: Anonymous voice input
 
 ## Architecture terms
 
-These names come from `docs/adr/0001-processing-kernel.md` and are used consistently across the code layout:
+These names are used consistently across the code layout:
 
 - **Host**: the runtime-specific product shell (GNOME Shell extension): recording, Preferences, persistence, secrets, environment, Context text, output, notifications, history.
 - **Kernel**: runtime-agnostic processing orchestration (`kernel/`), free of GNOME imports.

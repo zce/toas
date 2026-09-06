@@ -1,12 +1,8 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-// Effective configuration resolution for audio quality. Pure data: no GI
-// dependencies in this section.
-
-// Recording quality presets. The preset chooses the capture sample rate;
-// mono s16 stays fixed. Higher rates produce larger uploads and hit the
-// recording size cap sooner (see MAX_PCM_BYTES below).
+// The preset changes capture rate only; mono s16 stays fixed. Higher rates
+// produce larger uploads and reach MAX_PCM_BYTES sooner.
 export const AUDIO_QUALITY_PRESETS = {
   minimum: { sampleRate: 8000 },
   low: { sampleRate: 12000 },
@@ -15,8 +11,6 @@ export const AUDIO_QUALITY_PRESETS = {
   maximum: { sampleRate: 48000 }
 }
 
-// Sample rate used when the stored quality value predates the setting or is
-// otherwise unknown; matches the format every existing recording uses.
 export const DEFAULT_SAMPLE_RATE = AUDIO_QUALITY_PRESETS.standard.sampleRate
 export const DEFAULT_MINIMUM_RECORDING_DURATION_MS = 600
 
@@ -33,9 +27,8 @@ export function resolveMinimumRecordingDuration (settings) {
     : DEFAULT_MINIMUM_RECORDING_DURATION_MS
 }
 
-// Structured recorder outcomes. A recording ends for exactly one reason;
-// callers classify outcomes instead of parsing error message strings.
-
+// A recording ends for exactly one structured reason; callers never infer an
+// outcome by parsing error text.
 export const RecorderOutcomeKind = {
   OK: 'ok',
   SHORT_TAP: 'short-tap',
@@ -88,11 +81,9 @@ const BYTES_PER_SAMPLE = 2
 // 24 MB of PCM16: the memory/upload safety cap, independent of quality.
 const MAX_PCM_BYTES = 24 * 1024 * 1024
 
-// Recording id: the capture start time as a UTC timestamp string. It is
-// also the file name — recordings are strictly serial, so start times never
-// collide, and a lexical sort of the directory sorts by recency. The
-// filename-safe shape is compact ISO 8601 with milliseconds:
-// YYYYMMDDTHHMMSSmmm (20260905T062638123).
+// Recording ids are UTC capture timestamps and filenames. Capture is serial,
+// so the compact ISO-like value is collision-safe here and lexical directory
+// order also reflects recency: YYYYMMDDTHHMMSSmmm.
 export function recordingIdForNow () {
   const now = new Date()
   const pad = (n, w = 2) => String(n).padStart(w, '0')
@@ -118,7 +109,6 @@ export class AudioRecorder {
       : DEFAULT_MINIMUM_RECORDING_DURATION_MS
     this._bytesPerMs = this._sampleRate * BYTES_PER_SAMPLE / 1000
     this._minimumBytes = this._bytesPerMs * this._minimumDurationMs
-    // 100 ms of PCM16 at the chosen rate.
     this._chunkBytes = this._bytesPerMs * DEFAULT_CHUNK_MS
     this._outcome = null
   }
@@ -164,8 +154,8 @@ export class AudioRecorder {
   }
 
   async stop () {
-    // Idempotent: the first stop decides the outcome; later stops return it
-    // unchanged instead of re-reading a torn-down stream.
+    // The first stop decides the outcome; later calls return it without
+    // touching a torn-down stream.
     if (this._outcome) { return this._outcome }
 
     const process = this._process

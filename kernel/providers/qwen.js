@@ -1,20 +1,6 @@
 // Qwen Provider (DashScope, HTTP non-realtime ASR).
-// Every supported selection is an explicitly verified audio mapping.
-//
-// Three verified model/protocol pairs (live-tested 2026-09-05):
-// - qwen-audio-3.0-asr-flash, fun-asr-flash-2026-06-15:
-//     DashScope multimodal-generation, input_audio parts, parameters.format,
-//     nested output.output.sentence envelope (no choices). Context rides as
-//     an input_text part before the audio. Audio 3.0 also accepts
-//     language_hints; inline hot words are deliberately not exposed.
-// - qwen3-asr-flash-2026-02-10: OpenAI-compatible
-//     /compatible-mode/v1/chat/completions, choices envelope, system-message
-//     context, asr_options.enable_itn extension.
-// - qwen3-asr-flash (bare alias, kept for configurations saved before the
-//     versioned id existed): DashScope multimodal-generation with the legacy
-//     audio part and flat choices envelope.
-//
-// Context is free text the user composed and is delivered verbatim.
+// Supported models use explicit protocol mappings because their request and
+// response envelopes differ. Unknown models are rejected rather than guessed.
 // This module must not import GNOME/GI libraries.
 
 import { Provider } from './provider.js'
@@ -28,18 +14,15 @@ import {
   cancelledError
 } from './chat-completions.js'
 
-// Explicit, tested capability mapping. Unknown models are rejected because
-// neither capability nor invocation protocol may be guessed safely.
 const MODEL_SHAPES = {
   'qwen-audio-3.0-asr-flash': { capabilities: audioCapabilities(), protocol: 'asr3' },
   'fun-asr-flash-2026-06-15': { capabilities: audioCapabilities(), protocol: 'asr3' },
   'qwen3-asr-flash-2026-02-10': { capabilities: audioCapabilities(), protocol: 'compat' },
-  // Alias kept for configurations saved before the versioned id existed.
+  // Kept for configurations saved before the versioned id existed.
   'qwen3-asr-flash': { capabilities: audioCapabilities(), protocol: 'multimodal' }
 }
 
-// Official endpoints per protocol. An explicit endpoint override wins over
-// these; verified live 2026-09-05.
+// Official endpoints per protocol; an explicit endpoint override wins.
 const ENDPOINTS = {
   asr3: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
   multimodal: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
@@ -71,8 +54,8 @@ class QwenProvider extends Provider {
             key: 'endpoint',
             type: 'url',
             label: 'Endpoint',
-            // Empty lets the Provider route by model protocol: both official
-            // endpoints below are verified live; an explicit override wins.
+            // Empty lets the Provider route by model protocol; an explicit
+            // override wins.
             default: '',
             env: ['TOAS_QWEN_ENDPOINT', 'DASHSCOPE_ENDPOINT']
           },
@@ -179,13 +162,11 @@ class QwenProcessor {
       throw processingError('configuration', 'Qwen processing requires audio input')
     }
     if (instructions != null && instructions !== '') {
-      // Qwen does not advertise integrated refine; the Kernel must never
-      // route Refine Instructions here. Reaching this branch is a bug.
+      // Qwen does not advertise integrated refine; reaching this branch means
+      // the Kernel routed an unsupported plan.
       throw processingError('configuration', 'Qwen does not support integrated refine')
     }
 
-    // Context is Host-supplied free text the user composed; it is delivered
-    // verbatim so the user's own phrasing biases recognition as intended.
     const contextText = context.text?.trim() || null
     const audioDataUri = `data:${input.mimeType};base64,${input.base64}`
     const protocol = this._shape.protocol
@@ -207,13 +188,9 @@ class QwenProcessor {
         asr_options: { enable_itn: true }
       }, signal)
     } else {
-      // asr3 (audio-3.0 / fun-asr) and legacy multimodal share the
-      // DashScope native envelope; the context part differs.
       const messages = []
       if (contextText) {
         if (protocol === 'asr3') {
-          // Verified shape: input_text part ahead of the audio, so the bias
-          // text precedes what it biases.
           messages.push({ role: 'user', content: [{ type: 'input_text', text: contextText }] })
         } else {
           messages.push({ role: 'system', content: [{ text: contextText }] })
@@ -272,10 +249,8 @@ class QwenProcessor {
     if (signal?.aborted) { throw cancelledError() }
 
     if (response.status < 200 || response.status >= 300) {
-      // The ASR services answer valid-but-silent audio with HTTP 400
-      // ASR_RESPONSE_HAVE_NO_WORDS (verified live). The round trip, the
-      // key, and the audio format were all fine — the clip simply has no
-      // speech — so this is 'no text', not a service failure.
+      // The ASR services use HTTP 400 ASR_RESPONSE_HAVE_NO_WORDS for valid
+      // silent audio. That is no-text, not a service failure.
       const detail = safeErrorDetail(response.body)
       if (detail === 'ASR_RESPONSE_HAVE_NO_WORDS') {
         throw processingError('no-text', 'No speech was recognized')
@@ -287,7 +262,6 @@ class QwenProcessor {
   }
 }
 
-// Short safe message from an error body, never surfaced raw.
 function safeErrorDetail (bodyBytes) {
   try {
     return JSON.parse(new TextDecoder().decode(bodyBytes))?.message ?? ''
@@ -296,11 +270,7 @@ function safeErrorDetail (bodyBytes) {
   }
 }
 
-// Verified response envelopes:
-// - compat (qwen3-asr-flash-*): choices[0].message.content (OpenAI shape)
-// - multimodal (qwen3-asr-flash alias): flat output.choices[0].message.content
-// - asr3 (audio-3.0 / fun-asr): nested output.output.sentence.text or
-//   output.output.sentences[].text — no choices, per the API reference
+// Qwen's supported protocols expose different response envelopes.
 function extractQwenText (data, protocol) {
   if (protocol === 'asr3') {
     const inner = data?.output?.output

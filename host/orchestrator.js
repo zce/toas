@@ -49,8 +49,7 @@ export class ToasOrchestrator {
       ((directory, onLevel, onError, sampleRate, minimumDurationMs) =>
         new AudioRecorder(directory, onLevel, onError, sampleRate, minimumDurationMs))
 
-    // Focus-mismatch notices share the notifier seam.
-    if (this._output.setOnFocusMismatch && this._notifier) {
+    if (this._output.setOnFocusMismatch) {
       this._output.setOnFocusMismatch(message =>
         this._notifier.notify('Copied to clipboard', message)
       )
@@ -168,7 +167,6 @@ export class ToasOrchestrator {
       if (this._run !== run) { return }
 
       run.result = result
-      run.output = result.text
 
       if (options.skipOutput) {
         run.savedAttempt = this._saveAttemptFromResult(run)
@@ -182,7 +180,7 @@ export class ToasOrchestrator {
 
       const deliveryMode = this._output.deliveryMode?.() ?? 'insert'
       this._transition(deliveryMode === 'clipboard' ? 'copying' : 'outputting')
-      await this._output.write(run.output)
+      await this._output.write(result.text)
       if (this._run !== run) { return }
       this._finishRun(run)
 
@@ -216,15 +214,14 @@ export class ToasOrchestrator {
     this._output.cancel?.()
     run?.recorder?.cancel?.()
 
-    // A retry does not own the original session's audio; never discard it.
+    // A retry does not own the original voice input's audio; never discard it.
     this._finishRun(run, !run?.isRetry)
     this._transition('idle')
   }
 
-  // Reruns processing on a retained recording from a failed history session.
+  // Reruns processing on a retained recording from a failed voice input.
   // No recorder is started and nothing is pasted; the result is appended as
-  // a linked attempt. Retry uses the current Config/Context/secrets snapshot,
-  // never a historical one.
+  // a linked attempt. Retry uses the current Config/Context/secrets snapshot.
   async retry (originalEntry) {
     if (this._state !== 'idle') { return null }
 
@@ -320,8 +317,6 @@ export class ToasOrchestrator {
     this._notifier.notify(presentation.summary, presentation.guidance)
   }
 
-  // Final-text/Trace history shape (spec #22 section 14): one text field plus
-  // the physical Trace of the calls that actually ran.
   _historyEntryFromResult (run, status, error = null) {
     const result = run.result || {}
 
@@ -399,7 +394,7 @@ export class ToasOrchestrator {
     try {
       run.recorder?.destroy()
     } catch {
-      // Best effort during extension disable or session cancellation.
+      // Best effort during extension disable or voice-input cancellation.
     }
 
     if (discardRecording) { this._history.discardRecording(run.recording) }

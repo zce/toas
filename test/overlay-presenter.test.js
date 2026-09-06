@@ -2,18 +2,14 @@ import { ToasOverlayPresenter } from '../ui/overlay.js'
 import { test, expectEqual, run } from './harness.js'
 
 class FakeOverlayView {
-  constructor ({ hideDelay = 0 } = {}) {
+  constructor () {
     this.renders = []
     this.visibility = []
-    this.spinners = []
     this.privateFlags = []
-    this.hidden = false
-    this.shown = false
     this.hideCalls = 0
     this.showCalls = 0
     this.resetCalls = 0
     this.destroyed = 0
-    this.timerFn = null
   }
 
   render (state, message) {
@@ -132,7 +128,6 @@ test('private mode is delegated to the view without a text label', () => {
   presenter.render('recording')
   expectEqual(view.renders.at(-1).message, '')
 
-  // The presenter forwards the run snapshot; the view owns the decoration.
   presenter.setPrivate(true)
   expectEqual(view.privateFlags.at(-1), true)
   expectEqual(view.renders.at(-1).message, '')

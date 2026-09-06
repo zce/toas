@@ -1,8 +1,3 @@
-// Kernel runner for the GNOME Host: loads portable audio, snapshots
-// Config/secrets/Context once per attempt, and invokes the runtime-agnostic
-// Kernel with a real AbortController. Settings changed after an attempt
-// starts affect only the next attempt.
-
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
@@ -32,8 +27,8 @@ export class KernelRunner {
   }
 
   async run (recording, signal) {
-    // One immutable attempt snapshot: Config, secrets, Context, and audio
-    // are all read here and never re-read mid-attempt.
+    // Config, secrets, Context, and audio are snapshotted once per attempt so
+    // settings changes apply only to the next one.
     const config = this._configService.snapshotConfig()
     const secrets = this._configService.snapshotSecrets()
     const context = this._configService.snapshotContext()

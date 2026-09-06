@@ -56,7 +56,7 @@ export class HistoryStore {
   }
 
   clear () {
-    const sessions = this._readEntries().length
+    const count = this.readEntries().length
 
     if (GLib.file_test(this._historyPath, GLib.FileTest.EXISTS)) { GLib.file_set_contents(this._historyPath, '') }
 
@@ -65,7 +65,7 @@ export class HistoryStore {
         path: GLib.build_filenamev([this.recordingsDirectory, name])
       })
     )
-    return sessions
+    return count
   }
 
   discardRecording (recording) {
@@ -90,7 +90,7 @@ export class HistoryStore {
   }
 
   _prune () {
-    const entries = this._readEntries()
+    const entries = this.readEntries()
     const textLimit = this._settings.get_uint('history-limit')
 
     const removed = entries.slice(0, Math.max(0, entries.length - textLimit))
@@ -129,7 +129,7 @@ export class HistoryStore {
 
   _removeOrphanedRecordings () {
     const referenced = new Set(
-      this._readEntries()
+      this.readEntries()
         .map(entry => entry.audio)
         .filter(Boolean)
         .map(path => GLib.build_filenamev([this.stateDirectory, path]))
@@ -157,7 +157,7 @@ export class HistoryStore {
     }
   }
 
-  _readEntries () {
+  readEntries () {
     if (!GLib.file_test(this._historyPath, GLib.FileTest.EXISTS)) { return [] }
 
     const [, bytes] = GLib.file_get_contents(this._historyPath)
@@ -174,11 +174,6 @@ export class HistoryStore {
       })
   }
 
-  // Public read access for HistoryRepository; same semantics as _readEntries.
-  readEntries () {
-    return this._readEntries()
-  }
-
   destroy () {
     if (this._settingsChangedId) { this._settings.disconnect(this._settingsChangedId) }
     this._settingsChangedId = 0
@@ -186,15 +181,7 @@ export class HistoryStore {
   }
 }
 
-// History repository: bounded, safe queries over the session JSONL plus
-// linked retry attempts. Pure GLib, no Shell imports.
-//
-// Design notes:
-// - list() reads the file once, returns newest first, skips malformed lines.
-// - Attempts are appended (never rewritten) with attemptOf linking to the
-//   original session id; the original record is immutable.
-// - Audio resolution checks file existence without reading contents.
-
+// Bounded history queries plus linked retry attempts. Pure GLib, no Shell imports.
 const DEFAULT_PAGE_SIZE = 30
 
 export class HistoryRepository {
@@ -202,8 +189,7 @@ export class HistoryRepository {
     this._store = store
   }
 
-  // Newest-first page of session metadata. `after` is the id of the last
-  // entry of the previous page, enabling keyset pagination without indexes.
+  // Newest-first page; beforeId is the last entry of the previous page.
   list ({ limit = DEFAULT_PAGE_SIZE, beforeId = null } = {}) {
     const entries = this._store.readEntries()
     const newestFirst = [...entries].reverse()
@@ -223,15 +209,13 @@ export class HistoryRepository {
     return this._store.readEntries().find(entry => entry.id === id) ?? null
   }
 
-  // Attempts linked to a session, oldest first.
-  attemptsOf (sessionId) {
+  attemptsOf (voiceInputId) {
     return this._store
       .readEntries()
-      .filter(entry => entry.attemptOf === sessionId)
+      .filter(entry => entry.attemptOf === voiceInputId)
   }
 
-  // Appends a retry attempt linked to a failed original. The original record
-  // is never modified.
+  // Retry attempts are appended; the original history item remains immutable.
   appendAttempt (original, entry) {
     const attempts = this.attemptsOf(original.id)
     const attempt = {
@@ -244,8 +228,7 @@ export class HistoryRepository {
     return attempt
   }
 
-  // Resolves the audio path only if the file still exists on disk. Returns
-  // { available, path } without reading any bytes.
+  // Resolve retained audio without loading it into memory.
   resolveAudio (entry) {
     if (!entry?.audio) { return { available: false, path: null } }
 
@@ -258,9 +241,6 @@ export class HistoryRepository {
     return { available: exists, path: exists ? path : null }
   }
 }
-
-// Pure formatting/projection helpers for history UI; imported by headless
-// tests and the Shell-side indicator/menu composition root.
 
 const PREVIEW_MAX = 60
 
@@ -282,8 +262,8 @@ export function formatDuration (ms) {
   return `${minutes}m ${seconds % 60}s`
 }
 
-// Retry state is projected onto the immutable original session. The latest
-// attempt is the semantic source for status, text, and failure context.
+// Retry state is projected onto the immutable original history item. The
+// latest attempt is authoritative for status, text, and failure context.
 export function projectLatestAttempt (entry, attempts = []) {
   const latest = attempts[attempts.length - 1]
   if (!latest) { return entry }
@@ -297,10 +277,9 @@ export function projectLatestAttempt (entry, attempts = []) {
   }
 }
 
-// Final text of a history entry: entries store Result text; the legacy
-// output/transcript fallbacks exist only for entries written before the
-// Result/Trace history shape. Failed entries without text show stable failure
-// context rather than making missing text look like the primary problem.
+// output/transcript are compatibility fallbacks for older retained entries.
+// Failed entries without text show stable failure context instead of making
+// missing text look like the primary problem.
 export function previewText (entry) {
   const text = extractText(entry).replace(/\s+/g, ' ').trim()
   if (!text && entry?.status === 'error' && entry.error) {
