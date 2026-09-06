@@ -79,19 +79,8 @@ class MimoProvider extends Provider {
   }
 
   resolveSelection ({ providerValues, values }) {
-    const issues = []
     const endpoint = providerValues.endpoint?.trim()
-    const model = values.model?.trim()
-    const shape = model ? MODEL_SHAPES[model] : null
-
-    if (model && !shape) {
-      issues.push({
-        path: 'values.model',
-        code: 'unsupported',
-        message: `Unsupported MiMo model: ${model}`
-      })
-    }
-
+    const { model, shape, issues } = this.resolveModelShape(values, MODEL_SHAPES)
     const language = values.language?.trim() || null
 
     return {
@@ -104,10 +93,7 @@ class MimoProvider extends Provider {
     }
   }
 
-  create (config, secrets, runtime) {
-    if (!secrets.key) {
-      throw processingError('configuration', 'MiMo API key is required to create a processor')
-    }
+  createProcessor (config, secrets, runtime) {
     return new MimoProcessor(this, config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
 }

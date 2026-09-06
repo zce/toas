@@ -77,15 +77,8 @@ class DoubaoProvider extends Provider {
       })
     }
 
-    const model = values.model?.trim()
-    const shape = model ? MODEL_SHAPES[model] : null
-    if (model && !shape) {
-      issues.push({
-        path: 'values.model',
-        code: 'unsupported',
-        message: `Unsupported Doubao model: ${model}`
-      })
-    }
+    const { model, shape, issues: modelIssues } = this.resolveModelShape(values, MODEL_SHAPES)
+    issues.push(...modelIssues)
 
     return {
       input: 'audio',
@@ -102,10 +95,7 @@ class DoubaoProvider extends Provider {
     }
   }
 
-  create (config, secrets, runtime) {
-    if (!secrets.key) {
-      throw processingError('configuration', 'Doubao API key is required to create a processor')
-    }
+  createProcessor (config, secrets, runtime) {
     return new DoubaoProcessor(config, secrets.key, runtime)
   }
 }

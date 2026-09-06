@@ -1,5 +1,5 @@
 import { Provider } from '../kernel/providers/provider.js'
-import { test, expectEqual, run } from './harness.js'
+import { test, expectEqual, expectTruthy, run } from './harness.js'
 
 class ScopedProvider extends Provider {
   constructor () {
@@ -40,6 +40,10 @@ class ScopedProvider extends Provider {
           ? [{ path: 'values.model', code: 'unsupported', message: 'Unsupported model' }]
           : []
     }
+  }
+
+  createProcessor (config, secrets, runtime) {
+    return { config, secrets, runtime }
   }
 }
 
@@ -89,6 +93,53 @@ test('unresolved input reports universally required keys only', () => {
     resolved.issues.map(issue => issue.path),
     ['values.model']
   )
+})
+
+test('Provider discovery support stays behind the shared template', () => {
+  expectEqual(provider.supports('audio'), true)
+  expectEqual(provider.supports('text', { instructions: true }), true)
+  expectEqual(provider.supports('image'), false)
+})
+
+test('known model-shape lookup trims values and reports unsupported models consistently', () => {
+  const shapes = { known: { input: 'text' } }
+  expectEqual(provider.resolveModelShape({ model: ' known ' }, shapes), {
+    model: 'known',
+    shape: shapes.known,
+    issues: []
+  })
+
+  const unknown = provider.resolveModelShape({ model: 'other' }, shapes)
+  expectEqual(unknown.model, 'other')
+  expectEqual(unknown.shape, null)
+  expectEqual(unknown.issues, [{
+    path: 'values.model',
+    code: 'unsupported',
+    message: 'Unsupported Scoped model: other'
+  }])
+})
+
+test('Provider create template validates required secrets before delegating', () => {
+  let error = null
+  try {
+    provider.create({}, {}, {})
+  } catch (caught) {
+    error = caught
+  }
+  expectTruthy(error)
+  expectEqual(error.category, 'configuration')
+  expectEqual(error.message, 'Scoped API key is required to create a processor')
+
+  const processor = provider.create(
+    { model: 'text-model' },
+    { key: 'secret' },
+    { transport: 'runtime' }
+  )
+  expectEqual(processor, {
+    config: { model: 'text-model' },
+    secrets: { key: 'secret' },
+    runtime: { transport: 'runtime' }
+  })
 })
 
 await run()

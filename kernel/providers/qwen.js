@@ -96,15 +96,8 @@ class QwenProvider extends Provider {
       })
     }
 
-    const model = values.model?.trim()
-    const shape = model ? MODEL_SHAPES[model] : null
-    if (model && !shape) {
-      issues.push({
-        path: 'values.model',
-        code: 'unsupported',
-        message: `Unsupported Qwen model: ${model}`
-      })
-    }
+    const { model, shape, issues: modelIssues } = this.resolveModelShape(values, MODEL_SHAPES)
+    issues.push(...modelIssues)
 
     return {
       input: 'audio',
@@ -116,10 +109,7 @@ class QwenProvider extends Provider {
     }
   }
 
-  create (config, secrets, runtime) {
-    if (!secrets.key) {
-      throw processingError('configuration', 'Qwen API key is required to create a processor')
-    }
+  createProcessor (config, secrets, runtime) {
     return new QwenProcessor(this, config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
 }

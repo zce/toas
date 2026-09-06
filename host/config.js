@@ -105,10 +105,7 @@ function selectionValues (stored, provider, input) {
 
 export function providerIdsFor (providerRegistry, input, instructions = false) {
   return [...providerRegistry]
-    .filter(([, provider]) => {
-      const support = provider.manifest.support
-      return support.inputs.includes(input) && (!instructions || support.instructions)
-    })
+    .filter(([, provider]) => provider.supports(input, { instructions }))
     .map(([id]) => id)
 }
 
@@ -118,10 +115,7 @@ function firstProvider (providerRegistry, input, instructions = false) {
 
 function validProvider (id, providerRegistry, input, instructions = false) {
   const provider = typeof id === 'string' ? providerRegistry.get(id) : null
-  const support = provider?.manifest?.support
-  if (!support?.inputs?.includes(input)) { return null }
-  if (instructions && !support.instructions) { return null }
-  return id
+  return provider?.supports(input, { instructions }) ? id : null
 }
 
 function copyObjectMap (value) {

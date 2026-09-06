@@ -17,7 +17,7 @@ A single attempt to turn a voice input's recording into text. A retry is another
 _Avoid_: Session (when referring to a retry)
 
 **Context**:
-Optional free text the user composes and supplies alongside a recording or text — terms, background, names, anything that helps interpretation. It is one product-level reference-text input shared by processing stages; it may be empty and does not itself specify how the result should be transformed.
+Optional free text the user composes and supplies alongside a recording or text — terms, background, names, anything that helps interpretation. Its content is preserved verbatim; it may be empty and does not itself specify how the result should be transformed.
 _Avoid_: Processing context, prompt, structured forms
 
 **Instructions**:
@@ -53,7 +53,7 @@ Context has one product meaning: user-provided reference text that helps the sel
 
 Provider wire roles do not redefine this product meaning. For example, an ASR API may document a `system` message specifically as recognition context; that remains Context, not a toas system instruction.
 
-The `Provider` base class owns the small shared semantic helpers for Context and Refine composition. Provider/Processor implementations own protocol-specific wire encoding.
+The `Provider` base class owns behavior shared by the Provider family: required-field validation, manifest-level discovery checks, known-model lookup, required-secret validation before Processor creation, and the small product-level helpers for Context and Refine composition. Subclasses supply selection-specific configuration and Processor construction; Provider/Processor implementations own protocol-specific wire encoding.
 
 ## Refine semantics
 

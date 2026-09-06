@@ -51,10 +51,7 @@ class OpenAICompatibleProvider extends Provider {
     }
   }
 
-  create (config, secrets, runtime) {
-    if (!secrets.key) {
-      throw processingError('configuration', `${this.manifest.label} API key is required to create a processor`)
-    }
+  createProcessor (config, secrets, runtime) {
     return new OpenAICompatibleProcessor(this, config, secrets.key, runtime)
   }
 }
