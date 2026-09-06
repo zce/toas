@@ -12,6 +12,7 @@ import {
   runConnectionTest,
   snapshotProcessingConfig,
   snapshotProviderSecrets,
+  switchProcessingProvider,
   writeProcessingConfig
 } from './host/config.js'
 import { providers as providerRegistry } from './kernel/providers/registry.js'
@@ -125,6 +126,9 @@ export default class ToasPreferences extends ExtensionPreferences {
       title: 'toas',
       icon_name: 'audio-input-microphone-symbolic'
     })
+    const configurationBanner = new Adw.Banner({ title: '', revealed: false })
+    configurationBanner.add_css_class('toas-config-banner')
+    page.banner = configurationBanner
 
     const inputGroup = new Adw.PreferencesGroup({
       title: 'Voice Input',
@@ -187,8 +191,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       primaryProviderRow.connect('notify::selected', () => {
         const id = primaryProviderIds[primaryProviderRow.selected] ?? primaryProviderIds[0]
         if (!id || id === processingConfig.primary.provider) { return }
-        processingConfig.primary.provider = id
-        processingConfig.primary.values = { ...(providerRegistry.get(id)?.manifest?.defaults?.audio || {}) }
+        switchProcessingProvider(processingConfig, 'primary', id, providerRegistry)
         saveProcessingConfig()
         renderProcessing()
       })
@@ -221,8 +224,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       refineProviderRow.connect('notify::selected', () => {
         const id = refineProviderIds[refineProviderRow.selected] ?? refineProviderIds[0]
         if (!id || id === processingConfig.refine.provider) { return }
-        processingConfig.refine.provider = id
-        processingConfig.refine.values = { ...(providerRegistry.get(id)?.manifest?.defaults?.text || {}) }
+        switchProcessingProvider(processingConfig, 'refine', id, providerRegistry)
         saveProcessingConfig()
         renderProcessing()
       })
@@ -260,6 +262,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       refineOnErrorRow.connect('notify::selected', () => {
         processingConfig.refine.onError = REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
         saveProcessingConfig()
+        refreshMeta()
       })
       refineExpander.add_row(refineOnErrorRow)
       refineExpander.add_row(buildConnectionRow({ settings, role: 'refine' }).row)
@@ -280,9 +283,6 @@ export default class ToasPreferences extends ExtensionPreferences {
         for (const row of advancedRows) { advancedExpander.add_row(row) }
         rows.push(advancedExpander)
       }
-
-      const refineWarning = new Adw.Banner({ title: '' })
-      rows.push(refineWarning)
 
       const securityNote = new Gtk.Label({
         label: 'API keys entered here are stored as plain text in GNOME settings. Environment variables can be used instead.',
@@ -312,10 +312,29 @@ export default class ToasPreferences extends ExtensionPreferences {
           (processingConfig.refine.enabled && refine.capabilities?.context)
         )
 
-        refineWarning.revealed = processingConfig.refine.enabled && refine.issues.length > 0
-        refineWarning.title = refineWarning.revealed
-          ? `Refine: ${refine.issues[0]?.message ?? 'Provider settings need attention'}`
-          : ''
+        let status = null
+        if (primary.issues.length > 0) {
+          status = {
+            style: 'error',
+            title: `Voice input: ${primary.issues[0]?.message ?? 'Provider settings need attention'}`
+          }
+        } else if (processingConfig.refine.enabled && refine.issues.length > 0) {
+          status = {
+            style: processingConfig.refine.onError === 'abort' ? 'error' : 'warning',
+            title: `Refine: ${refine.issues[0]?.message ?? 'Provider settings need attention'}`
+          }
+        }
+
+        configurationBanner.remove_css_class('warning')
+        configurationBanner.remove_css_class('error')
+        if (status) {
+          configurationBanner.add_css_class(status.style)
+          configurationBanner.title = status.title
+          configurationBanner.revealed = true
+        } else {
+          configurationBanner.title = ''
+          configurationBanner.revealed = false
+        }
       }
 
       replaceProcessingRows(rows)
