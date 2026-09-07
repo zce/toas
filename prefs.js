@@ -135,12 +135,14 @@ export default class ToasPreferences extends ExtensionPreferences {
       title: 'toas',
       icon_name: 'audio-input-microphone-symbolic'
     })
-    const configurationBanner = new Adw.Banner({ title: '', revealed: false })
+    const configurationBanner = new Adw.Banner({ title: '', revealed: false, use_markup: false })
     configurationBanner.add_css_class('toas-config-banner')
     page.banner = configurationBanner
 
+    const { processingGroup, contextGroup } = buildProcessingGroups(settings, configurationBanner)
     page.add(buildInputGroup(settings))
-    page.add(buildProcessingGroup(settings, configurationBanner))
+    page.add(processingGroup)
+    page.add(contextGroup)
     page.add(buildLocalGroup(settings))
     window.add(page)
   }
@@ -178,10 +180,10 @@ function buildInputGroup(settings) {
   return group
 }
 
-// Processing group plus its Context sibling. The Processing rows rebuild on
+// Processing and Context are sibling groups. The Processing rows rebuild on
 // every provider/selection change, and the banner mirrors the first
 // configuration issue across both roles.
-function buildProcessingGroup(settings, configurationBanner) {
+function buildProcessingGroups(settings, configurationBanner) {
   const processingGroup = new Adw.PreferencesGroup({
     title: 'Processing',
     description: 'Audio is sent to the selected provider after recording.'
@@ -362,7 +364,7 @@ function buildProcessingGroup(settings, configurationBanner) {
   }
 
   renderProcessing()
-  return processingGroup
+  return { processingGroup, contextGroup }
 }
 
 // Dims the Context group and rewrites its description when the resolved
@@ -409,7 +411,7 @@ function updateConfigurationBanner(banner, primary, refine, processingConfig) {
 // Recording & History group: capture quality plus local retention limits.
 function buildLocalGroup(settings) {
   const group = new Adw.PreferencesGroup({
-    title: 'Recording & History',
+    title: 'Recording &amp; History',
     description: 'Recording quality and local retention.'
   })
 
@@ -476,7 +478,8 @@ function buildProviderRows({ settings, providerId, input, config, selection, inc
       const advanced = field.type === 'url' && Object.hasOwn(field, 'default')
       const row = new Adw.EntryRow({
         title: advanced ? `${provider.manifest.label} ${field.label}` : field.label,
-        text: String(config.providers[providerId]?.[field.key] ?? field.default ?? '')
+        text: String(config.providers[providerId]?.[field.key] ?? field.default ?? ''),
+        use_markup: false
       })
       row.connect('changed', () => {
         const values = (config.providers[providerId] ??= {})
@@ -510,7 +513,8 @@ function selectionFieldRow(field, value, onChanged) {
     const row = new Adw.ComboRow({
       title: field.label,
       model: Gtk.StringList.new(field.choices.map(choice => choice.label ?? choice.value)),
-      selected: Math.max(0, selected)
+      selected: Math.max(0, selected),
+      use_markup: false
     })
     row.connect('notify::selected', () => {
       const choice = field.choices[row.selected]
@@ -521,7 +525,7 @@ function selectionFieldRow(field, value, onChanged) {
     return row
   }
 
-  const row = new Adw.EntryRow({ title: field.label, text: String(value) })
+  const row = new Adw.EntryRow({ title: field.label, text: String(value), use_markup: false })
   row.connect('changed', () => onChanged(row.get_text()))
   return row
 }
@@ -628,7 +632,7 @@ function spinRow(settings, key, title, lower, upper) {
 // Secret entry backed by the provider-secrets GSettings map. The suffix icon
 // lights up when no stored value exists but an environment variable does.
 function secretRow({ settings, providerId, field }) {
-  const entry = new Adw.PasswordEntryRow({ title: field.label })
+  const entry = new Adw.PasswordEntryRow({ title: field.label, use_markup: false })
   const envIcon = new Gtk.Image({
     icon_name: 'emblem-ok-symbolic',
     tooltip_text: 'Using an environment variable'
@@ -666,7 +670,7 @@ function secretRow({ settings, providerId, field }) {
 
 function buildConnectionRow({ settings, role }) {
   const button = new Gtk.Button({ valign: Gtk.Align.CENTER, label: 'Test' })
-  const row = new Adw.ActionRow({ title: 'Connection', subtitle: 'Verify the current settings.' })
+  const row = new Adw.ActionRow({ title: 'Connection', subtitle: 'Verify the current settings.', use_markup: false })
   row.add_suffix(button)
   row.activatable_widget = button
 
