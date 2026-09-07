@@ -9,10 +9,9 @@ const INSTRUCTIONS = 'Make this concise.\nKeep technical details.'
 const CONTEXT = 'Names: useEffect, Payabli.'
 const TRANSCRIPT = 'We should ship this tomorrow.'
 
-const SYSTEM_PROMPT = `Refine the transcript into clear written text.
-Follow the user's instructions when provided and use context only as helpful reference.
-Return only text derived from the transcript, never a placeholder or explanation for empty content.
-If refinement would remove all meaningful content, return the original transcript unchanged.`
+const SYSTEM_PROMPT = `Apply the user's instructions to the transcript.
+Use context only as reference.
+Return only the result, without commentary or placeholders.`
 
 test('Provider composes the lightweight Refine task separately from per-run content', () => {
   const prompt = composePrompt(openaiCompatibleProvider)
@@ -27,15 +26,17 @@ test('Provider composes the lightweight Refine task separately from per-run cont
   expectTruthy(!prompt.systemPrompt.includes(TRANSCRIPT))
 })
 
-test('Refine system prompt prevents placeholder output for non-empty transcripts', () => {
+test('Refine system prompt stays protocol-only', () => {
   const prompt = openaiCompatibleProvider.composeRefinePrompt({
     transcript: '嗯。',
     context: { text: '' },
     instructions: 'Remove filler words.'
   })
 
-  expectTruthy(prompt.systemPrompt.includes('never a placeholder or explanation for empty content'))
-  expectTruthy(prompt.systemPrompt.includes('return the original transcript unchanged'))
+  expectTruthy(prompt.systemPrompt.includes('without commentary or placeholders'))
+  expectTruthy(!prompt.systemPrompt.includes('meaningful content'))
+  expectTruthy(!prompt.systemPrompt.includes('original transcript'))
+  expectTruthy(!prompt.systemPrompt.includes('derived from'))
 })
 
 test('Provider preserves non-empty user-owned text verbatim inside structural tags', () => {
