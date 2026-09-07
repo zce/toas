@@ -9,11 +9,11 @@
   spacing: 8px;
   padding: 8px;
 
-  border: 1px solid st-transparentize(st-darken(-st-accent-color, 0.6), 0.2);
+  border: 1px solid st-transparentize(st-darken(-st-accent-color, 0.4), 0.05);
   border-radius: 999px;
 
-  background-color: st-transparentize(st-darken(-st-accent-color, 0.6), 0.4);
-  box-shadow: 0 220px 240px 150px st-transparentize(-st-accent-color, 0.1);
+  background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.1);
+  box-shadow: 0 150px 130px 100px -st-accent-color;
 
   color: -st-accent-fg-color;
 }
@@ -159,12 +159,12 @@
  * persistent visual distinction without looking like a focus ring.
  */
 .toas-overlay.toas-private {
-  background-color: st-transparentize(st-darken(-st-accent-color, 0.6), 0.5);
+  background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.2);
 }
 
 /* Terminal error feedback should not carry the Private run decoration. */
 .toas-overlay.toas-private.toas-error {
-  background-color: st-transparentize(st-darken(-st-accent-color, 0.6), 0.3);
+  background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.1);
 }
 
 /*
