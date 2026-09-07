@@ -13,8 +13,7 @@
   border-radius: 999px;
 
   background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.1);
-  box-shadow: 0 150px 130px 100px -st-accent-color;
-
+  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.16);
   color: -st-accent-fg-color;
 }
 
@@ -153,11 +152,6 @@
   color: st-lighten(-st-accent-color, 0.4);
 }
 
-/*
- * Private mode changes the atmosphere of the capsule rather than adding
- * another surface inside it. A soft accent-colored inner glow provides a
- * persistent visual distinction without looking like a focus ring.
- */
 .toas-overlay.toas-private {
   background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.2);
 }

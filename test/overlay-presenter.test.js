@@ -46,6 +46,19 @@ test('idle hides the overlay and clears timers', () => {
   presenter.destroy()
 })
 
+test('idle leaves busy cleanup to the view so fade-out keeps the final frame', () => {
+  const view = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view })
+
+  presenter.render('transcribing')
+  presenter.render('idle')
+
+  expectEqual(view.spinnerStarts, 1)
+  expectEqual(view.spinnerStops, 0)
+  expectEqual(view.hideCalls, 1)
+  presenter.destroy()
+})
+
 test('error schedules exactly one hide after the delay', async () => {
   const view = new FakeOverlayView()
   const presenter = new ToasOverlayPresenter({ view, hideDelay: 30 })

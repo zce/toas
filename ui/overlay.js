@@ -45,10 +45,9 @@ export class ToasOverlayPresenter {
     this._clearTimer()
 
     if (state === 'idle') {
-      if (this._mode === 'busy') { this._view.stopSpinner() }
       this._mode = 'hidden'
-      // Keep whatever is on screen so the fade-out stays continuous: tearing
-      // children down first would flash an empty pill or a lone spinner.
+      // Keep the final frame intact until the fade finishes. ShellOverlayView
+      // performs visual cleanup only after the overlay is fully hidden.
       this._view.hide()
       return
     }
@@ -119,20 +118,23 @@ const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
+const WAVEFORM_EASE_MS = 140
 const OVERLAY_BOTTOM_MARGIN = 112
+const OVERLAY_MOTION_MS = 180
+const OVERLAY_OFFSET_PX = 6
 
 export class ShellOverlayView {
   constructor () {
     this._levels = Array(BAR_COUNT).fill(0)
     this._compositingHeld = false
     this._monitorIndex = null
+    this._mode = 'hidden'
 
-    this._actor = new St.BoxLayout({
+    this._overlay = new St.BoxLayout({
       style_class: 'toas-overlay',
       reactive: false,
       visible: false
     })
-    this._actor.connect('notify::width', () => this._reposition())
 
     this._icon = new St.Icon({
       style_class: 'toas-icon',
@@ -177,7 +179,8 @@ export class ShellOverlayView {
       y_align: Clutter.ActorAlign.CENTER
     })
     this._closeButton.connect('clicked', () => {
-      this._closeButton.visible = false
+      // Preserve the final visual frame while cancellation begins; cleanup is
+      // deferred until the overlay has actually faded away.
       this._onCancelRequested?.()
     })
 
@@ -187,16 +190,16 @@ export class ShellOverlayView {
       y_align: Clutter.ActorAlign.CENTER
     })
 
-    this._actor.add_child(this._icon)
-    this._actor.add_child(this._bars)
-    this._actor.add_child(this._privateIcon)
-    this._actor.add_child(this._spinner)
-    this._actor.add_child(this._status)
-    this._actor.add_child(this._closeButton)
+    this._overlay.add_child(this._icon)
+    this._overlay.add_child(this._bars)
+    this._overlay.add_child(this._privateIcon)
+    this._overlay.add_child(this._spinner)
+    this._overlay.add_child(this._status)
+    this._overlay.add_child(this._closeButton)
 
     // This is transient system feedback, so keep it above application windows.
     // Do not use trackFullscreen: tracked actors are hidden in fullscreen.
-    Main.layoutManager.addTopChrome(this._actor)
+    Main.layoutManager.addTopChrome(this._overlay)
 
     this._monitorsChangedId = Main.layoutManager.connect(
       'monitors-changed',
@@ -222,6 +225,7 @@ export class ShellOverlayView {
     const busy = mode === 'busy'
     const error = mode === 'error'
 
+    this._mode = mode
     this._icon.visible = recording
     this._bars.visible = recording
     this._status.visible = busy || error
@@ -229,9 +233,9 @@ export class ShellOverlayView {
     this._closeButton.visible = recording || busy
 
     if (error) {
-      this._actor.add_style_class_name('toas-error')
+      this._overlay.add_style_class_name('toas-error')
     } else {
-      this._actor.remove_style_class_name('toas-error')
+      this._overlay.remove_style_class_name('toas-error')
     }
   }
 
@@ -249,11 +253,12 @@ export class ShellOverlayView {
   setPrivate (enabled) {
     this._private = Boolean(enabled)
     if (this._private) {
-      this._actor.add_style_class_name('toas-private')
+      this._overlay.add_style_class_name('toas-private')
     } else {
-      this._actor.remove_style_class_name('toas-private')
+      this._overlay.remove_style_class_name('toas-private')
     }
     this._privateIcon.visible = this._privateIcon.visible && this._private
+    this._reposition()
   }
 
   startSpinner () {
@@ -274,41 +279,50 @@ export class ShellOverlayView {
 
   show () {
     this._reposition()
-    // A new recording can start while the previous hide animation is still
-    // running. Stop it so the stale onStopped callback cannot hide this run.
-    this._actor.remove_all_transitions()
+    this._overlay.remove_all_transitions()
     this._acquireCompositing()
 
-    if (this._actor.visible) {
-      this._actor.opacity = 255
+    if (this._overlay.visible) {
+      // A new non-busy state may have interrupted a busy fade-out before the
+      // deferred spinner cleanup ran.
+      if (this._mode !== 'busy') { this._spinner.stop() }
+      this._overlay.opacity = 255
+      this._overlay.translation_y = 0
       return
     }
 
-    this._actor.show()
-    // Keep stage changes steady; only the first appearance fades in.
-    this._actor.opacity = 0
-    this._actor.ease({
+    this._overlay.opacity = 0
+    this._overlay.translation_y = OVERLAY_OFFSET_PX
+    this._overlay.show()
+    this._overlay.ease({
       opacity: 255,
-      duration: 150,
+      translation_y: 0,
+      duration: OVERLAY_MOTION_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD
     })
   }
 
   hide () {
-    this._closeButton.visible = false
-    if (!this._actor.visible) {
+    if (!this._overlay.visible) {
+      this._spinner.stop()
+      this._closeButton.visible = false
       this._releaseCompositing()
       return
     }
 
-    this._actor.ease({
+    this._overlay.remove_all_transitions()
+    this._overlay.ease({
       opacity: 0,
-      duration: 150,
+      translation_y: OVERLAY_OFFSET_PX,
+      duration: OVERLAY_MOTION_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => {
-        // Only hide if nothing re-showed during the transition.
-        if (this._actor && this._actor.opacity === 0) {
-          this._actor.hide()
+        // Only clean up the final frame if nothing re-showed during the fade.
+        if (this._overlay && this._overlay.opacity === 0) {
+          this._overlay.hide()
+          this._overlay.translation_y = 0
+          this._spinner.stop()
+          this._closeButton.visible = false
           this._releaseCompositing()
         }
       }
@@ -322,12 +336,10 @@ export class ShellOverlayView {
 
     this._barActors.forEach((bar, index) => {
       const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
-      const height = Math.round(
-        BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
-      )
+      const height = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
       bar.ease({
         height,
-        duration: 100,
+        duration: WAVEFORM_EASE_MS,
         mode: Clutter.AnimationMode.LINEAR
       })
     })
@@ -339,17 +351,17 @@ export class ShellOverlayView {
       Main.layoutManager.primaryMonitor,
       this._monitorIndex
     )
-    if (!monitor || !this._actor) { return }
+    if (!monitor || !this._overlay) { return }
 
-    const [, width] = this._actor.get_preferred_width(-1)
-    const [, height] = this._actor.get_preferred_height(width)
+    const [, width] = this._overlay.get_preferred_width(-1)
+    const [, height] = this._overlay.get_preferred_height(width)
     const { x, y } = calculateOverlayPosition(
       monitor,
       width,
       height,
       OVERLAY_BOTTOM_MARGIN
     )
-    this._actor.set_position(x, y)
+    this._overlay.set_position(x, y)
   }
 
   _acquireCompositing () {
@@ -370,18 +382,17 @@ export class ShellOverlayView {
     this._spinner?.stop()
     this._onCancelRequested = null
 
-    // Kill any in-flight ease before tearing down the chrome actor.
-    this._actor?.remove_all_transitions()
+    this._overlay?.remove_all_transitions()
     this._releaseCompositing()
 
     if (this._monitorsChangedId) { Main.layoutManager.disconnect(this._monitorsChangedId) }
 
-    if (this._actor) {
-      Main.layoutManager.removeChrome(this._actor)
-      this._actor.destroy()
+    if (this._overlay) {
+      Main.layoutManager.removeChrome(this._overlay)
+      this._overlay.destroy()
     }
 
-    this._actor = null
+    this._overlay = null
     this._icon = null
     this._spinner = null
     this._status = null
