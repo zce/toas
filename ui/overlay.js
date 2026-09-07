@@ -119,9 +119,10 @@ const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
+const BAR_MIN_SCALE = BAR_MIN_HEIGHT / BAR_MAX_HEIGHT
 const OVERLAY_BOTTOM_MARGIN = 112
-const CAPSULE_FADE_MS = 150
-const GLOW_FADE_MS = 220
+const OVERLAY_FADE_MS = 180
+const GLOW_RISE_MS = 220
 const GLOW_RISE_PX = 18
 const WAVEFORM_TIMELINE_MS = 60 * 60 * 1000
 const WAVEFORM_ATTACK_MS = 45
@@ -130,8 +131,8 @@ const WAVEFORM_RELEASE_MS = 90
 export class ShellOverlayView {
   constructor () {
     this._levels = Array(BAR_COUNT).fill(0)
-    this._targetHeights = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
-    this._displayHeights = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
+    this._targetScales = Array(BAR_COUNT).fill(BAR_MIN_SCALE)
+    this._displayScales = Array(BAR_COUNT).fill(BAR_MIN_SCALE)
     this._waveformRunning = false
     this._waveformFrameUs = 0
     this._compositingHeld = false
@@ -176,11 +177,17 @@ export class ShellOverlayView {
         style_class: 'toas-bar',
         y_align: Clutter.ActorAlign.CENTER
       })
+      bar.height = BAR_MAX_HEIGHT
+      bar.scale_y = BAR_MIN_SCALE
+      bar.set_pivot_point(0.5, 0.5)
       this._barActors.push(bar)
       this._bars.add_child(bar)
     }
 
+    // Tie the visual timeline to the bars actor so Clutter can drive it from
+    // the Shell frame clock rather than leaving it as an unattached timeline.
     this._waveformTimeline = new Clutter.Timeline({
+      actor: this._bars,
       duration: WAVEFORM_TIMELINE_MS
     })
     this._waveformTimeline.connect(
@@ -268,11 +275,7 @@ export class ShellOverlayView {
     this._privateIcon.visible = recording && this._private
     this._closeButton.visible = recording || busy
 
-    if (recording) {
-      this._startWaveform()
-    } else {
-      this._stopWaveform()
-    }
+    if (!recording) { this._stopWaveform() }
 
     if (error) {
       this._overlay.add_style_class_name('toas-error')
@@ -313,16 +316,16 @@ export class ShellOverlayView {
 
   resetLevels () {
     this._levels.fill(0)
-    this._targetHeights.fill(BAR_MIN_HEIGHT)
-    this._displayHeights.fill(BAR_MIN_HEIGHT)
+    this._targetScales.fill(BAR_MIN_SCALE)
+    this._displayScales.fill(BAR_MIN_SCALE)
     this._barActors.forEach(bar => {
-      bar.height = BAR_MIN_HEIGHT
+      bar.scale_y = BAR_MIN_SCALE
     })
   }
 
   show () {
     this._reposition()
-    this._capsule.remove_all_transitions()
+    this._overlay.remove_all_transitions()
     this._glow.remove_all_transitions()
     this._acquireCompositing()
 
@@ -330,61 +333,58 @@ export class ShellOverlayView {
       // A new non-busy state may have interrupted a busy fade-out before the
       // deferred spinner cleanup ran.
       if (this._mode !== 'busy') { this._spinner.stop() }
-      this._capsule.opacity = 255
-      this._glow.opacity = 255
+      this._overlay.opacity = 255
       this._glow.translation_y = 0
+      if (this._mode === 'recording') { this._startWaveform() }
       return
     }
 
-    this._overlay.show()
-
-    // The capsule appears quickly; the ambient light rises more gently from
-    // below so it reads as illumination rather than another scaling surface.
-    this._capsule.opacity = 0
-    this._glow.opacity = 0
+    // Set the initial visual state before mapping the actor so the first frame
+    // participates in the fade instead of briefly painting fully opaque.
+    this._overlay.opacity = 0
     this._glow.translation_y = GLOW_RISE_PX
+    this._overlay.show()
+    if (this._mode === 'recording') { this._startWaveform() }
 
-    this._capsule.ease({
+    // Opacity belongs to the whole overlay; the glow gets only the directional
+    // motion that makes it feel like light rising from below.
+    this._overlay.ease({
       opacity: 255,
-      duration: CAPSULE_FADE_MS,
+      duration: OVERLAY_FADE_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD
     })
     this._glow.ease({
-      opacity: 255,
       translation_y: 0,
-      duration: GLOW_FADE_MS,
+      duration: GLOW_RISE_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD
     })
   }
 
   hide () {
     if (!this._overlay.visible) {
+      this._stopWaveform()
       this._spinner.stop()
       this._closeButton.visible = false
       this._releaseCompositing()
       return
     }
 
-    this._capsule.remove_all_transitions()
+    this._stopWaveform()
+    this._overlay.remove_all_transitions()
     this._glow.remove_all_transitions()
 
-    this._capsule.ease({
+    this._overlay.ease({
       opacity: 0,
-      duration: CAPSULE_FADE_MS,
+      duration: OVERLAY_FADE_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD
     })
     this._glow.ease({
-      opacity: 0,
       translation_y: GLOW_RISE_PX,
-      duration: GLOW_FADE_MS,
+      duration: GLOW_RISE_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => {
         // Only clean up the final frame if nothing re-showed during the fade.
-        if (
-          this._overlay &&
-          this._capsule?.opacity === 0 &&
-          this._glow?.opacity === 0
-        ) {
+        if (this._overlay && this._overlay.opacity === 0) {
           this._overlay.hide()
           this._spinner.stop()
           this._closeButton.visible = false
@@ -401,8 +401,8 @@ export class ShellOverlayView {
 
     this._levels.forEach((sample, index) => {
       const shaped = Math.pow(sample ?? 0, 0.45)
-      this._targetHeights[index] =
-        BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
+      const height = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
+      this._targetScales[index] = height / BAR_MAX_HEIGHT
     })
   }
 
@@ -432,18 +432,19 @@ export class ShellOverlayView {
     this._waveformFrameUs = nowUs
 
     this._barActors.forEach((bar, index) => {
-      const current = this._displayHeights[index]
-      const target = this._targetHeights[index]
+      const current = this._displayScales[index]
+      const target = this._targetScales[index]
       const responseMs = target > current
         ? WAVEFORM_ATTACK_MS
         : WAVEFORM_RELEASE_MS
       const alpha = 1 - Math.exp(-elapsedMs / responseMs)
       const next = current + (target - current) * alpha
-      const settled = Math.abs(target - next) < 0.1 ? target : next
+      const settled = Math.abs(target - next) < 0.005 ? target : next
 
-      this._displayHeights[index] = settled
-      const height = Math.round(settled)
-      if (bar.height !== height) { bar.height = height }
+      this._displayScales[index] = settled
+      if (Math.abs(bar.scale_y - settled) > 0.001) {
+        bar.scale_y = settled
+      }
     })
   }
 
@@ -485,7 +486,7 @@ export class ShellOverlayView {
     this._stopWaveform()
     this._onCancelRequested = null
 
-    this._capsule?.remove_all_transitions()
+    this._overlay?.remove_all_transitions()
     this._glow?.remove_all_transitions()
     this._releaseCompositing()
 
