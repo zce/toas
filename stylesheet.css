@@ -5,25 +5,31 @@
 
 /* --- Overlay (ui/overlay.js) ------------------------------------------------- */
 
-/* The overlay owns positioning, lifecycle and state; its children own visuals. */
+/*
+ * Fixed bottom-anchored frame. The capsule sits near the top while the glow
+ * is centered on the monitor edge, so neither geometry depends on UI state.
+ */
 .toas-overlay {
+  width: 420px;
+  height: 160px;
 }
 
 /*
- * Fixed shadow source, hidden behind the capsule. Keep the source itself
- * transparent: only its accent shadow should be visible.
+ * A real light field rather than a displaced box shadow. The radial gradient
+ * fades to transparent before the actor edge, avoiding a visible cutoff.
  */
 .toas-glow {
-  width: 160px;
-  height: 16px;
+  width: 420px;
+  height: 260px;
 
-  border-radius: 999px;
-  background-color: transparent;
-  box-shadow: 0 120px 105px 55px st-transparentize(-st-accent-color, 0.1);
+  background-gradient-direction: radial;
+  background-gradient-start: st-transparentize(-st-accent-color, 0.68);
+  background-gradient-end: st-transparentize(-st-accent-color, 1);
 }
 
 .toas-capsule {
   spacing: 8px;
+  margin-top: 10px;
   padding: 8px;
 
   border: 1px solid st-transparentize(st-darken(-st-accent-color, 0.4), 0.05);
