@@ -119,7 +119,6 @@ const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
-const BAR_MIN_SCALE = BAR_MIN_HEIGHT / BAR_MAX_HEIGHT
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_FADE_MS = 180
 const GLOW_RISE_MS = 220
@@ -131,8 +130,8 @@ const WAVEFORM_RELEASE_MS = 90
 export class ShellOverlayView {
   constructor () {
     this._levels = Array(BAR_COUNT).fill(0)
-    this._targetScales = Array(BAR_COUNT).fill(BAR_MIN_SCALE)
-    this._displayScales = Array(BAR_COUNT).fill(BAR_MIN_SCALE)
+    this._targetHeights = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
+    this._displayHeights = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
     this._waveformRunning = false
     this._waveformFrameUs = 0
     this._compositingHeld = false
@@ -177,9 +176,7 @@ export class ShellOverlayView {
         style_class: 'toas-bar',
         y_align: Clutter.ActorAlign.CENTER
       })
-      bar.height = BAR_MAX_HEIGHT
-      bar.scale_y = BAR_MIN_SCALE
-      bar.set_pivot_point(0.5, 0.5)
+      bar.height = BAR_MIN_HEIGHT
       this._barActors.push(bar)
       this._bars.add_child(bar)
     }
@@ -316,10 +313,10 @@ export class ShellOverlayView {
 
   resetLevels () {
     this._levels.fill(0)
-    this._targetScales.fill(BAR_MIN_SCALE)
-    this._displayScales.fill(BAR_MIN_SCALE)
+    this._targetHeights.fill(BAR_MIN_HEIGHT)
+    this._displayHeights.fill(BAR_MIN_HEIGHT)
     this._barActors.forEach(bar => {
-      bar.scale_y = BAR_MIN_SCALE
+      bar.height = BAR_MIN_HEIGHT
     })
   }
 
@@ -401,8 +398,8 @@ export class ShellOverlayView {
 
     this._levels.forEach((sample, index) => {
       const shaped = Math.pow(sample ?? 0, 0.45)
-      const height = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
-      this._targetScales[index] = height / BAR_MAX_HEIGHT
+      this._targetHeights[index] =
+        BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
     })
   }
 
@@ -432,18 +429,18 @@ export class ShellOverlayView {
     this._waveformFrameUs = nowUs
 
     this._barActors.forEach((bar, index) => {
-      const current = this._displayScales[index]
-      const target = this._targetScales[index]
+      const current = this._displayHeights[index]
+      const target = this._targetHeights[index]
       const responseMs = target > current
         ? WAVEFORM_ATTACK_MS
         : WAVEFORM_RELEASE_MS
       const alpha = 1 - Math.exp(-elapsedMs / responseMs)
       const next = current + (target - current) * alpha
-      const settled = Math.abs(target - next) < 0.005 ? target : next
+      const settled = Math.abs(target - next) < 0.05 ? target : next
 
-      this._displayScales[index] = settled
-      if (Math.abs(bar.scale_y - settled) > 0.001) {
-        bar.scale_y = settled
+      this._displayHeights[index] = settled
+      if (Math.abs(bar.height - settled) > 0.05) {
+        bar.height = settled
       }
     })
   }

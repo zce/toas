@@ -10,16 +10,16 @@
 }
 
 /*
- * Fixed shadow source, hidden behind the capsule. The y offset places the
- * shadow's brightest area near the monitor edge; blur carries it upward.
+ * Fixed shadow source, hidden behind the capsule. Keep the source itself
+ * transparent: only its accent shadow should be visible.
  */
 .toas-glow {
-  width: 128px;
-  height: 20px;
+  width: 160px;
+  height: 16px;
 
   border-radius: 999px;
-  background-color: black;
-  box-shadow: 0 130px 150px 70px st-transparentize(-st-accent-color, 0.12);
+  background-color: transparent;
+  box-shadow: 0 120px 105px 55px st-transparentize(-st-accent-color, 0.1);
 }
 
 .toas-capsule {
