@@ -118,10 +118,10 @@ const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
-const OVERLAY_FADE_MS = 180
-const GLOW_Y = 30
-const GLOW_RISE_MS = 220
-const GLOW_RISE_PX = 12
+const WAVEFORM_EASE_MS = 140
+const OVERLAY_BOTTOM_MARGIN = 112
+const OVERLAY_MOTION_MS = 180
+const OVERLAY_OFFSET_PX = 6
 
 export class ShellOverlayView {
   constructor () {
@@ -130,27 +130,10 @@ export class ShellOverlayView {
     this._monitorIndex = null
     this._mode = 'hidden'
 
-    this._overlay = new St.Widget({
+    this._overlay = new St.BoxLayout({
       style_class: 'toas-overlay',
-      layout_manager: new Clutter.BinLayout(),
-      clip_to_allocation: true,
       reactive: false,
       visible: false
-    })
-
-    this._glow = new St.Widget({
-      style_class: 'toas-glow',
-      reactive: false,
-      x_align: Clutter.ActorAlign.CENTER,
-      y_align: Clutter.ActorAlign.START,
-      translation_y: GLOW_Y
-    })
-
-    this._capsule = new St.BoxLayout({
-      style_class: 'toas-capsule',
-      reactive: false,
-      x_align: Clutter.ActorAlign.CENTER,
-      y_align: Clutter.ActorAlign.START
     })
 
     this._icon = new St.Icon({
@@ -207,15 +190,12 @@ export class ShellOverlayView {
       y_align: Clutter.ActorAlign.CENTER
     })
 
-    this._capsule.add_child(this._icon)
-    this._capsule.add_child(this._bars)
-    this._capsule.add_child(this._privateIcon)
-    this._capsule.add_child(this._spinner)
-    this._capsule.add_child(this._status)
-    this._capsule.add_child(this._closeButton)
-
-    this._overlay.add_child(this._glow)
-    this._overlay.add_child(this._capsule)
+    this._overlay.add_child(this._icon)
+    this._overlay.add_child(this._bars)
+    this._overlay.add_child(this._privateIcon)
+    this._overlay.add_child(this._spinner)
+    this._overlay.add_child(this._status)
+    this._overlay.add_child(this._closeButton)
 
     // This is transient system feedback, so keep it above application windows.
     // Do not use trackFullscreen: tracked actors are hidden in fullscreen.
@@ -278,6 +258,7 @@ export class ShellOverlayView {
       this._overlay.remove_style_class_name('toas-private')
     }
     this._privateIcon.visible = this._privateIcon.visible && this._private
+    this._reposition()
   }
 
   startSpinner () {
@@ -299,7 +280,6 @@ export class ShellOverlayView {
   show () {
     this._reposition()
     this._overlay.remove_all_transitions()
-    this._glow.remove_all_transitions()
     this._acquireCompositing()
 
     if (this._overlay.visible) {
@@ -307,22 +287,17 @@ export class ShellOverlayView {
       // deferred spinner cleanup ran.
       if (this._mode !== 'busy') { this._spinner.stop() }
       this._overlay.opacity = 255
-      this._glow.translation_y = GLOW_Y
+      this._overlay.translation_y = 0
       return
     }
 
     this._overlay.opacity = 0
-    this._glow.translation_y = GLOW_Y + GLOW_RISE_PX
+    this._overlay.translation_y = OVERLAY_OFFSET_PX
     this._overlay.show()
-
     this._overlay.ease({
       opacity: 255,
-      duration: OVERLAY_FADE_MS,
-      mode: Clutter.AnimationMode.EASE_OUT_QUAD
-    })
-    this._glow.ease({
-      translation_y: GLOW_Y,
-      duration: GLOW_RISE_MS,
+      translation_y: 0,
+      duration: OVERLAY_MOTION_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD
     })
   }
@@ -336,21 +311,16 @@ export class ShellOverlayView {
     }
 
     this._overlay.remove_all_transitions()
-    this._glow.remove_all_transitions()
-
     this._overlay.ease({
       opacity: 0,
-      duration: OVERLAY_FADE_MS,
-      mode: Clutter.AnimationMode.EASE_OUT_QUAD
-    })
-    this._glow.ease({
-      translation_y: GLOW_Y + GLOW_RISE_PX,
-      duration: GLOW_RISE_MS,
+      translation_y: OVERLAY_OFFSET_PX,
+      duration: OVERLAY_MOTION_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => {
         // Only clean up the final frame if nothing re-showed during the fade.
         if (this._overlay && this._overlay.opacity === 0) {
           this._overlay.hide()
+          this._overlay.translation_y = 0
           this._spinner.stop()
           this._closeButton.visible = false
           this._releaseCompositing()
@@ -366,12 +336,10 @@ export class ShellOverlayView {
 
     this._barActors.forEach((bar, index) => {
       const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
-      const height = Math.round(
-        BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
-      )
+      const height = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
       bar.ease({
         height,
-        duration: 100,
+        duration: WAVEFORM_EASE_MS,
         mode: Clutter.AnimationMode.LINEAR
       })
     })
@@ -387,7 +355,12 @@ export class ShellOverlayView {
 
     const [, width] = this._overlay.get_preferred_width(-1)
     const [, height] = this._overlay.get_preferred_height(width)
-    const { x, y } = calculateOverlayPosition(monitor, width, height, 0)
+    const { x, y } = calculateOverlayPosition(
+      monitor,
+      width,
+      height,
+      OVERLAY_BOTTOM_MARGIN
+    )
     this._overlay.set_position(x, y)
   }
 
@@ -410,7 +383,6 @@ export class ShellOverlayView {
     this._onCancelRequested = null
 
     this._overlay?.remove_all_transitions()
-    this._glow?.remove_all_transitions()
     this._releaseCompositing()
 
     if (this._monitorsChangedId) { Main.layoutManager.disconnect(this._monitorsChangedId) }
@@ -421,8 +393,6 @@ export class ShellOverlayView {
     }
 
     this._overlay = null
-    this._glow = null
-    this._capsule = null
     this._icon = null
     this._spinner = null
     this._status = null

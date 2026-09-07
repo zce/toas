@@ -5,31 +5,8 @@
 
 /* --- Overlay (ui/overlay.js) ------------------------------------------------- */
 
-/*
- * Fixed bottom-anchored frame. The capsule sits near the top while the glow
- * is centered below the monitor edge, so neither geometry depends on UI state.
- */
 .toas-overlay {
-  width: 420px;
-  height: 160px;
-}
-
-/*
- * Keep the radial center below the monitor edge so only the soft upper falloff
- * is visible. This reads as ambient light instead of a spotlight under the pill.
- */
-.toas-glow {
-  width: 420px;
-  height: 420px;
-
-  background-gradient-direction: radial;
-  background-gradient-start: st-transparentize(-st-accent-color, 0.72);
-  background-gradient-end: st-transparentize(-st-accent-color, 1);
-}
-
-.toas-capsule {
   spacing: 8px;
-  margin-top: 10px;
   padding: 8px;
 
   border: 1px solid st-transparentize(st-darken(-st-accent-color, 0.4), 0.05);
@@ -41,7 +18,7 @@
 }
 
 /* Error feedback has no side controls, so give the text more breathing room. */
-.toas-overlay.toas-error .toas-capsule {
+.toas-overlay.toas-error {
   padding: 8px 16px;
 }
 
@@ -175,12 +152,12 @@
   color: st-lighten(-st-accent-color, 0.4);
 }
 
-.toas-overlay.toas-private .toas-capsule {
+.toas-overlay.toas-private {
   background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.2);
 }
 
 /* Terminal error feedback should not carry the Private run decoration. */
-.toas-overlay.toas-private.toas-error .toas-capsule {
+.toas-overlay.toas-private.toas-error {
   background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.1);
 }
 
