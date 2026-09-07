@@ -3,28 +3,20 @@ import GLib from 'gi://GLib'
 import GObject from 'gi://GObject'
 import Pango from 'gi://Pango'
 import St from 'gi://St'
-
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 
 import { formatDuration, formatRelativeTime, previewText } from '../host/history.js'
 
+// Top-bar indicator: microphone button plus the history menu. Primary click
+// toggles recording, secondary click opens the menu.
 export class ToasIndicator extends PanelMenu.Button {
   static {
     GObject.registerClass(this)
   }
 
-  constructor ({
-    onToggle,
-    onClearHistory,
-    onOpenPreferences,
-    onListHistory,
-    onCopySession,
-    onRetrySession,
-    onCanRetrySession,
-    onPrivateModeChanged
-  }) {
+  constructor({ onToggle, onClearHistory, onOpenPreferences, onListHistory, onCopySession, onRetrySession, onCanRetrySession, onPrivateModeChanged }) {
     super(0.5, 'toas')
 
     this._onToggle = onToggle
@@ -66,14 +58,12 @@ export class ToasIndicator extends PanelMenu.Button {
 
     // Persisted preference: private voice inputs leave no local history and
     // their recordings are deleted once processed.
-    this._privateModeItem = new PopupMenu.PopupSwitchMenuItem(
-      'Private mode',
-      false,
-      { reactive: true }
-    )
+    this._privateModeItem = new PopupMenu.PopupSwitchMenuItem('Private mode', false, { reactive: true })
     this._syncingPrivateMode = false
     this._privateModeItem.connect('toggled', (_item, enabled) => {
-      if (!this._syncingPrivateMode) { this._onPrivateModeChanged?.(enabled) }
+      if (!this._syncingPrivateMode) {
+        this._onPrivateModeChanged?.(enabled)
+      }
     })
     addMenuIcon(this._privateModeItem, 'security-medium-symbolic')
     this.menu.addMenuItem(this._privateModeItem)
@@ -95,14 +85,18 @@ export class ToasIndicator extends PanelMenu.Button {
     this.menu.addMenuItem(settingsItem)
 
     this.menu.connect('open-state-changed', (_menu, open) => {
-      if (open) { this._refreshHistory() }
+      if (open) {
+        this._refreshHistory()
+      }
     })
 
     this.render('idle')
   }
 
-  addToPanel (uuid) {
+  addToPanel(uuid) {
     Main.panel.addToStatusArea(uuid, this)
+    // Panel slots are assigned asynchronously; reposition once settled so the
+    // indicator lands next to the keyboard indicator.
     this._positionIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
       this._positionIdleId = 0
       this._positionNextToKeyboard()
@@ -110,19 +104,23 @@ export class ToasIndicator extends PanelMenu.Button {
     })
   }
 
-  _positionNextToKeyboard () {
+  _positionNextToKeyboard() {
     const indicator = this.container
     const keyboard = Main.panel.statusArea.keyboard?.container
 
-    if (!indicator || !keyboard) { return }
+    if (!indicator || !keyboard) {
+      return
+    }
 
     const parent = keyboard.get_parent()
-    if (!parent || indicator.get_parent() !== parent) { return }
+    if (!parent || indicator.get_parent() !== parent) {
+      return
+    }
 
     parent.set_child_below_sibling(indicator, keyboard)
   }
 
-  _onButtonPress (event) {
+  _onButtonPress(event) {
     const button = event.get_button()
 
     if (button === Clutter.BUTTON_PRIMARY) {
@@ -139,10 +137,12 @@ export class ToasIndicator extends PanelMenu.Button {
     return Clutter.EVENT_PROPAGATE
   }
 
-  vfunc_event (event) {
+  vfunc_event(event) {
     const type = event.type()
 
-    if (type === Clutter.EventType.BUTTON_PRESS) { return this._onButtonPress(event) }
+    if (type === Clutter.EventType.BUTTON_PRESS) {
+      return this._onButtonPress(event)
+    }
 
     if (type === Clutter.EventType.TOUCH_BEGIN) {
       this.menu.toggle()
@@ -154,12 +154,10 @@ export class ToasIndicator extends PanelMenu.Button {
     return Clutter.EVENT_PROPAGATE
   }
 
-  render (state) {
+  render(state) {
     const recording = state === 'recording'
 
-    this._icon.icon_name = recording
-      ? 'media-record-symbolic'
-      : 'audio-input-microphone-symbolic'
+    this._icon.icon_name = recording ? 'media-record-symbolic' : 'audio-input-microphone-symbolic'
 
     if (recording) {
       this.add_style_class_name('toas-recording')
@@ -173,9 +171,10 @@ export class ToasIndicator extends PanelMenu.Button {
     this._clearHistoryItem.setSensitive(state === 'idle' || state === 'error')
   }
 
-  setPrivateMode (enabled) {
+  setPrivateMode(enabled) {
     const active = Boolean(enabled)
     if (this._privateModeItem.state !== active) {
+      // Programmatic updates must not echo back through onPrivateModeChanged.
       this._syncingPrivateMode = true
       try {
         this._privateModeItem.setToggleState(active)
@@ -191,20 +190,19 @@ export class ToasIndicator extends PanelMenu.Button {
     }
   }
 
-  _accessibleIconName (recording) {
-    if (recording) { return this._privateModeItem.state ? 'Recording private voice input' : 'Recording voice input' }
+  _accessibleIconName(recording) {
+    if (recording) {
+      return this._privateModeItem.state ? 'Recording private voice input' : 'Recording voice input'
+    }
     return this._privateModeItem.state ? 'Voice input, private mode on' : 'Voice input'
   }
 
-  _refreshHistory () {
+  _refreshHistory() {
     this._historySection.removeAll()
     const entries = this._onListHistory?.() ?? []
 
     if (entries.length === 0) {
-      this._historySection.addMenuItem(new PopupMenu.PopupMenuItem(
-        'Nothing here yet. Say something.',
-        { reactive: false }
-      ))
+      this._historySection.addMenuItem(new PopupMenu.PopupMenuItem('Nothing here yet. Say something.', { reactive: false }))
       return
     }
 
@@ -227,24 +225,16 @@ export class ToasIndicator extends PanelMenu.Button {
       item.add_child(textColumn)
 
       if (entry.status === 'error' && this._onCanRetrySession?.(entry)) {
-        item.add_child(historyActionButton(
-          'view-refresh-symbolic',
-          'Try again',
-          () => this._onRetrySession?.(entry)
-        ))
+        item.add_child(historyActionButton('view-refresh-symbolic', 'Try again', () => this._onRetrySession?.(entry)))
       }
 
-      item.add_child(historyActionButton(
-        'edit-copy-symbolic',
-        'Copy text',
-        () => this._onCopySession?.(entry)
-      ))
+      item.add_child(historyActionButton('edit-copy-symbolic', 'Copy text', () => this._onCopySession?.(entry)))
 
       this._historySection.addMenuItem(item)
     }
   }
 
-  destroy () {
+  destroy() {
     if (this._positionIdleId) {
       GLib.source_remove(this._positionIdleId)
       this._positionIdleId = 0
@@ -262,7 +252,7 @@ export class ToasIndicator extends PanelMenu.Button {
   }
 }
 
-function addMenuIcon (item, iconName) {
+function addMenuIcon(item, iconName) {
   const icon = new St.Icon({
     icon_name: iconName,
     style_class: 'toas-menu-icon',
@@ -272,7 +262,7 @@ function addMenuIcon (item, iconName) {
   return icon
 }
 
-function historyActionButton (iconName, accessibleName, onClicked) {
+function historyActionButton(iconName, accessibleName, onClicked) {
   const button = new St.Button({
     style_class: 'icon-button toas-history-action',
     accessible_name: accessibleName,

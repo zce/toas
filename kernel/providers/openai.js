@@ -2,15 +2,13 @@
 // explicit Chat Completions contract. This module must not import GNOME/GI.
 
 import { processingError } from '../error.js'
+import { ChatCompletionsProcessor, extractContent, normalizeUsage } from './chat-completions.js'
 import { Provider } from './provider.js'
-import {
-  ChatCompletionsProcessor,
-  extractContent,
-  normalizeUsage
-} from './chat-completions.js'
 
+// One class, two configurations: the official endpoint ships a default
+// model, the compatible variant requires a user-configured base URL.
 class OpenAICompatibleProvider extends Provider {
-  constructor ({ id, label, endpointDefault = undefined, endpointEnv, keyEnv, modelDefault = undefined }) {
+  constructor({ id, label, endpointDefault = undefined, endpointEnv, keyEnv, modelDefault = undefined }) {
     super({
       id,
       manifest: {
@@ -39,7 +37,7 @@ class OpenAICompatibleProvider extends Provider {
     })
   }
 
-  resolveSelection ({ providerValues, values }) {
+  resolveSelection({ providerValues, values }) {
     return {
       input: 'text',
       config: {
@@ -51,7 +49,7 @@ class OpenAICompatibleProvider extends Provider {
     }
   }
 
-  createProcessor (config, secrets, runtime) {
+  createProcessor(config, secrets, runtime) {
     return new OpenAICompatibleProcessor(this, config, secrets.key, runtime)
   }
 }
@@ -72,25 +70,28 @@ export const openaiCompatibleProvider = new OpenAICompatibleProvider({
   keyEnv: ['TOAS_OPENAI_COMPATIBLE_API_KEY']
 })
 
-function textCapabilities () {
+function textCapabilities() {
   return { inputs: ['text'], instructions: true, context: true }
 }
 
 class OpenAICompatibleProcessor extends ChatCompletionsProcessor {
-  async process ({ input, context, instructions, signal }) {
+  async process({ input, context, instructions, signal }) {
     if (input.kind !== 'text') {
       throw processingError('configuration', `${this._label} processing requires text input`)
     }
 
-    const data = await this._send({
-      model: this._config.model,
-      messages: this._refineMessages({
-        transcript: input.text,
-        context,
-        instructions
-      }),
-      stream: false
-    }, signal)
+    const data = await this._send(
+      {
+        model: this._config.model,
+        messages: this._refineMessages({
+          transcript: input.text,
+          context,
+          instructions
+        }),
+        stream: false
+      },
+      signal
+    )
 
     const text = extractContent(data)
     if (!text.trim()) {

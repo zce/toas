@@ -3,18 +3,14 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-import { test, expectTruthy, run } from './harness.js'
+import { expectTruthy, run, test } from './harness.js'
 
 const root = GLib.get_current_dir()
 
-function listJs (directory) {
+function listJs(directory) {
   const result = []
   const dir = Gio.File.new_for_path(`${root}/${directory}`)
-  const children = dir.enumerate_children(
-    'standard::name,standard::type',
-    Gio.FileQueryInfoFlags.NONE,
-    null
-  )
+  const children = dir.enumerate_children('standard::name,standard::type', Gio.FileQueryInfoFlags.NONE, null)
   try {
     let info
     while ((info = children.next_file(null))) {
@@ -33,12 +29,7 @@ function listJs (directory) {
 }
 
 const rootModules = ['extension.js', 'prefs.js']
-const files = [
-  ...rootModules,
-  ...listJs('host'),
-  ...listJs('kernel'),
-  ...listJs('ui')
-]
+const files = [...rootModules, ...listJs('host'), ...listJs('kernel'), ...listJs('ui')]
 const decoder = new TextDecoder()
 
 const removedPaths = [
@@ -67,28 +58,17 @@ const removedPaths = [
 
 test('business modules are grouped out of the root', () => {
   for (const path of removedPaths) {
-    expectTruthy(
-      !GLib.file_test(`${root}/${path}`, GLib.FileTest.EXISTS),
-      `${path} must not remain after consolidation`
-    )
+    expectTruthy(!GLib.file_test(`${root}/${path}`, GLib.FileTest.EXISTS), `${path} must not remain after consolidation`)
   }
 })
 
 test('every relative JavaScript import resolves', () => {
   for (const file of files) {
-    const source = decoder.decode(
-      Gio.File.new_for_path(`${root}/${file}`).load_contents(null)[1]
-    )
+    const source = decoder.decode(Gio.File.new_for_path(`${root}/${file}`).load_contents(null)[1])
 
     for (const match of source.matchAll(/from\s+['"](\.\.?\/[^'"]+\.js)['"]/g)) {
-      const target = GLib.canonicalize_filename(
-        match[1],
-        GLib.path_get_dirname(`${root}/${file}`)
-      )
-      expectTruthy(
-        GLib.file_test(target, GLib.FileTest.EXISTS),
-        `${file} imports missing module ${match[1]}`
-      )
+      const target = GLib.canonicalize_filename(match[1], GLib.path_get_dirname(`${root}/${file}`))
+      expectTruthy(GLib.file_test(target, GLib.FileTest.EXISTS), `${file} imports missing module ${match[1]}`)
     }
   }
 })
@@ -97,14 +77,9 @@ test('runtime-agnostic kernel does not import Host or UI modules', () => {
   const kernelFiles = ['kernel/process.js', ...listJs('kernel/providers')]
 
   for (const file of kernelFiles) {
-    const source = decoder.decode(
-      Gio.File.new_for_path(`${root}/${file}`).load_contents(null)[1]
-    )
+    const source = decoder.decode(Gio.File.new_for_path(`${root}/${file}`).load_contents(null)[1])
     for (const match of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
-      expectTruthy(
-        !match[1].includes('/host/') && !match[1].includes('/ui/'),
-        `${file} must stay runtime-agnostic: ${match[1]}`
-      )
+      expectTruthy(!match[1].includes('/host/') && !match[1].includes('/ui/'), `${file} must stay runtime-agnostic: ${match[1]}`)
     }
   }
 })

@@ -1,15 +1,13 @@
+// Live voice-input lifecycle: recording, processing, persistence,
+// delivery, cancellation, and failure handling.
+
+import { recordingOutcomeCancelled, recordingOutcomeCaptureFailure, recordingOutcomeOk, recordingOutcomeShortTap } from '../host/audio.js'
 import { ToasOrchestrator } from '../host/orchestrator.js'
-import { FakeRecorder, FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import {
-  recordingOutcomeOk,
-  recordingOutcomeShortTap,
-  recordingOutcomeCaptureFailure,
-  recordingOutcomeCancelled
-} from '../host/audio.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { FakeHistory, FakeKernel, FakeNotifier, FakeOverlay, FakePaster, FakeRecorder } from './fakes.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 class FakeSettings {
-  constructor (values = {}) {
+  constructor(values = {}) {
     this.values = {
       'private-mode': false,
       'auto-paste': true,
@@ -19,13 +17,21 @@ class FakeSettings {
     }
   }
 
-  get_boolean (key) { return Boolean(this.values[key]) }
-  get_string (key) { return String(this.values[key] ?? '') }
-  get_uint (key) { return Number(this.values[key] ?? 0) }
-  set_boolean (key, value) { this.values[key] = Boolean(value) }
+  get_boolean(key) {
+    return Boolean(this.values[key])
+  }
+  get_string(key) {
+    return String(this.values[key] ?? '')
+  }
+  get_uint(key) {
+    return Number(this.values[key] ?? 0)
+  }
+  set_boolean(key, value) {
+    this.values[key] = Boolean(value)
+  }
 }
 
-function makeOrchestrator ({
+function makeOrchestrator({
   recorder = new FakeRecorder(),
   kernel = new FakeKernel(),
   output = new FakePaster(),
@@ -50,12 +56,16 @@ function makeOrchestrator ({
   return { orchestrator, recorder, kernel, output, history, overlay, notifier, settings, state }
 }
 
-function waitFor (predicate, timeoutMs = 2000) {
+function waitFor(predicate, timeoutMs = 2000) {
   const startedAt = Date.now()
   return new Promise((resolve, reject) => {
     const check = () => {
-      if (predicate()) { return resolve() }
-      if (Date.now() - startedAt > timeoutMs) { return reject(new Error('waitFor timed out')) }
+      if (predicate()) {
+        return resolve()
+      }
+      if (Date.now() - startedAt > timeoutMs) {
+        return reject(new Error('waitFor timed out'))
+      }
       setTimeout(check, 5)
     }
     check()
@@ -72,7 +82,9 @@ test('orchestrator requires its runtime collaborators', () => {
       overlay: new FakeOverlay(),
       notifier: new FakeNotifier()
     })
-  } catch (error) { threw = error }
+  } catch (error) {
+    threw = error
+  }
 
   expectTruthy(threw)
   expectEqual(threw.message.includes('kernel'), true)
@@ -201,8 +213,14 @@ test('clipboard-only delivery uses copying state without fallback notification',
   orchestrator.begin()
   await orchestrator.end()
 
-  expectEqual(state.events.some(event => event.state === 'copying'), true)
-  expectEqual(state.events.some(event => event.state === 'outputting'), false)
+  expectEqual(
+    state.events.some(event => event.state === 'copying'),
+    true
+  )
+  expectEqual(
+    state.events.some(event => event.state === 'outputting'),
+    false
+  )
   expectEqual(notifier.notifications, [])
   orchestrator.destroy()
 })
@@ -217,10 +235,12 @@ test('target-window mismatch reports the actual clipboard fallback', async () =>
   orchestrator.begin()
   await orchestrator.end()
 
-  expectEqual(notifier.notifications, [{
-    title: 'Copied to clipboard',
-    body: 'The target window changed, so your text was copied to the clipboard.'
-  }])
+  expectEqual(notifier.notifications, [
+    {
+      title: 'Copied to clipboard',
+      body: 'The target window changed, so your text was copied to the clipboard.'
+    }
+  ])
   orchestrator.destroy()
 })
 
@@ -277,7 +297,7 @@ test('capture failure is presented without creating history', async () => {
   expectEqual(history.appends, [])
   expectEqual(state.events.filter(event => event.state === 'error').length, 1)
   expectEqual(notifier.notifications[0]?.title, 'Recording failed')
-  expectEqual(notifier.notifications[0]?.body, 'Check that your microphone is available.')
+  expectEqual(notifier.notifications[0]?.body, 'Check your microphone, then record again.')
   orchestrator.destroy()
 })
 
@@ -292,10 +312,12 @@ test('processing failure persists raw diagnostics but presents category guidance
   orchestrator.begin()
   await orchestrator.end()
 
-  expectEqual(notifier.notifications, [{
-    title: 'Provider authentication failed',
-    body: 'Check your API key in Settings.'
-  }])
+  expectEqual(notifier.notifications, [
+    {
+      title: 'Provider authentication failed',
+      body: 'Open Settings and update the API key for this provider.'
+    }
+  ])
   expectEqual(history.appends.length, 1)
   expectEqual(history.appends[0].status, 'error')
   expectEqual(history.appends[0].transcribe.error.code, 'authentication')

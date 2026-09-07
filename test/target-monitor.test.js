@@ -1,16 +1,11 @@
-import { ToasOrchestrator } from '../host/orchestrator.js'
-import { recordingOutcomeOk } from '../host/audio.js'
-import {
-  FakeRecorder,
-  FakeKernel,
-  FakePaster,
-  FakeHistory,
-  FakeOverlay,
-  FakeNotifier
-} from './fakes.js'
-import { test, expectEqual, run } from './harness.js'
+// Overlay monitor pinning while a live run is in progress.
 
-function makeOrchestrator ({ monitorIndex = null } = {}) {
+import { recordingOutcomeOk } from '../host/audio.js'
+import { ToasOrchestrator } from '../host/orchestrator.js'
+import { FakeHistory, FakeKernel, FakeNotifier, FakeOverlay, FakePaster, FakeRecorder } from './fakes.js'
+import { expectEqual, run, test } from './harness.js'
+
+function makeOrchestrator({ monitorIndex = null } = {}) {
   const recording = {
     id: 'monitor-test',
     path: '/tmp/monitor-test.wav',
@@ -28,22 +23,21 @@ function makeOrchestrator ({ monitorIndex = null } = {}) {
 
   const orchestrator = new ToasOrchestrator({
     settings: {},
-    collaborators: {
-      recorderFactory: () => recorder,
-      history: new FakeHistory(),
-      kernel: new FakeKernel(),
-      paster,
-      overlay,
-      notifier: new FakeNotifier(),
-      privacy: { enabled: false }
-    }
+    history: new FakeHistory(),
+    kernel: new FakeKernel(),
+    output: paster,
+    overlay,
+    notifier: new FakeNotifier(),
+    recorderFactory: () => recorder
   })
 
   return {
     orchestrator,
     paster,
     monitorCalls,
-    setFocusedMonitorIndex: value => { focusedMonitorIndex = value }
+    setFocusedMonitorIndex: value => {
+      focusedMonitorIndex = value
+    }
   }
 }
 

@@ -3,16 +3,16 @@
 // response envelopes differ. Unknown models are rejected rather than guessed.
 // This module must not import GNOME/GI libraries.
 
-import {
-  cancelledError,
-  processingError,
-  serviceErrorFromHttpStatus
-} from '../error.js'
+import { cancelledError, processingError, serviceErrorFromHttpStatus } from '../error.js'
 import { Provider } from './provider.js'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
+// Protocol variants and how each encodes toas Context:
+// - asr3: native multimodal-generation envelope, Context as input_text part
+// - compat: OpenAI-compatible Chat Completions, Context as system text
+// - multimodal: legacy envelope, Context as system content parts
 const MODEL_SHAPES = {
   'qwen-audio-3.0-asr-flash': {
     capabilities: audioCapabilities(),
@@ -44,7 +44,7 @@ const ENDPOINTS = {
 }
 
 class QwenProvider extends Provider {
-  constructor () {
+  constructor() {
     super({
       id: 'qwen',
       manifest: {
@@ -85,7 +85,7 @@ class QwenProvider extends Provider {
     })
   }
 
-  resolveSelection ({ providerValues, values }) {
+  resolveSelection({ providerValues, values }) {
     const issues = []
     const endpoint = providerValues.endpoint?.trim() || ''
     if (endpoint && !endpoint.startsWith('https://')) {
@@ -101,27 +101,25 @@ class QwenProvider extends Provider {
 
     return {
       input: 'audio',
-      config: shape
-        ? { endpoint: endpoint || ENDPOINTS[shape.protocol], model }
-        : null,
+      config: shape ? { endpoint: endpoint || ENDPOINTS[shape.protocol], model } : null,
       capabilities: shape?.capabilities ?? null,
       issues
     }
   }
 
-  createProcessor (config, secrets, runtime) {
+  createProcessor(config, secrets, runtime) {
     return new QwenProcessor(this, config, secrets.key, runtime, MODEL_SHAPES[config.model])
   }
 }
 
 export const qwenProvider = new QwenProvider()
 
-function audioCapabilities () {
+function audioCapabilities() {
   return { inputs: ['audio'], instructions: false, context: true }
 }
 
 class QwenProcessor {
-  constructor (provider, config, apiKey, runtime, shape) {
+  constructor(provider, config, apiKey, runtime, shape) {
     this._provider = provider
     this._config = config
     this._apiKey = apiKey
@@ -129,7 +127,9 @@ class QwenProcessor {
     this._shape = shape
   }
 
-  async process ({ input, context, signal }) {
+  // The wire envelope differs per protocol: compat posts a Chat Completions
+  // body; asr3/multimodal post the native input/parameters envelope.
+  async process({ input, context, signal }) {
     if (input.kind !== 'audio') {
       throw processingError('configuration', 'Qwen processing requires audio input')
     }
@@ -137,29 +137,32 @@ class QwenProcessor {
     const audioDataUri = `data:${input.mimeType};base64,${input.base64}`
     const protocol = this._shape.protocol
     const messages = []
-    const contextMessage = qwenContextMessage(
-      this._shape.contextEncoding,
-      this._provider.contextText(context)
-    )
-    if (contextMessage) { messages.push(contextMessage) }
+    const contextMessage = qwenContextMessage(this._shape.contextEncoding, this._provider.contextText(context))
+    if (contextMessage) {
+      messages.push(contextMessage)
+    }
     messages.push(qwenAudioMessage(protocol, audioDataUri))
 
     let response
     if (protocol === 'compat') {
-      response = await this._send({
-        model: this._config.model,
-        messages,
-        stream: false,
-        asr_options: { enable_itn: true }
-      }, signal)
+      response = await this._send(
+        {
+          model: this._config.model,
+          messages,
+          stream: false,
+          asr_options: { enable_itn: true }
+        },
+        signal
+      )
     } else {
-      response = await this._send({
-        model: this._config.model,
-        input: { messages },
-        parameters: protocol === 'asr3'
-          ? { format: 'wav' }
-          : { asr_options: { enable_itn: true } }
-      }, signal)
+      response = await this._send(
+        {
+          model: this._config.model,
+          input: { messages },
+          parameters: protocol === 'asr3' ? { format: 'wav' } : { asr_options: { enable_itn: true } }
+        },
+        signal
+      )
     }
 
     const text = extractQwenText(response, protocol)
@@ -176,37 +179,42 @@ class QwenProcessor {
     }
   }
 
-  async _send (requestBody, signal) {
-    const response = await this._runtime.transport.send({
-      method: 'POST',
-      url: this._config.endpoint,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this._apiKey}`
+  async _send(requestBody, signal) {
+    const response = await this._runtime.transport.send(
+      {
+        method: 'POST',
+        url: this._config.endpoint,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this._apiKey}`
+        },
+        body: encodeBody(requestBody)
       },
-      body: encodeBody(requestBody)
-    }, signal)
+      signal
+    )
 
-    if (signal?.aborted) { throw cancelledError() }
+    if (signal?.aborted) {
+      throw cancelledError()
+    }
 
     if (response.status < 200 || response.status >= 300) {
+      // DashScope reports silence with an error detail; silence is a normal
+      // no-text outcome, not a service failure.
       const detail = safeErrorDetail(response.body)
       if (detail === 'ASR_RESPONSE_HAVE_NO_WORDS') {
         throw processingError('no-text', 'No speech was recognized')
       }
-      throw serviceErrorFromHttpStatus(
-        response.status,
-        'Qwen',
-        httpErrorDetail(response.body)
-      )
+      throw serviceErrorFromHttpStatus(response.status, 'Qwen', httpErrorDetail(response.body))
     }
 
     return decodeBody(response.body)
   }
 }
 
-function qwenContextMessage (encoding, text) {
-  if (!text?.trim()) { return null }
+function qwenContextMessage(encoding, text) {
+  if (!text?.trim()) {
+    return null
+  }
 
   if (encoding === 'input-text') {
     return { role: 'user', content: [{ type: 'input_text', text }] }
@@ -221,17 +229,17 @@ function qwenContextMessage (encoding, text) {
   throw processingError('configuration', `Unsupported Qwen context encoding: ${String(encoding)}`)
 }
 
-function qwenAudioMessage (protocol, audioDataUri) {
+function qwenAudioMessage(protocol, audioDataUri) {
   return {
     role: 'user',
-    content: protocol === 'multimodal'
-      ? [{ audio: audioDataUri }]
-      : [{ type: 'input_audio', input_audio: { data: audioDataUri } }]
+    content: protocol === 'multimodal' ? [{ audio: audioDataUri }] : [{ type: 'input_audio', input_audio: { data: audioDataUri } }]
   }
 }
 
-function qwenUsage (usage) {
-  if (!usage) { return null }
+function qwenUsage(usage) {
+  if (!usage) {
+    return null
+  }
   return {
     inputTokens: usage.input_tokens ?? null,
     outputTokens: usage.output_tokens ?? null,
@@ -239,11 +247,11 @@ function qwenUsage (usage) {
   }
 }
 
-function encodeBody (value) {
+function encodeBody(value) {
   return encoder.encode(JSON.stringify(value))
 }
 
-function decodeBody (bytes) {
+function decodeBody(bytes) {
   if (!bytes || bytes.length === 0) {
     throw processingError('invalid-response', 'The service returned an empty body')
   }
@@ -254,7 +262,7 @@ function decodeBody (bytes) {
   }
 }
 
-function safeErrorDetail (bodyBytes) {
+function safeErrorDetail(bodyBytes) {
   try {
     return JSON.parse(decoder.decode(bodyBytes))?.message ?? ''
   } catch {
@@ -262,7 +270,7 @@ function safeErrorDetail (bodyBytes) {
   }
 }
 
-function httpErrorDetail (bodyBytes) {
+function httpErrorDetail(bodyBytes) {
   try {
     return JSON.parse(decoder.decode(bodyBytes))?.error?.message ?? ''
   } catch {
@@ -270,20 +278,28 @@ function httpErrorDetail (bodyBytes) {
   }
 }
 
-function extractQwenText (data, protocol) {
+// Each protocol nests the transcript in a different envelope location; only
+// the verified shapes are read.
+function extractQwenText(data, protocol) {
   if (protocol === 'asr3') {
     const inner = data?.output?.output
-    if (typeof inner?.sentence?.text === 'string') { return inner.sentence.text }
+    if (typeof inner?.sentence?.text === 'string') {
+      return inner.sentence.text
+    }
     if (Array.isArray(inner?.sentences)) {
       return inner.sentences.map(s => s?.text).filter(Boolean).join('')
     }
-    if (typeof data?.output?.text === 'string') { return data.output.text }
+    if (typeof data?.output?.text === 'string') {
+      return data.output.text
+    }
     return ''
   }
 
   if (protocol === 'compat') {
     const content = data?.choices?.[0]?.message?.content
-    if (typeof content === 'string') { return content }
+    if (typeof content === 'string') {
+      return content
+    }
     if (Array.isArray(content)) {
       return content.map(part => part?.text).filter(Boolean).join('')
     }
@@ -291,7 +307,9 @@ function extractQwenText (data, protocol) {
   }
 
   const content = data?.output?.choices?.[0]?.message?.content
-  if (typeof content === 'string') { return content }
+  if (typeof content === 'string') {
+    return content
+  }
   if (Array.isArray(content)) {
     return content.map(part => part?.text).filter(Boolean).join('')
   }

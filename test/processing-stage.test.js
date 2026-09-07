@@ -1,19 +1,21 @@
-import { process as kernelProcess } from '../kernel/process.js'
-import { test, expectEqual, run } from './harness.js'
+// Kernel stage signals and step ordering.
 
-function provider ({ inputs, instructions, text, events, name }) {
+import { process as kernelProcess } from '../kernel/process.js'
+import { expectEqual, run, test } from './harness.js'
+
+function provider({ inputs, instructions, text, events, name }) {
   return {
     manifest: { fields: [] },
-    resolve () {
+    resolve() {
       return {
         config: { model: name },
         capabilities: { inputs, instructions, context: false },
         issues: []
       }
     },
-    create () {
+    create() {
       return {
-        async process () {
+        async process() {
           events.push(name)
           return { text, usage: null, requestId: null, responseId: null }
         }
@@ -37,20 +39,26 @@ const runtime = {
 test('refine stage signal occurs after primary and before refine execution', async () => {
   const events = []
   const providers = new Map([
-    ['primary', provider({
-      inputs: ['audio'],
-      instructions: false,
-      text: 'raw transcript',
-      events,
-      name: 'primary'
-    })],
-    ['refine', provider({
-      inputs: ['text'],
-      instructions: true,
-      text: 'refined text',
-      events,
-      name: 'refine'
-    })]
+    [
+      'primary',
+      provider({
+        inputs: ['audio'],
+        instructions: false,
+        text: 'raw transcript',
+        events,
+        name: 'primary'
+      })
+    ],
+    [
+      'refine',
+      provider({
+        inputs: ['text'],
+        instructions: true,
+        text: 'refined text',
+        events,
+        name: 'refine'
+      })
+    ]
   ])
 
   const result = await kernelProcess({
@@ -80,13 +88,16 @@ test('refine stage signal occurs after primary and before refine execution', asy
 test('disabled refine emits no refine stage signal', async () => {
   const events = []
   const providers = new Map([
-    ['primary', provider({
-      inputs: ['audio'],
-      instructions: false,
-      text: 'raw transcript',
-      events,
-      name: 'primary'
-    })]
+    [
+      'primary',
+      provider({
+        inputs: ['audio'],
+        instructions: false,
+        text: 'raw transcript',
+        events,
+        name: 'primary'
+      })
+    ]
   ])
 
   await kernelProcess({

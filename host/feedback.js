@@ -45,25 +45,39 @@ const PRESENTATIONS = {
   }
 }
 
-export function presentFailure (error, stage = null) {
+// Returns null for cancellations (they are quiet by design) and falls back
+// to a generic presentation for unknown categories.
+export function presentFailure(error, stage = null) {
   const category = presentationCategory(error, stage)
-  if (category === 'cancelled') { return null }
-
-  return PRESENTATIONS[category] ?? {
-    summary: 'Voice input failed',
-    guidance: 'Try once more; if it keeps failing, check your provider settings and connection.'
+  if (category === 'cancelled') {
+    return null
   }
+
+  return (
+    PRESENTATIONS[category] ?? {
+      summary: 'Voice input failed',
+      guidance: 'Try once more; if it keeps failing, check your provider settings and connection.'
+    }
+  )
 }
 
-function presentationCategory (error, stage) {
-  if (error?.category) { return error.category }
-  if (stage === 'recording' || error?.stage === 'recording') { return 'recording' }
-  if (stage === 'configuration' || error?.stage === 'configuration') { return 'configuration' }
+function presentationCategory(error, stage) {
+  if (error?.category) {
+    return error.category
+  }
+  if (stage === 'recording' || error?.stage === 'recording') {
+    return 'recording'
+  }
+  if (stage === 'configuration' || error?.stage === 'configuration') {
+    return 'configuration'
+  }
 
   // Older retained entries predate persisted categories and only carry the
   // original stage/message. Match the exact message emitted by that old
   // no-text path rather than inferring semantics from arbitrary provider text.
-  if (error?.message === 'No speech was recognized') { return 'no-text' }
+  if (error?.message === 'No speech was recognized') {
+    return 'no-text'
+  }
 
   return 'unknown'
 }

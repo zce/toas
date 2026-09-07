@@ -1,8 +1,10 @@
+// Overlay presenter state machine against a fake view.
+
 import { ToasOverlayPresenter } from '../ui/overlay.js'
-import { test, expectEqual, run } from './harness.js'
+import { expectEqual, run, test } from './harness.js'
 
 class FakeOverlayView {
-  constructor () {
+  constructor() {
     this.renders = []
     this.modes = []
     this.privateFlags = []
@@ -14,22 +16,38 @@ class FakeOverlayView {
     this.destroyed = 0
   }
 
-  render (state, message) {
+  render(state, message) {
     this.renders.push({ state, message })
   }
 
-  setMode (mode) {
+  setMode(mode) {
     this.modes.push(mode)
   }
 
-  startSpinner () { this.spinnerStarts++ }
-  stopSpinner () { this.spinnerStops++ }
-  show () { this.showCalls++ }
-  hide () { this.hideCalls++ }
-  setLevel (level) { this.level = level }
-  resetLevels () { this.resetCalls++ }
-  setPrivate (enabled) { this.privateFlags.push(enabled) }
-  destroy () { this.destroyed++ }
+  startSpinner() {
+    this.spinnerStarts++
+  }
+  stopSpinner() {
+    this.spinnerStops++
+  }
+  show() {
+    this.showCalls++
+  }
+  hide() {
+    this.hideCalls++
+  }
+  setLevel(level) {
+    this.level = level
+  }
+  resetLevels() {
+    this.resetCalls++
+  }
+  setPrivate(enabled) {
+    this.privateFlags.push(enabled)
+  }
+  destroy() {
+    this.destroyed++
+  }
 }
 
 const flushAsync = ms => new Promise(resolve => setTimeout(resolve, ms))

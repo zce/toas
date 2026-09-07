@@ -1,7 +1,10 @@
-import { presentFailure } from '../host/feedback.js'
-import { test, expectEqual, run } from './harness.js'
+// Failure presentation mapping: stable summaries and next actions,
+// never raw provider detail.
 
-function error (category, message = 'technical provider detail') {
+import { presentFailure } from '../host/feedback.js'
+import { expectEqual, run, test } from './harness.js'
+
+function error(category, message = 'technical provider detail') {
   return { category, message }
 }
 

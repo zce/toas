@@ -1,5 +1,7 @@
+// Qwen Context wire encodings across its verified protocols.
+
 import { qwenProvider } from '../kernel/providers/qwen.js'
-import { test, expectEqual, run } from './harness.js'
+import { expectEqual, run, test } from './harness.js'
 
 const AUDIO = {
   kind: 'audio',
@@ -36,7 +38,7 @@ test('Qwen omits recognition context when toas Context is empty', async () => {
   expectEqual(request.input.messages[0].content[0].type, 'input_audio')
 })
 
-async function sentRequest (model, responseBody, context = CONTEXT) {
+async function sentRequest(model, responseBody, context = CONTEXT) {
   const resolved = qwenProvider.resolve({
     providerValues: { endpoint: '' },
     values: { model },
@@ -45,10 +47,14 @@ async function sentRequest (model, responseBody, context = CONTEXT) {
   expectEqual(resolved.issues, [])
 
   const transport = new FakeTransport(responseBody)
-  const processor = qwenProvider.create(resolved.config, { key: 'secret' }, {
-    transport,
-    clock: { now: () => 0 }
-  })
+  const processor = qwenProvider.create(
+    resolved.config,
+    { key: 'secret' },
+    {
+      transport,
+      clock: { now: () => 0 }
+    }
+  )
 
   await processor.process({
     input: AUDIO,
@@ -61,12 +67,12 @@ async function sentRequest (model, responseBody, context = CONTEXT) {
 }
 
 class FakeTransport {
-  constructor (responseBody) {
+  constructor(responseBody) {
     this.responseBody = responseBody
     this.requests = []
   }
 
-  async send (request) {
+  async send(request) {
     this.requests.push({ ...request, body: decodeBody(request.body) })
     return {
       status: 200,
@@ -76,21 +82,25 @@ class FakeTransport {
   }
 }
 
-function asr3Response () {
+function asr3Response() {
   return { output: { output: { sentence: { text: 'ok' } } } }
 }
 
-function compatResponse () {
+function compatResponse() {
   return { choices: [{ message: { content: 'ok' } }] }
 }
 
-function multimodalResponse () {
+function multimodalResponse() {
   return { output: { choices: [{ message: { content: 'ok' } }] } }
 }
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
-function encodeBody (value) { return encoder.encode(JSON.stringify(value)) }
-function decodeBody (bytes) { return JSON.parse(decoder.decode(bytes)) }
+function encodeBody(value) {
+  return encoder.encode(JSON.stringify(value))
+}
+function decodeBody(bytes) {
+  return JSON.parse(decoder.decode(bytes))
+}
 
 await run()

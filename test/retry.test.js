@@ -1,8 +1,17 @@
-import { ToasOrchestrator } from '../host/orchestrator.js'
-import { FakeKernel, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+// Retry-from-history: borrowed audio, appended attempts, and no
+// recording or delivery side effects.
 
-function makeOrchestrator ({ history, kernel = new FakeKernel(), recorderFactory = () => { throw new Error('retry must not create a recorder') } }) {
+import { ToasOrchestrator } from '../host/orchestrator.js'
+import { FakeHistory, FakeKernel, FakeNotifier, FakeOverlay, FakePaster } from './fakes.js'
+import { expectEqual, run, test } from './harness.js'
+
+function makeOrchestrator({
+  history,
+  kernel = new FakeKernel(),
+  recorderFactory = () => {
+    throw new Error('retry must not create a recorder')
+  }
+}) {
   return new ToasOrchestrator({
     settings: { get_boolean: () => false },
     history,
@@ -15,7 +24,7 @@ function makeOrchestrator ({ history, kernel = new FakeKernel(), recorderFactory
   })
 }
 
-function original (id = 'orig-1', file = `${id}.wav`) {
+function original(id = 'orig-1', file = `${id}.wav`) {
   return {
     id,
     status: 'error',
@@ -24,12 +33,16 @@ function original (id = 'orig-1', file = `${id}.wav`) {
   }
 }
 
-function waitFor (predicate, timeoutMs = 2000) {
+function waitFor(predicate, timeoutMs = 2000) {
   const startedAt = Date.now()
   return new Promise((resolve, reject) => {
     const check = () => {
-      if (predicate()) { return resolve() }
-      if (Date.now() - startedAt > timeoutMs) { return reject(new Error('waitFor timed out')) }
+      if (predicate()) {
+        return resolve()
+      }
+      if (Date.now() - startedAt > timeoutMs) {
+        return reject(new Error('waitFor timed out'))
+      }
       setTimeout(check, 5)
     }
     check()
@@ -120,7 +133,7 @@ test('destroy during retry aborts processing without deleting retained audio', a
   orchestrator.destroy()
   const attempt = await pending
 
-  expectTruthy(signal.aborted)
+  expectEqual(signal.aborted, true)
   expectEqual(attempt, null)
   expectEqual(history.discarded, [])
 })

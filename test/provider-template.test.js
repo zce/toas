@@ -1,15 +1,15 @@
+// Provider base template behavior with a scoped test double.
+
 import { Provider } from '../kernel/providers/provider.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 class ScopedProvider extends Provider {
-  constructor () {
+  constructor() {
     super({
       id: 'scoped',
       manifest: {
         label: 'Scoped',
-        fields: [
-          { key: 'key', type: 'secret', label: 'API key', required: true }
-        ],
+        fields: [{ key: 'key', type: 'secret', label: 'API key', required: true }],
         selectionFields: [
           { key: 'model', type: 'string', label: 'Model', required: true, inputs: ['audio'] },
           { key: 'model', type: 'string', label: 'Model', required: true, inputs: ['text'] },
@@ -22,27 +22,17 @@ class ScopedProvider extends Provider {
     })
   }
 
-  resolveSelection ({ values }) {
-    const input = values.model === 'audio-model'
-      ? 'audio'
-      : values.model === 'text-model'
-        ? 'text'
-        : null
+  resolveSelection({ values }) {
+    const input = values.model === 'audio-model' ? 'audio' : values.model === 'text-model' ? 'text' : null
     return {
       input,
       config: input ? { ...values } : null,
-      capabilities: input
-        ? { inputs: [input], instructions: input === 'text', context: false }
-        : null,
-      issues: input
-        ? []
-        : values.model
-          ? [{ path: 'values.model', code: 'unsupported', message: 'Unsupported model' }]
-          : []
+      capabilities: input ? { inputs: [input], instructions: input === 'text', context: false } : null,
+      issues: input ? [] : values.model ? [{ path: 'values.model', code: 'unsupported', message: 'Unsupported model' }] : []
     }
   }
 
-  createProcessor (config, secrets, runtime) {
+  createProcessor(config, secrets, runtime) {
     return { config, secrets, runtime }
   }
 }
@@ -112,11 +102,13 @@ test('known model-shape lookup trims values and reports unsupported models consi
   const unknown = provider.resolveModelShape({ model: 'other' }, shapes)
   expectEqual(unknown.model, 'other')
   expectEqual(unknown.shape, null)
-  expectEqual(unknown.issues, [{
-    path: 'values.model',
-    code: 'unsupported',
-    message: 'Unsupported Scoped model: other'
-  }])
+  expectEqual(unknown.issues, [
+    {
+      path: 'values.model',
+      code: 'unsupported',
+      message: 'Unsupported Scoped model: other'
+    }
+  ])
 })
 
 test('Provider create template validates required secrets before delegating', () => {
@@ -130,11 +122,7 @@ test('Provider create template validates required secrets before delegating', ()
   expectEqual(error.category, 'configuration')
   expectEqual(error.message, 'Scoped API key is required to create a processor')
 
-  const processor = provider.create(
-    { model: 'text-model' },
-    { key: 'secret' },
-    { transport: 'runtime' }
-  )
+  const processor = provider.create({ model: 'text-model' }, { key: 'secret' }, { transport: 'runtime' })
   expectEqual(processor, {
     config: { model: 'text-model' },
     secrets: { key: 'secret' },

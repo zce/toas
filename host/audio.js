@@ -12,19 +12,17 @@ export const AUDIO_QUALITY_PRESETS = {
 export const DEFAULT_SAMPLE_RATE = AUDIO_QUALITY_PRESETS.standard.sampleRate
 export const DEFAULT_MINIMUM_RECORDING_DURATION_MS = 600
 
-export function resolveSampleRate (settings) {
+export function resolveSampleRate(settings) {
   const quality = settings.get_string?.('audio-quality') ?? 'standard'
-  const preset = AUDIO_QUALITY_PRESETS[quality] ?? AUDIO_QUALITY_PRESETS.standard
-  return preset.sampleRate
+  return (AUDIO_QUALITY_PRESETS[quality] ?? AUDIO_QUALITY_PRESETS.standard).sampleRate
 }
 
-export function resolveMinimumRecordingDuration (settings) {
+export function resolveMinimumRecordingDuration(settings) {
   const durationMs = settings.get_uint?.('minimum-recording-duration')
-  return Number.isFinite(durationMs) && durationMs > 0
-    ? durationMs
-    : DEFAULT_MINIMUM_RECORDING_DURATION_MS
+  return Number.isFinite(durationMs) && durationMs > 0 ? durationMs : DEFAULT_MINIMUM_RECORDING_DURATION_MS
 }
 
+// Terminal recorder states, so callers never inspect raw process state.
 export const RecorderOutcomeKind = {
   OK: 'ok',
   SHORT_TAP: 'short-tap',
@@ -33,103 +31,82 @@ export const RecorderOutcomeKind = {
   CANCELLED: 'cancelled'
 }
 
-export function recordingOutcomeOk (recording) {
+export function recordingOutcomeOk(recording) {
   return { kind: RecorderOutcomeKind.OK, recording, error: null }
 }
 
-export function recordingOutcomeShortTap (durationMs) {
-  return {
-    kind: RecorderOutcomeKind.SHORT_TAP,
-    recording: null,
-    error: null,
-    durationMs
-  }
+export function recordingOutcomeShortTap(durationMs) {
+  return { kind: RecorderOutcomeKind.SHORT_TAP, recording: null, error: null, durationMs }
 }
 
-export function recordingOutcomeSizeLimit (recording) {
+export function recordingOutcomeSizeLimit(recording) {
   return { kind: RecorderOutcomeKind.SIZE_LIMIT, recording, error: null }
 }
 
-export function recordingOutcomeCaptureFailure (error) {
+export function recordingOutcomeCaptureFailure(error) {
   return { kind: RecorderOutcomeKind.CAPTURE_FAILURE, recording: null, error }
 }
 
-export function recordingOutcomeCancelled () {
+export function recordingOutcomeCancelled() {
   return { kind: RecorderOutcomeKind.CANCELLED, recording: null, error: null }
 }
 
-Gio._promisify(
-  Gio.InputStream.prototype,
-  'read_bytes_async',
-  'read_bytes_finish'
-)
+Gio._promisify(Gio.InputStream.prototype, 'read_bytes_async', 'read_bytes_finish')
 
 const DEFAULT_CHUNK_MS = 100
 const BYTES_PER_SAMPLE = 2
+// Bounds an accidentally open recording so it cannot exhaust Shell memory
+// during upload (~4 minutes at 48 kHz mono s16).
 const MAX_PCM_BYTES = 24 * 1024 * 1024
 
-export function recordingIdForNow () {
+export function recordingIdForNow() {
   const now = new Date()
   const pad = (n, w = 2) => String(n).padStart(w, '0')
-  return `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}` +
+  return (
+    `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}` +
     `T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}` +
     `${pad(now.getUTCMilliseconds(), 3)}`
+  )
 }
 
+// Wraps pw-record streaming raw s16 PCM into a WAV file. A 44-byte placeholder
+// header is written first; _finalizeWav seeks back and rewrites it with real
+// sizes once capture ends. `stop()` classifies the capture into a
+// RecorderOutcomeKind instead of throwing.
 export class AudioRecorder {
-  constructor ({
-    recordingsDirectory,
-    onLevel,
-    onError,
-    sampleRate = DEFAULT_SAMPLE_RATE,
-    minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS
-  }) {
+  constructor({ recordingsDirectory, onLevel, onError, sampleRate = DEFAULT_SAMPLE_RATE, minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS }) {
     this._recordingsDirectory = recordingsDirectory
     this._onLevel = onLevel
     this._onError = onError
     this._sampleRate = sampleRate || DEFAULT_SAMPLE_RATE
-    this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0
-      ? minimumDurationMs
-      : DEFAULT_MINIMUM_RECORDING_DURATION_MS
-    this._bytesPerMs = this._sampleRate * BYTES_PER_SAMPLE / 1000
+    this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0 ? minimumDurationMs : DEFAULT_MINIMUM_RECORDING_DURATION_MS
+    this._bytesPerMs = (this._sampleRate * BYTES_PER_SAMPLE) / 1000
     this._minimumBytes = this._bytesPerMs * this._minimumDurationMs
     this._chunkBytes = this._bytesPerMs * DEFAULT_CHUNK_MS
     this._outcome = null
   }
 
-  async start () {
-    if (this._process) { throw new Error('Audio capture is already running') }
+  async start() {
+    if (this._process) {
+      throw new Error('Audio capture is already running')
+    }
 
     const pwRecord = GLib.find_program_in_path('pw-record')
-    if (!pwRecord) { throw new Error('pw-record was not found. Install Fedora pipewire-utils.') }
+    if (!pwRecord) {
+      throw new Error('pw-record was not found. Install Fedora pipewire-utils.')
+    }
 
     this._process = Gio.Subprocess.new(
-      [
-        pwRecord,
-        '--raw',
-        `--rate=${this._sampleRate}`,
-        '--channels=1',
-        '--format=s16',
-        '-'
-      ],
-      Gio.SubprocessFlags.STDOUT_PIPE |
-        Gio.SubprocessFlags.STDERR_SILENCE
+      [pwRecord, '--raw', `--rate=${this._sampleRate}`, '--channels=1', '--format=s16', '-'],
+      Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
     )
 
     const id = recordingIdForNow()
-    this._path = GLib.build_filenamev([
-      this._recordingsDirectory,
-      `${id}.wav`
-    ])
+    this._path = GLib.build_filenamev([this._recordingsDirectory, `${id}.wav`])
     this._id = id
     this._limitReached = false
     this._cancelled = false
-    this._output = Gio.File.new_for_path(this._path).replace(
-      null,
-      false,
-      Gio.FileCreateFlags.PRIVATE,
-      null
-    )
+    this._output = Gio.File.new_for_path(this._path).replace(null, false, Gio.FileCreateFlags.PRIVATE, null)
     this._output.write_all(new Uint8Array(44), null)
     this._totalBytes = 0
     this._stream = this._process.get_stdout_pipe()
@@ -137,26 +114,27 @@ export class AudioRecorder {
     this._readPromise.catch(error => this._onError?.(error))
   }
 
-  async stop () {
-    if (this._outcome) { return this._outcome }
+  async stop() {
+    if (this._outcome) {
+      return this._outcome
+    }
 
     const process = this._process
     if (!process) {
-      return this._outcome = this._cancelled
-        ? recordingOutcomeCancelled()
-        : recordingOutcomeCaptureFailure(new Error('Audio capture is not running'))
+      return (this._outcome = this._cancelled ? recordingOutcomeCancelled() : recordingOutcomeCaptureFailure(new Error('Audio capture is not running')))
     }
 
+    // SIGINT lets pw-record flush and exit, closing the stream on its own.
     process.send_signal(2)
 
     try {
       await this._readPromise
     } catch (error) {
       if (this._cancelled) {
-        return this._outcome = recordingOutcomeCancelled()
+        return (this._outcome = recordingOutcomeCancelled())
       }
       if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-        return this._outcome = recordingOutcomeCaptureFailure(error)
+        return (this._outcome = recordingOutcomeCaptureFailure(error))
       }
     } finally {
       this._process = null
@@ -166,37 +144,35 @@ export class AudioRecorder {
 
     if (this._cancelled) {
       this._discardFile()
-      return this._outcome = recordingOutcomeCancelled()
+      return (this._outcome = recordingOutcomeCancelled())
     }
 
     if (this._limitReached) {
       this._finalizeWav()
-      return this._outcome = recordingOutcomeSizeLimit(this._takeRecording())
+      return (this._outcome = recordingOutcomeSizeLimit(this._takeRecording()))
     }
 
     if (!this._totalBytes) {
       this._discardFile()
-      return this._outcome = recordingOutcomeShortTap(0)
+      return (this._outcome = recordingOutcomeShortTap(0))
     }
     if (this._totalBytes < this._minimumBytes) {
       this._discardFile()
-      return this._outcome = recordingOutcomeShortTap(
-        Math.round(this._totalBytes / this._bytesPerMs)
-      )
+      return (this._outcome = recordingOutcomeShortTap(Math.round(this._totalBytes / this._bytesPerMs)))
     }
 
     this._finalizeWav()
-    return this._outcome = recordingOutcomeOk(this._takeRecording())
+    return (this._outcome = recordingOutcomeOk(this._takeRecording()))
   }
 
-  _finalizeWav () {
+  _finalizeWav() {
     this._output.seek(0, GLib.SeekType.SET, null)
     this._output.write_all(wavHeader(this._totalBytes, this._sampleRate), null)
     this._output.close(null)
     this._output = null
   }
 
-  _takeRecording () {
+  _takeRecording() {
     const recording = {
       id: this._id,
       path: this._path,
@@ -212,16 +188,16 @@ export class AudioRecorder {
     return recording
   }
 
-  async _readLoop () {
+  async _readLoop() {
     while (this._stream) {
-      const bytes = await this._stream.read_bytes_async(
-        this._chunkBytes,
-        GLib.PRIORITY_DEFAULT,
-        null
-      )
+      const bytes = await this._stream.read_bytes_async(this._chunkBytes, GLib.PRIORITY_DEFAULT, null)
 
-      if (bytes.get_size() === 0) { break }
-      if (!this._stream) { break }
+      if (bytes.get_size() === 0) {
+        break
+      }
+      if (!this._stream) {
+        break
+      }
 
       const data = bytes.get_data()
       if (this._totalBytes + data.length > MAX_PCM_BYTES) {
@@ -236,7 +212,7 @@ export class AudioRecorder {
     }
   }
 
-  cancel () {
+  cancel() {
     this._cancelled = true
     try {
       this._process?.send_signal(2)
@@ -245,7 +221,7 @@ export class AudioRecorder {
     }
   }
 
-  destroy () {
+  destroy() {
     try {
       this._process?.send_signal(2)
     } catch {
@@ -266,7 +242,7 @@ export class AudioRecorder {
     this._onError = null
   }
 
-  _discardFile () {
+  _discardFile() {
     try {
       this._output?.close(null)
     } catch {
@@ -274,7 +250,9 @@ export class AudioRecorder {
     }
     this._output = null
 
-    if (!this._path) { return }
+    if (!this._path) {
+      return
+    }
     try {
       Gio.File.new_for_path(this._path).delete(null)
     } catch (error) {
@@ -286,11 +264,14 @@ export class AudioRecorder {
   }
 }
 
-function wavHeader (pcmBytes, sampleRate) {
+// 44-byte PCM WAV header: RIFF/fmt/data sizes for mono s16 at sampleRate.
+function wavHeader(pcmBytes, sampleRate) {
   const header = new Uint8Array(44)
   const view = new DataView(header.buffer)
   const writeAscii = (offset, value) => {
-    for (let i = 0; i < value.length; i++) { header[offset + i] = value.charCodeAt(i) }
+    for (let i = 0; i < value.length; i++) {
+      header[offset + i] = value.charCodeAt(i)
+    }
   }
 
   const blockAlign = BYTES_PER_SAMPLE
@@ -312,8 +293,12 @@ function wavHeader (pcmBytes, sampleRate) {
   return header
 }
 
-function calculateRms (data) {
-  if (!data || data.length < 2) { return 0 }
+// RMS of the chunk, normalized to 0..1 and boosted so normal speech spans the
+// waveform visibly.
+function calculateRms(data) {
+  if (!data || data.length < 2) {
+    return 0
+  }
 
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
   const sampleCount = Math.floor(data.byteLength / 2)
@@ -324,6 +309,5 @@ function calculateRms (data) {
     sumSquares += sample * sample
   }
 
-  const rms = Math.sqrt(sumSquares / sampleCount)
-  return Math.min(1, rms * 5)
+  return Math.min(1, Math.sqrt(sumSquares / sampleCount) * 5)
 }

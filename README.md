@@ -196,16 +196,16 @@ Refine is optional and currently runs as a separate text-processing step after t
 
 Supported Refine providers are:
 
-* MiMo
-* OpenAI
-* OpenAI-compatible endpoints
+- MiMo
+- OpenAI
+- OpenAI-compatible endpoints
 
 Configure the provider, model, API key, and your own Refine instructions in Preferences.
 
 The **On refine failure** setting controls what happens when Refine fails:
 
-* **Use transcription** — continue with the transcription result.
-* **Fail voice input** — treat the entire voice input as failed.
+- **Use transcription** — continue with the transcription result.
+- **Fail voice input** — treat the entire voice input as failed.
 
 ### API keys
 

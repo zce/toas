@@ -1,8 +1,11 @@
+// Cross-provider Processor behavior: shared status classification,
+// cancellation handling, and malformed-response errors.
+
 import { doubaoProvider } from '../kernel/providers/doubao.js'
 import { mimoProvider } from '../kernel/providers/mimo.js'
 import { openaiCompatibleProvider, openaiProvider } from '../kernel/providers/openai.js'
 import { qwenProvider } from '../kernel/providers/qwen.js'
-import { test, expectEqual, run } from './harness.js'
+import { expectEqual, run, test } from './harness.js'
 
 const encoder = new TextEncoder()
 const AUDIO = {
@@ -12,11 +15,11 @@ const AUDIO = {
   durationMs: 1000
 }
 
-function encodeBody (value) {
+function encodeBody(value) {
   return encoder.encode(JSON.stringify(value))
 }
 
-function createProcessor ({ provider, providerValues, values, transport }) {
+function createProcessor({ provider, providerValues, values, transport }) {
   const resolved = provider.resolve({
     providerValues,
     values,
@@ -26,7 +29,7 @@ function createProcessor ({ provider, providerValues, values, transport }) {
   return provider.create(resolved.config, { key: 'secret' }, { transport })
 }
 
-function processorCases (transport) {
+function processorCases(transport) {
   return [
     {
       label: 'Qwen',
@@ -81,7 +84,7 @@ function processorCases (transport) {
   ]
 }
 
-async function processError (processor, input, signal = null) {
+async function processError(processor, input, signal = null) {
   try {
     await processor.process({
       input,
@@ -97,7 +100,7 @@ async function processError (processor, input, signal = null) {
 
 test('remote processors share standard HTTP status classification', async () => {
   const transport = {
-    async send () {
+    async send() {
       return {
         status: 429,
         headers: {},
@@ -116,7 +119,7 @@ test('remote processors share standard HTTP status classification', async () => 
 
 test('remote processors preserve cancellation after transport returns', async () => {
   const transport = {
-    async send (_request, signal) {
+    async send(_request, signal) {
       signal.aborted = true
       return { status: 500, headers: {}, body: encodeBody({}) }
     }
@@ -131,7 +134,7 @@ test('remote processors preserve cancellation after transport returns', async ()
 
 test('remote processors reject malformed JSON responses consistently', async () => {
   const transport = {
-    async send () {
+    async send() {
       return {
         status: 200,
         headers: { 'x-api-status-code': '20000000' },

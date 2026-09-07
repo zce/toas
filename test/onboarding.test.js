@@ -1,21 +1,31 @@
+// First-run onboarding decisions and the unconfigured guard.
+
 import { OnboardingManager } from '../host/onboarding.js'
-import { test, expectEqual, run } from './harness.js'
+import { expectEqual, run, test } from './harness.js'
 
 class FakeSettings {
-  constructor () {
+  constructor() {
     this.values = {}
   }
 
-  get_boolean (key) { return this.values[key] ?? false }
-  set_boolean (key, value) { this.values[key] = value }
+  get_boolean(key) {
+    return this.values[key] ?? false
+  }
+  set_boolean(key, value) {
+    this.values[key] = value
+  }
 }
 
 class FakeNotifier {
-  constructor () { this.notifications = [] }
-  notify (title, body) { this.notifications.push({ title, body }) }
+  constructor() {
+    this.notifications = []
+  }
+  notify(title, body) {
+    this.notifications.push({ title, body })
+  }
 }
 
-function make ({ shown = false, hasHistory = false, notify = true, withPrefsOpener = true } = {}) {
+function make({ shown = false, hasHistory = false, notify = true, withPrefsOpener = true } = {}) {
   const settings = new FakeSettings()
   settings.values['onboarding-shown'] = shown
   const notifier = new FakeNotifier()

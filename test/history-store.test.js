@@ -1,13 +1,16 @@
+// HistoryStore behavior against a real temp state directory:
+// append/list pagination, retry linking, and retention pruning.
+
 import GLib from 'gi://GLib'
 
 import { HistoryStore } from '../host/history.js'
-import { test, expectEqual, run } from './harness.js'
+import { expectEqual, run, test } from './harness.js'
 
 const tmpRoot = GLib.dir_make_tmp('toas-history-test-XXXXXX')
 GLib.setenv('XDG_STATE_HOME', tmpRoot, true)
 
 class FakeSettings {
-  constructor ({ historyLimit = 30, recordingLimit = 20 } = {}) {
+  constructor({ historyLimit = 30, recordingLimit = 20 } = {}) {
     this.values = {
       'history-limit': historyLimit,
       'recording-limit': recordingLimit
@@ -16,19 +19,25 @@ class FakeSettings {
     this.nextId = 1
   }
 
-  get_uint (key) { return this.values[key] }
-  connect (_signal, callback) {
+  get_uint(key) {
+    return this.values[key]
+  }
+  connect(_signal, callback) {
     const id = this.nextId++
     this.handlers.set(id, callback)
     return id
   }
-  disconnect (id) { this.handlers.delete(id) }
+  disconnect(id) {
+    this.handlers.delete(id)
+  }
 }
 
-function makeStore (entries = [], options = {}) {
+function makeStore(entries = [], options = {}) {
   const store = new HistoryStore(new FakeSettings(options))
   store.clear()
-  for (const entry of entries) { store.append(entry) }
+  for (const entry of entries) {
+    store.append(entry)
+  }
   return store
 }
 
@@ -43,7 +52,10 @@ test('list returns newest logical voice inputs and skips malformed lines on load
   store.destroy()
 
   const reloaded = new HistoryStore(new FakeSettings())
-  expectEqual(reloaded.list().map(entry => entry.id), ['b', 'a'])
+  expectEqual(
+    reloaded.list().map(entry => entry.id),
+    ['b', 'a']
+  )
   reloaded.clear()
   reloaded.destroy()
 })
@@ -60,20 +72,33 @@ test('recent first-page reads reuse the projection produced by pruning', () => {
     return readEntries()
   }
 
-  expectEqual(store.list().map(entry => entry.id), ['b', 'a'])
-  expectEqual(store.list({ limit: 1 }).map(entry => entry.id), ['b'])
+  expectEqual(
+    store.list().map(entry => entry.id),
+    ['b', 'a']
+  )
+  expectEqual(
+    store.list({ limit: 1 }).map(entry => entry.id),
+    ['b']
+  )
   expectEqual(reads, 0)
   store.destroy()
 })
 
 test('list pagination uses root voice input ids', () => {
-  const store = makeStore(
-    ['a', 'b', 'c', 'd', 'e'].map((id, i) => ({ id, time: String(i), status: 'ok' }))
-  )
+  const store = makeStore(['a', 'b', 'c', 'd', 'e'].map((id, i) => ({ id, time: String(i), status: 'ok' })))
 
-  expectEqual(store.list({ limit: 2 }).map(entry => entry.id), ['e', 'd'])
-  expectEqual(store.list({ limit: 2, beforeId: 'd' }).map(entry => entry.id), ['c', 'b'])
-  expectEqual(store.list({ limit: 2, beforeId: 'b' }).map(entry => entry.id), ['a'])
+  expectEqual(
+    store.list({ limit: 2 }).map(entry => entry.id),
+    ['e', 'd']
+  )
+  expectEqual(
+    store.list({ limit: 2, beforeId: 'd' }).map(entry => entry.id),
+    ['c', 'b']
+  )
+  expectEqual(
+    store.list({ limit: 2, beforeId: 'b' }).map(entry => entry.id),
+    ['a']
+  )
   expectEqual(store.list({ limit: 2, beforeId: 'a' }), [])
   store.destroy()
 })
@@ -109,8 +134,14 @@ test('retry attempts do not consume logical history retention slots', () => {
   store.appendAttempt(a, { time: '4', status: 'ok', text: 'a retry' })
   store.append({ id: 'c', time: '5', status: 'ok' })
 
-  expectEqual(store.list().map(entry => entry.id), ['c', 'b'])
-  expectEqual(store.readEntries().some(entry => entry.id === 'a' || entry.retryOf === 'a'), false)
+  expectEqual(
+    store.list().map(entry => entry.id),
+    ['c', 'b']
+  )
+  expectEqual(
+    store.readEntries().some(entry => entry.id === 'a' || entry.retryOf === 'a'),
+    false
+  )
   store.destroy()
 })
 

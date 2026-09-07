@@ -7,16 +7,7 @@ import { processingError } from './error.js'
 
 export { processingError } from './error.js'
 
-export async function process ({
-  config,
-  audio,
-  context,
-  secrets,
-  runtime,
-  signal,
-  providers,
-  onStage = null
-}) {
+export async function process({ config, audio, context, secrets, runtime, signal, providers, onStage = null }) {
   if (signal?.aborted) {
     throw processingError('cancelled', 'Processing was cancelled')
   }
@@ -56,7 +47,7 @@ export async function process ({
   })
 }
 
-function validateConfigShape (config) {
+function validateConfigShape(config) {
   if (!config || typeof config !== 'object') {
     throw processingError('configuration', 'Processing configuration is missing')
   }
@@ -68,7 +59,7 @@ function validateConfigShape (config) {
   }
 }
 
-async function runPrimary ({ primary, primaryTrace, audio, context, runtime, signal }) {
+async function runPrimary({ primary, primaryTrace, audio, context, runtime, signal }) {
   assertNotCancelled(signal)
 
   const startedAt = runtime.clock.now()
@@ -95,19 +86,10 @@ async function runPrimary ({ primary, primaryTrace, audio, context, runtime, sig
   }
 }
 
-async function runRefine ({
-  primary,
-  primaryTrace,
-  refineConfig,
-  audio,
-  context,
-  secrets,
-  runtime,
-  signal,
-  providers,
-  providerValues,
-  onStage
-}) {
+// Runs primary, then Refine with the current config. A Refine failure either
+// fails the attempt (abort) or returns the primary text with a warning
+// (fallback); cancellation always fails the attempt.
+async function runRefine({ primary, primaryTrace, refineConfig, audio, context, secrets, runtime, signal, providers, providerValues, onStage }) {
   const primaryResult = await runPrimary({ primary, primaryTrace, audio, context, runtime, signal })
   assertNotCancelled(signal)
 
@@ -162,7 +144,7 @@ async function runRefine ({
   }
 }
 
-function createStep ({ providers, selection, providerValues, role, secrets, runtime }) {
+function createStep({ providers, selection, providerValues, role, secrets, runtime }) {
   const resolved = resolveSelection({ providers, selection, providerValues, role, secrets })
   return { ...resolved, processor: createProcessor({ resolved, secrets, runtime }) }
 }
@@ -171,7 +153,7 @@ function createStep ({ providers, selection, providerValues, role, secrets, runt
 // capabilities and issues even while a selection is incomplete; executable
 // callers use resolveSelection(), which turns the first issue into a stable
 // configuration error before Processor creation.
-export function inspectSelection ({ providers, selection, providerValues = {}, role, secrets = {} }) {
+export function inspectSelection({ providers, selection, providerValues = {}, role, secrets = {} }) {
   const providerId = selection?.provider
   const provider = providers.get(providerId)
   if (!provider) {
@@ -185,8 +167,7 @@ export function inspectSelection ({ providers, selection, providerValues = {}, r
     }
   }
 
-  const { providerValues: effectiveProviderValues, secretPresence } =
-    prepareResolveInput(provider.manifest.fields || [], providerId, providerValues, secrets)
+  const { providerValues: effectiveProviderValues, secretPresence } = prepareResolveInput(provider.manifest.fields || [], providerId, providerValues, secrets)
   const resolution = provider.resolve({
     providerValues: effectiveProviderValues,
     values: selection.values || {},
@@ -209,44 +190,40 @@ export function inspectSelection ({ providers, selection, providerValues = {}, r
   }
 }
 
-export function resolveSelection (args) {
-  const inspected = inspectSelection(args)
-  if (inspected.issues.length > 0) {
-    const first = inspected.issues[0]
+export function resolveSelection(args) {
+  const { issues, ...resolved } = inspectSelection(args)
+  if (issues.length > 0) {
+    const first = issues[0]
     throw processingError('configuration', typeof first === 'string' ? first : first.message)
   }
-  const { issues: _issues, ...resolved } = inspected
   return resolved
 }
 
-export function createProcessor ({ resolved, secrets = {}, runtime }) {
-  const providerSecrets = collectSecrets(
-    resolved.provider.manifest.fields || [],
-    resolved.providerId,
-    secrets
-  )
+export function createProcessor({ resolved, secrets = {}, runtime }) {
+  const providerSecrets = collectSecrets(resolved.provider.manifest.fields || [], resolved.providerId, secrets)
   return resolved.provider.create(resolved.config, providerSecrets, runtime)
 }
 
-export function prepareResolveInput (manifestFields, providerId, providerValues = {}, secrets = {}) {
+export function prepareResolveInput(manifestFields, providerId, providerValues = {}, secrets = {}) {
   return {
-    providerValues: resolveProviderValues(providerValues, manifestFields),
+    providerValues: resolveProviderValues(manifestFields, providerValues),
     secretPresence: buildSecretPresence(manifestFields, providerId, secrets)
   }
 }
 
-function suitableForRole (capabilities, role) {
+// Resolved capabilities, not Provider identity, decide product suitability.
+function suitableForRole(capabilities, role) {
   const inputs = capabilities?.inputs || []
-  return role === 'primary'
-    ? inputs.includes('audio')
-    : role === 'refine' && inputs.includes('text') && capabilities.instructions
+  return role === 'primary' ? inputs.includes('audio') : role === 'refine' && inputs.includes('text') && capabilities.instructions
 }
 
-function resolveProviderValues (overrides, fields) {
+function resolveProviderValues(fields, overrides) {
   const values = {}
   for (const field of fields) {
-    if (field.type === 'secret') { continue }
-    if (overrides[field.key] !== undefined && overrides[field.key] !== null) {
+    if (field.type === 'secret') {
+      continue
+    }
+    if (overrides[field.key] != null) {
       values[field.key] = overrides[field.key]
     } else if (field.default !== undefined) {
       values[field.key] = field.default
@@ -255,7 +232,7 @@ function resolveProviderValues (overrides, fields) {
   return values
 }
 
-function buildSecretPresence (fields, providerId, secrets) {
+function buildSecretPresence(fields, providerId, secrets) {
   const presence = {}
   for (const field of fields) {
     if (field.type === 'secret') {
@@ -265,35 +242,47 @@ function buildSecretPresence (fields, providerId, secrets) {
   return presence
 }
 
-function collectSecrets (fields, providerId, secrets) {
+function collectSecrets(fields, providerId, secrets) {
   const collected = {}
   for (const field of fields) {
-    if (field.type !== 'secret') { continue }
+    if (field.type !== 'secret') {
+      continue
+    }
     const key = secretKey(providerId, field.key)
-    if (secrets[key]) { collected[field.key] = secrets[key] }
+    if (secrets[key]) {
+      collected[field.key] = secrets[key]
+    }
   }
   return collected
 }
 
-export function secretKey (providerId, fieldKey) {
+// GSettings storage key for one Provider secret field.
+export function secretKey(providerId, fieldKey) {
   return `providers/${providerId}/${fieldKey}`
 }
 
-export function filterContext (context, capabilities) {
+// Context reaches a Processor only when the resolved selection supports it.
+export function filterContext(context, capabilities) {
   return capabilities?.context ? context : { text: '' }
 }
 
-export function normalizeContext (context) {
-  if (!context) { return { text: '' } }
+export function normalizeContext(context) {
+  if (!context) {
+    return { text: '' }
+  }
   const value = context.text
-  if (value === undefined || value === null) { return { text: '' } }
+  if (value === undefined || value === null) {
+    return { text: '' }
+  }
   if (typeof value !== 'string') {
     throw processingError('configuration', 'Context text must be a string')
   }
   return { text: value.trim() }
 }
 
-function traceFor ({ resolved, context }) {
+// Trace records the physical Steps that ran: roles, providers, models,
+// latency, usage, and ids — never request bodies or credentials.
+function traceFor({ resolved, context }) {
   return {
     role: resolved.role,
     provider: resolved.providerId,
@@ -309,7 +298,9 @@ function traceFor ({ resolved, context }) {
   }
 }
 
-function pendingRefineTrace (refineConfig) {
+// Placeholder refine trace before resolution; it keeps history shape stable
+// if resolution fails before traceFor() can run.
+function pendingRefineTrace(refineConfig) {
   return {
     role: 'refine',
     provider: refineConfig.provider,
@@ -325,18 +316,18 @@ function pendingRefineTrace (refineConfig) {
   }
 }
 
-function recordTraceMeta (trace, result) {
+function recordTraceMeta(trace, result) {
   trace.usage = result?.usage ?? null
   trace.requestId = result?.requestId ?? null
   trace.responseId = result?.responseId ?? null
   trace.text = typeof result?.text === 'string' ? result.text.trim() : null
 }
 
-function contextInUse (context, capabilities) {
+function contextInUse(context, capabilities) {
   return capabilities?.context && context.text ? ['text'] : []
 }
 
-function failedTrace (trace, error, elapsedMs) {
+function failedTrace(trace, error, elapsedMs) {
   return {
     ...trace,
     status: 'error',
@@ -346,22 +337,22 @@ function failedTrace (trace, error, elapsedMs) {
   }
 }
 
-function safeMessage (error) {
+// Bound Provider-originated diagnostics before they reach History or UI.
+function safeMessage(error) {
   const message = error?.message ?? String(error)
-  // Bound Provider-originated diagnostics before they reach History or UI.
   return message.length > 300 ? `${message.slice(0, 300)}…` : message
 }
 
-function requireText (result, role) {
+function requireText(result, role) {
   const text = result?.text?.trim()
   if (!text) {
-    throw processingError('no-text', role === 'primary'
-      ? 'No speech was recognized'
-      : 'No text returned from refine processing')
+    throw processingError('no-text', role === 'primary' ? 'No speech was recognized' : 'No text returned from refine processing')
   }
   result.text = text
 }
 
-function assertNotCancelled (signal) {
-  if (signal?.aborted) { throw processingError('cancelled', 'Processing was cancelled') }
+function assertNotCancelled(signal) {
+  if (signal?.aborted) {
+    throw processingError('cancelled', 'Processing was cancelled')
+  }
 }

@@ -4,7 +4,7 @@
 
 import GLib from 'gi://GLib'
 
-import { createProcessor, resolveSelection, processingError } from '../kernel/process.js'
+import { createProcessor, processingError, resolveSelection } from '../kernel/process.js'
 import { SoupHttpTransport } from './transport.js'
 
 export const DEFAULT_REFINE_INSTRUCTIONS = `Refine the speech transcript into concise, natural written text.
@@ -28,38 +28,35 @@ Do not:
 
 Output only the refined text, without quotation marks, code fences, labels, or commentary.`
 
-export function readProcessingConfig (settings, providerRegistry) {
-  let stored = {}
+// Stored JSON that fails to parse falls back to the product defaults.
+export function readProcessingConfig(settings, providerRegistry) {
+  let stored = null
   try {
     stored = JSON.parse(settings.get_string('processing-config') || '{}')
   } catch {
-    stored = {}
+    // A broken persisted config falls back to the product defaults below.
   }
-  return normalizeProcessingConfig(stored, providerRegistry)
+  return normalizeProcessingConfig(stored ?? {}, providerRegistry)
 }
 
-export function writeProcessingConfig (settings, config) {
+export function writeProcessingConfig(settings, config) {
   settings.set_string('processing-config', JSON.stringify(config))
 }
 
-export function switchProcessingProvider (config, role, providerId, providerRegistry) {
+// Switches the selection's provider, remembering per-provider selection
+// values so switching back restores what the user last chose.
+export function switchProcessingProvider(config, role, providerId, providerRegistry) {
   const selection = config[role]
   const valuesByProvider = config.selectionValues[role]
   valuesByProvider[selection.provider] = { ...selection.values }
   selection.provider = providerId
-  selection.values = selectionValues(
-    valuesByProvider[providerId],
-    providerRegistry.get(providerId),
-    role === 'primary' ? 'audio' : 'text'
-  )
+  selection.values = selectionValues(valuesByProvider[providerId], providerRegistry.get(providerId), role === 'primary' ? 'audio' : 'text')
 }
 
-export function normalizeProcessingConfig (stored, providerRegistry) {
+export function normalizeProcessingConfig(stored, providerRegistry) {
   const source = isObject(stored) ? stored : {}
-  const primaryProvider = validProvider(source.primary?.provider, providerRegistry, 'audio') ??
-    firstProvider(providerRegistry, 'audio')
-  const refineProvider = validProvider(source.refine?.provider, providerRegistry, 'text', true) ??
-    firstProvider(providerRegistry, 'text', true)
+  const primaryProvider = validProvider(source.primary?.provider, providerRegistry, 'audio') ?? firstProvider(providerRegistry, 'audio')
+  const refineProvider = validProvider(source.refine?.provider, providerRegistry, 'text', true) ?? firstProvider(providerRegistry, 'text', true)
   const remembered = {
     primary: copyObjectMap(source.selectionValues?.primary),
     refine: copyObjectMap(source.selectionValues?.refine)
@@ -71,9 +68,7 @@ export function normalizeProcessingConfig (stored, providerRegistry) {
     primary: {
       provider: primaryProvider,
       values: selectionValues(
-        source.primary?.provider === primaryProvider
-          ? source.primary?.values
-          : remembered.primary[primaryProvider],
+        source.primary?.provider === primaryProvider ? source.primary?.values : remembered.primary[primaryProvider],
         providerRegistry.get(primaryProvider),
         'audio'
       )
@@ -82,93 +77,104 @@ export function normalizeProcessingConfig (stored, providerRegistry) {
       enabled: Boolean(source.refine?.enabled),
       provider: refineProvider,
       values: selectionValues(
-        source.refine?.provider === refineProvider
-          ? source.refine?.values
-          : remembered.refine[refineProvider],
+        source.refine?.provider === refineProvider ? source.refine?.values : remembered.refine[refineProvider],
         providerRegistry.get(refineProvider),
         'text'
       ),
-      instructions: typeof source.refine?.instructions === 'string'
-        ? source.refine.instructions
-        : DEFAULT_REFINE_INSTRUCTIONS,
+      instructions: typeof source.refine?.instructions === 'string' ? source.refine.instructions : DEFAULT_REFINE_INSTRUCTIONS,
       onError: source.refine?.onError === 'abort' ? 'abort' : 'fallback'
     }
   }
 }
 
-function selectionValues (stored, provider, input) {
+// Provider manifest defaults first, so stored user values override them.
+function selectionValues(stored, provider, input) {
   return {
     ...(provider?.manifest?.defaults?.[input] || {}),
     ...(isObject(stored) ? stored : {})
   }
 }
 
-export function providerIdsFor (providerRegistry, input, instructions = false) {
-  return [...providerRegistry]
-    .filter(([, provider]) => provider.supports(input, { instructions }))
-    .map(([id]) => id)
+export function providerIdsFor(providerRegistry, input, instructions = false) {
+  return [...providerRegistry].filter(([, provider]) => provider.supports(input, { instructions })).map(([id]) => id)
 }
 
-function firstProvider (providerRegistry, input, instructions = false) {
+function firstProvider(providerRegistry, input, instructions = false) {
   return providerIdsFor(providerRegistry, input, instructions)[0] ?? null
 }
 
-function validProvider (id, providerRegistry, input, instructions = false) {
+function validProvider(id, providerRegistry, input, instructions = false) {
   const provider = typeof id === 'string' ? providerRegistry.get(id) : null
   return provider?.supports(input, { instructions }) ? id : null
 }
 
-function copyObjectMap (value) {
-  if (!isObject(value)) { return {} }
+function copyObjectMap(value) {
+  if (!isObject(value)) {
+    return {}
+  }
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, isObject(item) ? { ...item } : {}]))
 }
 
-function isObject (value) {
+function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-export function snapshotProcessingConfig (settings, providers) {
+// Executes the current configuration with environment-variable fallbacks
+// filled in. Produces the immutable per-run view the Kernel receives.
+export function snapshotProcessingConfig(settings, providers) {
   const config = readProcessingConfig(settings, providers)
 
   for (const [providerId, provider] of providers) {
-    const values = config.providers[providerId] ??= {}
+    const values = (config.providers[providerId] ??= {})
     for (const field of provider.manifest.fields || []) {
-      if (field.type === 'secret' || values[field.key] != null) { continue }
+      if (field.type === 'secret' || values[field.key] != null) {
+        continue
+      }
       const envValue = firstEnvValue(field.env)
-      if (envValue) { values[field.key] = envValue }
+      if (envValue) {
+        values[field.key] = envValue
+      }
     }
   }
 
   return config
 }
 
-export function snapshotProviderSecrets (settings, providers) {
+export function snapshotProviderSecrets(settings, providers) {
   const secrets = {}
   const stored = settings.get_value('provider-secrets')?.deep_unpack() ?? {}
 
   for (const [storageKey, value] of Object.entries(stored)) {
     const trimmed = String(value ?? '').trim()
-    if (trimmed) { secrets[storageKey] = trimmed }
+    if (trimmed) {
+      secrets[storageKey] = trimmed
+    }
   }
 
   for (const [providerId, provider] of providers) {
     for (const field of provider.manifest.fields || []) {
-      if (field.type !== 'secret') { continue }
+      if (field.type !== 'secret') {
+        continue
+      }
       const key = `providers/${providerId}/${field.key}`
-      if (secrets[key]) { continue }
+      if (secrets[key]) {
+        continue
+      }
       const envValue = firstEnvValue(field.env)
-      if (envValue) { secrets[key] = envValue }
+      if (envValue) {
+        secrets[key] = envValue
+      }
     }
   }
 
   return secrets
 }
 
-export function snapshotContext (settings) {
+export function snapshotContext(settings) {
   return { text: String(settings.get_string?.('context') ?? '').trim() }
 }
 
-export function primaryReady (settings, providers) {
+export function primaryReady(settings, providers) {
   const config = snapshotProcessingConfig(settings, providers)
   try {
     resolveSelection({
@@ -184,15 +190,20 @@ export function primaryReady (settings, providers) {
   }
 }
 
-function firstEnvValue (names = []) {
+function firstEnvValue(names = []) {
   for (const name of names) {
     const value = GLib.getenv(name)?.trim()
-    if (value) { return value }
+    if (value) {
+      return value
+    }
   }
   return null
 }
 
-export async function runConnectionTest ({ settings, providers, role }) {
+// Verifies one configured selection by running the real Processor once.
+// Primary uses silent audio (an empty transcript counts as a working round
+// trip); Refine uses a fixed text prompt.
+export async function runConnectionTest({ settings, providers, role }) {
   if (role !== 'primary' && role !== 'refine') {
     throw processingError('configuration', `Unknown connection test role: ${String(role)}`)
   }
@@ -204,10 +215,13 @@ export async function runConnectionTest ({ settings, providers, role }) {
     throw processingError('configuration', 'Enable Refine first.')
   }
 
-  const selection = role === 'primary' ? config.primary : {
-    provider: config.refine.provider,
-    values: config.refine.values
-  }
+  const selection =
+    role === 'primary'
+      ? config.primary
+      : {
+          provider: config.refine.provider,
+          values: config.refine.values
+        }
   const resolved = resolveSelection({
     providers,
     selection,
@@ -223,9 +237,8 @@ export async function runConnectionTest ({ settings, providers, role }) {
       secrets,
       runtime: { transport, clock: { now: () => 0 } }
     })
-    const input = role === 'primary'
-      ? { kind: 'audio', base64: silenceWavBase64(16000), mimeType: 'audio/wav', durationMs: 250 }
-      : { kind: 'text', text: 'Reply with OK.' }
+    const input =
+      role === 'primary' ? { kind: 'audio', base64: silenceWavBase64(16000), mimeType: 'audio/wav', durationMs: 250 } : { kind: 'text', text: 'Reply with OK.' }
 
     try {
       await processor.process({
@@ -235,7 +248,9 @@ export async function runConnectionTest ({ settings, providers, role }) {
         signal: null
       })
     } catch (error) {
-      if (error.category === 'no-text') { return }
+      if (error.category === 'no-text') {
+        return
+      }
       throw error
     }
   } finally {
@@ -243,7 +258,8 @@ export async function runConnectionTest ({ settings, providers, role }) {
   }
 }
 
-function silenceWavBase64 (sampleRate) {
+// A quarter-second of silent 16 kHz mono PCM wrapped in a WAV container.
+function silenceWavBase64(sampleRate) {
   const durationSeconds = 0.25
   const sampleCount = Math.floor(sampleRate * durationSeconds)
   const dataBytes = sampleCount * 2
@@ -251,7 +267,9 @@ function silenceWavBase64 (sampleRate) {
   const header = new ArrayBuffer(44)
   const view = new DataView(header)
   const writeAscii = (offset, text) => {
-    for (let i = 0; i < text.length; i++) { view.setUint8(offset + i, text.charCodeAt(i)) }
+    for (let i = 0; i < text.length; i++) {
+      view.setUint8(offset + i, text.charCodeAt(i))
+    }
   }
 
   writeAscii(0, 'RIFF')

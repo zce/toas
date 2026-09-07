@@ -1,3 +1,6 @@
+// Processing configuration persistence: defaults, normalization,
+// provider switching, and malformed input handling.
+
 import {
   DEFAULT_REFINE_INSTRUCTIONS,
   normalizeProcessingConfig,
@@ -6,16 +9,22 @@ import {
   writeProcessingConfig
 } from '../host/config.js'
 import { providers } from '../kernel/providers/registry.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 class FakeSettings {
-  constructor (text = '{}') { this.text = text }
-  get_string (key) {
-    if (key !== 'processing-config') { throw new Error(`unexpected key ${key}`) }
+  constructor(text = '{}') {
+    this.text = text
+  }
+  get_string(key) {
+    if (key !== 'processing-config') {
+      throw new Error(`unexpected key ${key}`)
+    }
     return this.text
   }
-  set_string (key, value) {
-    if (key !== 'processing-config') { throw new Error(`unexpected key ${key}`) }
+  set_string(key, value) {
+    if (key !== 'processing-config') {
+      throw new Error(`unexpected key ${key}`)
+    }
     this.text = value
   }
 }
@@ -37,20 +46,26 @@ test('stored Refine instructions remain verbatim user-owned data', () => {
 
 test('Provider values and arbitrary selection values round trip generically', () => {
   const settings = new FakeSettings()
-  const expected = normalizeProcessingConfig({
-    providers: { custom: { region: 'cn', deployment: 'voice' } },
-    primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr', language: 'zh' } },
-    refine: { enabled: true, provider: 'openai-compatible', values: { model: 'private-model' } }
-  }, providers)
+  const expected = normalizeProcessingConfig(
+    {
+      providers: { custom: { region: 'cn', deployment: 'voice' } },
+      primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr', language: 'zh' } },
+      refine: { enabled: true, provider: 'openai-compatible', values: { model: 'private-model' } }
+    },
+    providers
+  )
   writeProcessingConfig(settings, expected)
   expectEqual(readProcessingConfig(settings, providers), expected)
 })
 
 test('Refine selection values survive Provider switches and reload', () => {
   const settings = new FakeSettings()
-  const config = normalizeProcessingConfig({
-    refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro' } }
-  }, providers)
+  const config = normalizeProcessingConfig(
+    {
+      refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro' } }
+    },
+    providers
+  )
 
   switchProcessingProvider(config, 'refine', 'openai-compatible', providers)
   config.refine.values.model = 'private-refine-model'

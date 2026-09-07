@@ -1,12 +1,11 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import St from 'gi://St'
-
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { presentFailure } from './host/feedback.js'
-import { HistoryStore, extractText } from './host/history.js'
+import { extractText, HistoryStore } from './host/history.js'
 import { PushToTalkBinding } from './host/input.js'
 import { OnboardingManager } from './host/onboarding.js'
 import { ToasOrchestrator } from './host/orchestrator.js'
@@ -17,8 +16,10 @@ import { ToasIndicator } from './ui/indicator.js'
 import { ShellNotifier } from './ui/notifier.js'
 import { ShellOverlayView, ToasOverlayPresenter } from './ui/overlay.js'
 
+// Composition root: builds the collaborator graph on enable and tears it
+// down completely on disable.
 export default class ToasExtension extends Extension {
-  enable () {
+  enable() {
     try {
       this._settings = this.getSettings()
       this._history = new HistoryStore(this._settings)
@@ -27,7 +28,9 @@ export default class ToasExtension extends Extension {
 
       this._indicator = new ToasIndicator({
         onToggle: () => {
-          if (this._guardReadyToRecord()) { this._orchestrator?.toggle() }
+          if (this._guardReadyToRecord()) {
+            this._orchestrator?.toggle()
+          }
         },
         onClearHistory: () => this._clearHistory(),
         onOpenPreferences: () => this._openPreferences(),
@@ -37,9 +40,8 @@ export default class ToasExtension extends Extension {
         onCanRetrySession: entry => this._history.resolveAudio(entry).available,
         onPrivateModeChanged: enabled => this._setPrivateMode(enabled)
       })
-      this._privateModeChangedId = this._settings.connect(
-        'changed::private-mode',
-        () => this._indicator?.setPrivateMode(this._settings.get_boolean('private-mode'))
+      this._privateModeChangedId = this._settings.connect('changed::private-mode', () =>
+        this._indicator?.setPrivateMode(this._settings.get_boolean('private-mode'))
       )
       this._indicator.setPrivateMode(this._settings.get_boolean('private-mode'))
 
@@ -67,6 +69,8 @@ export default class ToasExtension extends Extension {
       })
       this._onboarding.maybeShowOnboarding(this._kernelRunner.primaryReady())
 
+      // Dialog creation can fail inside a broken Shell session; the rest of
+      // the extension keeps working without a confirmation dialog.
       try {
         this._confirmDialog = new ConfirmDialog({
           title: 'Clear local history?',
@@ -95,11 +99,13 @@ export default class ToasExtension extends Extension {
     }
   }
 
-  disable () {
+  disable() {
     this._teardown()
   }
 
-  _teardown () {
+  // Tear-down order mirrors construction: consumers first, collaborators
+  // with background resources last. Every step tolerates partial setup.
+  _teardown() {
     this._inputBinding?.destroy()
     this._inputBinding = null
 
@@ -134,46 +140,46 @@ export default class ToasExtension extends Extension {
     this._settings = null
   }
 
-  _guardReadyToRecord () {
+  _guardReadyToRecord() {
     const ready = this._kernelRunner?.primaryReady() ?? false
     return !this._onboarding.guardUnconfigured(ready)
   }
 
-  _setPrivateMode (enabled) {
+  _setPrivateMode(enabled) {
     this._settings?.set_boolean('private-mode', Boolean(enabled))
   }
 
-  _clearHistory () {
+  _clearHistory() {
     if (this._confirmDialog) {
       this._confirmDialog.open(global.get_current_time())
     }
   }
 
-  _doClearHistory () {
+  _doClearHistory() {
     const cleared = this._orchestrator?.clearHistory()
-    if (cleared === null || cleared === undefined) { return }
+    if (cleared == null) {
+      return
+    }
 
-    Main.notify(
-      cleared > 0
-        ? `Cleared ${cleared} item${cleared === 1 ? '' : 's'}`
-        : 'History is already empty'
-    )
+    Main.notify(cleared > 0 ? `Cleared ${cleared} item${cleared === 1 ? '' : 's'}` : 'History is already empty')
   }
 
-  _copySession (entry, notifier) {
+  _copySession(entry, notifier) {
     const text = extractText(entry)
-    if (!text) { return }
+    if (!text) {
+      return
+    }
 
     this._historyClipboard?.set_text(St.ClipboardType.CLIPBOARD, text)
     notifier.notify('Copied', 'Your words are on the clipboard.')
     this._indicator?.menu.close()
   }
 
-  _listHistory () {
+  _listHistory() {
     return this._history.list({ limit: 30 })
   }
 
-  async _retrySession (entry, notifier) {
+  async _retrySession(entry, notifier) {
     this._indicator?.menu.close()
     notifier.notify('Trying again', 'Processing the retained recording again.')
     const attempt = await this._orchestrator?.retry(entry)
@@ -182,19 +188,12 @@ export default class ToasExtension extends Extension {
       notifier.notify('Retry succeeded', 'Open the menu to copy the new result.')
     } else if (attempt?.status === 'error') {
       const error = attempt.refine?.error ?? attempt.transcribe?.error
-      const presentation = presentFailure(
-        error ? { category: error.code, message: error.message } : null
-      )
-      notifier.notify(
-        'Retry failed',
-        presentation
-          ? `${presentation.summary}. ${presentation.guidance}`
-          : 'Try again.'
-      )
+      const presentation = presentFailure(error ? { category: error.code, message: error.message } : null)
+      notifier.notify('Retry failed', presentation ? `${presentation.summary}. ${presentation.guidance}` : 'Try again.')
     }
   }
 
-  _openPreferences () {
+  _openPreferences() {
     // GNOME 50's Extension.openPreferences() does not consume its async result,
     // so use the Shell D-Bus method directly to avoid an unhandled rejection.
     Gio.DBus.session.call(

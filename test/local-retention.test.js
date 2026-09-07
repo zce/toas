@@ -10,7 +10,7 @@ const tmpRoot = GLib.dir_make_tmp('toas-retention-test-XXXXXX')
 GLib.setenv('XDG_STATE_HOME', tmpRoot, true)
 
 class FakeSettings {
-  constructor (values = {}) {
+  constructor(values = {}) {
     this.values = {
       'private-mode': false,
       'auto-paste': true,
@@ -24,65 +24,76 @@ class FakeSettings {
     this.nextHandlerId = 1
   }
 
-  get_boolean (key) { return Boolean(this.values[key]) }
-  get_uint (key) { return Number(this.values[key] ?? 0) }
-  get_string (key) { return String(this.values[key] ?? '') }
+  get_boolean(key) {
+    return Boolean(this.values[key])
+  }
+  get_uint(key) {
+    return Number(this.values[key] ?? 0)
+  }
+  get_string(key) {
+    return String(this.values[key] ?? '')
+  }
 
-  set_boolean (key, value) {
+  set_boolean(key, value) {
     const next = Boolean(value)
-    if (this.values[key] === next) { return false }
+    if (this.values[key] === next) {
+      return false
+    }
     this.values[key] = next
     this._emitChanged(key)
     return true
   }
 
-  set_uint (key, value) {
+  set_uint(key, value) {
     const next = Number(value)
-    if (this.values[key] === next) { return false }
+    if (this.values[key] === next) {
+      return false
+    }
     this.values[key] = next
     this._emitChanged(key)
     return true
   }
 
-  connect (signal, callback) {
+  connect(signal, callback) {
     const id = this.nextHandlerId++
     this.handlers.set(id, { signal, callback })
     return id
   }
 
-  disconnect (id) { this.handlers.delete(id) }
+  disconnect(id) {
+    this.handlers.delete(id)
+  }
 
-  _emitChanged (key) {
+  _emitChanged(key) {
     for (const { signal, callback } of this.handlers.values()) {
-      if (signal === 'changed' || signal === `changed::${key}`) { callback(this, key) }
+      if (signal === 'changed' || signal === `changed::${key}`) {
+        callback(this, key)
+      }
     }
   }
 }
 
-function fileExists (path) {
+function fileExists(path) {
   return GLib.file_test(path, GLib.FileTest.EXISTS)
 }
 
-function readText (path) {
+function readText(path) {
   const [, bytes] = GLib.file_get_contents(path)
   return new TextDecoder().decode(bytes)
 }
 
-function schemaKey (source, name) {
+function schemaKey(source, name) {
   return source.match(new RegExp(`<key name="${name}"[^>]*>[\\s\\S]*?<\\/key>`))?.[0] ?? ''
 }
 
-function makeStoredSession ({ recordingLimit = 20, privateMode = false, kernelError = null } = {}) {
+function makeStoredSession({ recordingLimit = 20, privateMode = false, kernelError = null } = {}) {
   const settings = new FakeSettings({
     'recording-limit': recordingLimit,
     'private-mode': privateMode
   })
   const history = new HistoryStore(settings)
   history.clear()
-  const recordingPath = GLib.build_filenamev([
-    history.recordingsDirectory,
-    `${GLib.uuid_string_random()}.wav`
-  ])
+  const recordingPath = GLib.build_filenamev([history.recordingsDirectory, `${GLib.uuid_string_random()}.wav`])
   GLib.file_set_contents(recordingPath, 'fake-audio')
   const recording = {
     id: GLib.uuid_string_random(),

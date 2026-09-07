@@ -1,17 +1,13 @@
-import { Provider } from './provider.js'
-import { qwenProvider } from './qwen.js'
 import { doubaoProvider } from './doubao.js'
 import { mimoProvider } from './mimo.js'
-import { openaiProvider, openaiCompatibleProvider } from './openai.js'
+import { openaiCompatibleProvider, openaiProvider } from './openai.js'
+import { Provider } from './provider.js'
+import { qwenProvider } from './qwen.js'
 
-const registered = [
-  qwenProvider,
-  doubaoProvider,
-  mimoProvider,
-  openaiProvider,
-  openaiCompatibleProvider
-]
+const registered = [qwenProvider, doubaoProvider, mimoProvider, openaiProvider, openaiCompatibleProvider]
 
+// Static registry: construction-time checks keep a broken Provider
+// definition from surfacing as a runtime surprise.
 export const providers = new Map()
 
 for (const provider of registered) {

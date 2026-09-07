@@ -1,10 +1,7 @@
-import {
-  RecorderOutcomeKind,
-  recordingOutcomeOk,
-  recordingOutcomeShortTap,
-  recordingOutcomeCaptureFailure
-} from '../host/audio.js'
-import { test, expectEqual, run } from './harness.js'
+// Recorder outcome payload shapes for the common terminal states.
+
+import { RecorderOutcomeKind, recordingOutcomeCaptureFailure, recordingOutcomeOk, recordingOutcomeShortTap } from '../host/audio.js'
+import { expectEqual, run, test } from './harness.js'
 
 test('ok outcome carries the recording', () => {
   const recording = { id: 'r1', path: '/tmp/r1.wav', durationMs: 4200 }

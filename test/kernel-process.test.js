@@ -1,13 +1,13 @@
 // Kernel behavior tests for the runtime-agnostic processing seam.
 // No network and no GNOME runtime are required.
 
-import { process as kernelProcess, filterContext, normalizeContext, secretKey } from '../kernel/process.js'
+import { filterContext, process as kernelProcess, normalizeContext, secretKey } from '../kernel/process.js'
 import { providers as registry } from '../kernel/providers/registry.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 const providers = new Map(registry)
 
-function runKernel (args) {
+function runKernel(args) {
   return kernelProcess({ ...args, providers })
 }
 
@@ -15,24 +15,28 @@ const AUDIO = { kind: 'audio', base64: 'aW5zZXJ0LWF1ZGlv', mimeType: 'audio/wav'
 const CONTEXT = { text: '技术讨论。术语表：useEffect, usePaymentMethods' }
 
 class FakeTransport {
-  constructor ({ responses = [] } = {}) {
+  constructor({ responses = [] } = {}) {
     this.requests = []
     this._responses = [...responses]
   }
 
-  async send (request, signal) {
+  async send(request, signal) {
     this.requests.push({ ...request, body: decodeBody(request.body) })
     if (signal?.aborted) {
       throw Object.assign(new Error('cancelled'), { category: 'cancelled' })
     }
     const next = this._responses.shift()
-    if (!next) { throw new Error('FakeTransport: no queued response') }
-    if (next.throw) { throw next.throw }
+    if (!next) {
+      throw new Error('FakeTransport: no queued response')
+    }
+    if (next.throw) {
+      throw next.throw
+    }
     return next
   }
 }
 
-function chatResponse (text, extra = {}) {
+function chatResponse(text, extra = {}) {
   return {
     status: 200,
     headers: {},
@@ -46,7 +50,7 @@ function chatResponse (text, extra = {}) {
   }
 }
 
-function asr3Response (text, extra = {}) {
+function asr3Response(text, extra = {}) {
   return {
     status: 200,
     headers: {},
@@ -61,7 +65,7 @@ function asr3Response (text, extra = {}) {
   }
 }
 
-function dashscopeResponse (text, extra = {}) {
+function dashscopeResponse(text, extra = {}) {
   return {
     status: 200,
     headers: {},
@@ -78,16 +82,22 @@ function dashscopeResponse (text, extra = {}) {
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
-function encodeBody (value) { return encoder.encode(JSON.stringify(value)) }
-function decodeBody (bytes) {
-  try { return JSON.parse(decoder.decode(bytes)) } catch { return null }
+function encodeBody(value) {
+  return encoder.encode(JSON.stringify(value))
+}
+function decodeBody(bytes) {
+  try {
+    return JSON.parse(decoder.decode(bytes))
+  } catch {
+    return null
+  }
 }
 
-function runtimeFor (transport) {
+function runtimeFor(transport) {
   return { transport, clock: { now: () => 0 } }
 }
 
-function baseConfig ({ provider = 'qwen', refine = { enabled: false } } = {}) {
+function baseConfig({ provider = 'qwen', refine = { enabled: false } } = {}) {
   return {
     primary: { provider, values: { model: 'qwen3-asr-flash' } },
     refine
@@ -113,8 +123,7 @@ test('qwen only: disabled refine makes exactly one call and one trace entry', as
   })
 
   expectEqual(transport.requests.length, 1)
-  expectEqual(transport.requests[0].url,
-    'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
+  expectEqual(transport.requests[0].url, 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
   expectEqual(result.text, 'hello world')
   expectEqual(result.trace.length, 1)
   expectEqual(result.trace[0].role, 'primary')
@@ -125,10 +134,7 @@ test('qwen only: disabled refine makes exactly one call and one trace entry', as
 
 test('qwen to mimo: refine runs the configured provider in order', async () => {
   const transport = new FakeTransport({
-    responses: [
-      dashscopeResponse('raw transcript'),
-      chatResponse('refined text', { model: 'mimo-text' })
-    ]
+    responses: [dashscopeResponse('raw transcript'), chatResponse('refined text', { model: 'mimo-text' })]
   })
   const result = await runKernel({
     config: {
@@ -158,8 +164,7 @@ test('qwen to mimo: refine runs the configured provider in order', async () => {
   expectEqual(result.trace[1].input, 'text')
   expectEqual(result.warning, null)
 
-  expectTruthy(transport.requests[0].body.input.messages.every(m =>
-    JSON.stringify(m).indexOf('Refine without changing meaning.') === -1))
+  expectTruthy(transport.requests[0].body.input.messages.every(m => JSON.stringify(m).indexOf('Refine without changing meaning.') === -1))
   expectTruthy(JSON.stringify(transport.requests[1].body).includes('Refine without changing meaning.'))
 })
 
@@ -240,7 +245,10 @@ test('mimo to openai: cross-provider composition has no special casing', async (
   expectEqual(transport.requests.length, 2)
   expectEqual(transport.requests[0].url, 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions')
   expectEqual(transport.requests[1].url, 'https://api.openai.com/v1/chat/completions')
-  expectEqual(result.trace.map(t => t.provider), ['mimo', 'openai'])
+  expectEqual(
+    result.trace.map(t => t.provider),
+    ['mimo', 'openai']
+  )
 })
 
 test('mimo to mimo: one shared credential source, independent models', async () => {
@@ -449,15 +457,17 @@ test('no-text primary response is a safe failure category', async () => {
 
 test('ASR silence answer (400, no words) is no-text, not a service error', async () => {
   const transport = new FakeTransport({
-    responses: [{
-      status: 400,
-      headers: {},
-      body: encodeBody({
-        request_id: 'req-400',
-        code: 'CLIENT_ERROR',
-        message: 'ASR_RESPONSE_HAVE_NO_WORDS'
-      })
-    }]
+    responses: [
+      {
+        status: 400,
+        headers: {},
+        body: encodeBody({
+          request_id: 'req-400',
+          code: 'CLIENT_ERROR',
+          message: 'ASR_RESPONSE_HAVE_NO_WORDS'
+        })
+      }
+    ]
   })
   let threw = null
   try {
@@ -482,11 +492,13 @@ test('ASR silence answer (400, no words) is no-text, not a service error', async
 
 test('other 400 answers stay service-category errors', async () => {
   const transport = new FakeTransport({
-    responses: [{
-      status: 400,
-      headers: {},
-      body: encodeBody({ code: 'CLIENT_ERROR', message: 'InvalidParameter' })
-    }]
+    responses: [
+      {
+        status: 400,
+        headers: {},
+        body: encodeBody({ code: 'CLIENT_ERROR', message: 'InvalidParameter' })
+      }
+    ]
   })
   let threw = null
   try {
@@ -510,7 +522,9 @@ test('other 400 answers stay service-category errors', async () => {
 })
 
 class AbortNow {
-  constructor () { this.aborted = true }
+  constructor() {
+    this.aborted = true
+  }
 }
 
 test('cancelled signal aborts before any call', async () => {
@@ -535,18 +549,24 @@ test('cancelled signal aborts before any call', async () => {
 })
 
 class CancelOnSend {
-  constructor () {
+  constructor() {
     this.aborted = false
     this._listeners = []
   }
-  abort () {
+  abort() {
     this.aborted = true
-    for (const listener of this._listeners.splice(0)) { listener() }
+    for (const listener of this._listeners.splice(0)) {
+      listener()
+    }
   }
-  addEventListener (_type, listener) { this._listeners.push(listener) }
-  removeEventListener (_type, listener) {
+  addEventListener(_type, listener) {
+    this._listeners.push(listener)
+  }
+  removeEventListener(_type, listener) {
     const index = this._listeners.indexOf(listener)
-    if (index >= 0) { this._listeners.splice(index, 1) }
+    if (index >= 0) {
+      this._listeners.splice(index, 1)
+    }
   }
 }
 
@@ -557,7 +577,9 @@ test('cancel during refine never converts into a fallback warning', async () => 
   })
   const originalSend = transport.send.bind(transport)
   transport.send = async (request, sig) => {
-    if (transport.requests.length === 1) { signal.abort() }
+    if (transport.requests.length === 1) {
+      signal.abort()
+    }
     return originalSend(request, sig)
   }
 
@@ -611,10 +633,12 @@ test('context is delivered verbatim only to roles that support it', async () => 
   const primaryBody = transport.requests[0].body
   expectTruthy(primaryBody.messages.every(message => !JSON.stringify(message).includes('useEffect')))
 
+  // The refine request carries the user's Context verbatim inside the
+  // user-owned <context> section, never inside the system prompt.
   const refineBody = transport.requests[1].body
-  const systemMessages = refineBody.messages.filter(message => message.role === 'system')
-  expectEqual(systemMessages.length, 1)
-  expectEqual(systemMessages[0].content, CONTEXT.text)
+  expectTruthy(refineBody.messages[0].role === 'system')
+  expectTruthy(!refineBody.messages[0].content.includes('useEffect'))
+  expectTruthy(refineBody.messages[1].content.includes(`<context>\n${CONTEXT.text}\n</context>`))
 })
 
 test('normalizeContext trims surrounding whitespace and accepts empty', () => {
@@ -626,7 +650,11 @@ test('normalizeContext trims surrounding whitespace and accepts empty', () => {
 
 test('normalizeContext rejects non-string text', () => {
   let threw = null
-  try { normalizeContext({ text: 42 }) } catch (error) { threw = error }
+  try {
+    normalizeContext({ text: 42 })
+  } catch (error) {
+    threw = error
+  }
   expectEqual(threw.category, 'configuration')
 })
 
@@ -643,10 +671,7 @@ test('filterContext passes text only to capabilities that allow it', () => {
 
 test('trace and warnings never carry credentials or context contents', async () => {
   const transport = new FakeTransport({
-    responses: [
-      dashscopeResponse('primary text'),
-      { status: 500, headers: {}, body: encodeBody({ secret: 'leak' }) }
-    ]
+    responses: [dashscopeResponse('primary text'), { status: 500, headers: {}, body: encodeBody({ secret: 'leak' }) }]
   })
   const result = await runKernel({
     config: {
@@ -676,8 +701,10 @@ test('trace and warnings never carry credentials or context contents', async () 
 
 test('provider behavior is identical through an interchangeable transport', async () => {
   class OtherTransport {
-    constructor () { this.requests = [] }
-    async send (request) {
+    constructor() {
+      this.requests = []
+    }
+    async send(request) {
       this.requests.push(request)
       return dashscopeResponse('same text')
     }
@@ -712,8 +739,7 @@ test('qwen audio-3.0 and fun-asr route to the asr3 endpoint and context part', a
     })
 
     expectEqual(transport.requests.length, 1)
-    expectEqual(transport.requests[0].url,
-      'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
+    expectEqual(transport.requests[0].url, 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
     const body = transport.requests[0].body
     expectEqual(body.input.messages.length, 2)
     expectEqual(body.input.messages[0].content[0].type, 'input_text')
@@ -726,14 +752,16 @@ test('qwen audio-3.0 and fun-asr route to the asr3 endpoint and context part', a
 
 test('qwen3 versioned model routes to the compatible-mode endpoint', async () => {
   const transport = new FakeTransport({
-    responses: [{
-      status: 200,
-      headers: {},
-      body: encodeBody({
-        choices: [{ message: { content: 'compat text' }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 10, completion_tokens: 5 }
-      })
-    }]
+    responses: [
+      {
+        status: 200,
+        headers: {},
+        body: encodeBody({
+          choices: [{ message: { content: 'compat text' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 }
+        })
+      }
+    ]
   })
   const result = await runKernel({
     config: {
@@ -751,8 +779,7 @@ test('qwen3 versioned model routes to the compatible-mode endpoint', async () =>
   })
 
   expectEqual(transport.requests.length, 1)
-  expectEqual(transport.requests[0].url,
-    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions')
+  expectEqual(transport.requests[0].url, 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions')
   const body = transport.requests[0].body
   expectEqual(body.messages[0].role, 'system')
   expectEqual(body.messages[0].content, CONTEXT.text)
@@ -776,7 +803,9 @@ test('unknown qwen models are rejected without guessing an invocation protocol',
       runtime: runtimeFor(transport),
       signal: null
     })
-  } catch (error) { threw = error }
+  } catch (error) {
+    threw = error
+  }
   expectEqual(threw.category, 'configuration')
   expectEqual(transport.requests.length, 0)
 })
@@ -797,7 +826,9 @@ test('resolved input capabilities, not Provider identity, decide product suitabi
       runtime: runtimeFor(transport),
       signal: null
     })
-  } catch (error) { threw = error }
+  } catch (error) {
+    threw = error
+  }
   expectEqual(threw.category, 'configuration')
   expectEqual(threw.message.includes('primary audio processing'), true)
   expectEqual(transport.requests.length, 0)

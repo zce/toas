@@ -1,26 +1,15 @@
 import GLib from 'gi://GLib'
 
-import {
-  AudioRecorder,
-  DEFAULT_SAMPLE_RATE,
-  RecorderOutcomeKind,
-  resolveMinimumRecordingDuration,
-  resolveSampleRate
-} from './audio.js'
+import { AudioRecorder, DEFAULT_SAMPLE_RATE, RecorderOutcomeKind, resolveMinimumRecordingDuration, resolveSampleRate } from './audio.js'
 import { presentFailure } from './feedback.js'
 import { AttemptSignal } from './transport.js'
 
+// Drives one voice input through record -> process -> deliver. Each run owns
+// its recorder and recording until History (or deletion in private mode)
+// takes them over; every asynchronous step re-checks that the run is still
+// the live one before touching state.
 export class ToasOrchestrator {
-  constructor ({
-    settings,
-    history,
-    kernel,
-    output,
-    overlay,
-    notifier,
-    recorderFactory = null,
-    onStateChanged = null
-  }) {
+  constructor({ settings, history, kernel, output, overlay, notifier, recorderFactory = null, onStateChanged = null }) {
     this._settings = settings
     this._history = history
     this._kernel = kernel
@@ -35,7 +24,9 @@ export class ToasOrchestrator {
       ['output', output],
       ['overlay', overlay],
       ['notifier', notifier]
-    ].filter(([, value]) => !value).map(([name]) => name)
+    ]
+      .filter(([, value]) => !value)
+      .map(([name]) => name)
     if (missing.length > 0) {
       throw new Error(`ToasOrchestrator requires collaborators: ${missing.join(', ')}`)
     }
@@ -46,13 +37,18 @@ export class ToasOrchestrator {
     this._abortSignal = null
   }
 
-  toggle () {
-    if (this._state === 'idle') { this.begin() } else if (this._state === 'recording') { this.end() }
+  toggle() {
+    if (this._state === 'idle') this.begin()
+    else if (this._state === 'recording') this.end()
   }
 
-  begin () {
-    if (this._state !== 'idle') { return }
+  begin() {
+    if (this._state !== 'idle') {
+      return
+    }
 
+    // Private mode is snapshotted at begin; flipping the switch mid-run
+    // cannot change what this run retains.
     const run = {
       time: new Date().toISOString(),
       private: Boolean(this._settings?.get_boolean?.('private-mode')),
@@ -67,7 +63,9 @@ export class ToasOrchestrator {
     run.recorder = this._recorderFactory({
       recordingsDirectory: this._history.recordingsDirectory,
       onLevel: level => {
-        if (this._run === run && this._state === 'recording') { this._overlay.setLevel(level) }
+        if (this._run === run && this._state === 'recording') {
+          this._overlay.setLevel(level)
+        }
       },
       onError: error => this._failLive(run, 'recording', error),
       sampleRate: resolveSampleRate(this._settings ?? {}),
@@ -80,8 +78,10 @@ export class ToasOrchestrator {
     run.recorder.start().catch(error => this._failLive(run, 'recording', error))
   }
 
-  async end () {
-    if (this._state !== 'recording') { return }
+  async end() {
+    if (this._state !== 'recording') {
+      return
+    }
 
     const run = this._run
     this._state = 'transcribing'
@@ -93,10 +93,11 @@ export class ToasOrchestrator {
       this._failLive(run, 'recording', error)
       return
     }
-    if (this._run !== run) { return }
+    if (this._run !== run) {
+      return
+    }
 
-    if (outcome.kind === RecorderOutcomeKind.SHORT_TAP ||
-        outcome.kind === RecorderOutcomeKind.CANCELLED) {
+    if (outcome.kind === RecorderOutcomeKind.SHORT_TAP || outcome.kind === RecorderOutcomeKind.CANCELLED) {
       this._finishRun(run)
       this._transition('idle')
       return
@@ -112,10 +113,7 @@ export class ToasOrchestrator {
     this._transition('transcribing')
 
     if (outcome.kind === RecorderOutcomeKind.SIZE_LIMIT) {
-      this._notifier.notify(
-        'Recording limit reached',
-        'The recording hit its cap, so it was cut off and is being processed.'
-      )
+      this._notifier.notify('Recording limit reached', 'The recording hit its cap, so it was cut off and is being processed.')
     }
 
     // The window focused when recording stops owns this delivery. Capture it
@@ -124,17 +122,19 @@ export class ToasOrchestrator {
     await this._processLive(run)
   }
 
-  async _processLive (run) {
+  async _processLive(run) {
     let result
     try {
       result = await this._process(run.recording, run)
     } catch (error) {
-      if (this._run !== run) { return }
-      const stage = error.category === 'configuration' ? 'configuration' : 'processing'
-      this._failLive(run, stage, error)
+      if (this._run === run) {
+        this._failLive(run, error.category === 'configuration' ? 'configuration' : 'processing', error)
+      }
       return
     }
-    if (this._run !== run) { return }
+    if (this._run !== run) {
+      return
+    }
 
     run.result = result
     this._persistLive(run, 'ok')
@@ -146,25 +146,24 @@ export class ToasOrchestrator {
     try {
       delivery = await this._output.write(result.text)
     } catch (error) {
-      if (this._run === run) { this._failDelivery(run, error) }
+      if (this._run === run) {
+        this._failDelivery(run, error)
+      }
       return
     }
-    if (this._run !== run) { return }
+    if (this._run !== run) {
+      return
+    }
 
     this._finishRun(run)
 
     if (delivery?.reason === 'focus-mismatch') {
-      this._notifier.notify(
-        'Copied to clipboard',
-        'The target window changed, so your text was copied to the clipboard.'
-      )
+      this._notifier.notify('Copied to clipboard', 'The target window changed, so your text was copied to the clipboard.')
     }
 
     if (result.warning?.type === 'refine-failed') {
       this._notifier.notify(
-        delivery?.mode === 'copied'
-          ? 'Copied the transcription'
-          : 'Inserted the transcription',
+        delivery?.mode === 'copied' ? 'Copied the transcription' : 'Inserted the transcription',
         'Refine failed, so the original transcription was used.'
       )
     }
@@ -175,11 +174,15 @@ export class ToasOrchestrator {
   // Retry borrows retained audio, processes it with the current config, and
   // appends another attempt. It never records, owns/deletes source audio, or
   // delivers text to another app.
-  async retry (originalEntry) {
-    if (this._state !== 'idle') { return null }
+  async retry(originalEntry) {
+    if (this._state !== 'idle') {
+      return null
+    }
 
     const audio = this._history.resolveAudio(originalEntry)
-    if (!audio.available || !audio.path) { return null }
+    if (!audio.available || !audio.path) {
+      return null
+    }
 
     const run = {
       time: new Date().toISOString(),
@@ -202,33 +205,43 @@ export class ToasOrchestrator {
 
     try {
       run.result = await this._process(run.recording, run)
-      if (this._run !== run) { return null }
+      if (this._run !== run) {
+        return null
+      }
 
       const attempt = this._appendRetryAttempt(originalEntry, run)
       this._finishRun(run)
       this._transition('idle')
       return attempt
     } catch (error) {
-      if (this._run !== run) { return null }
+      if (this._run !== run) {
+        return null
+      }
       return this._failRetry(run, originalEntry, error)
     }
   }
 
-  async _process (recording, run) {
+  async _process(recording, run) {
     const signal = new AttemptSignal()
     this._abortSignal = signal
     try {
       return await this._kernel.run(recording, signal, stage => {
-        if (stage !== 'refine' || signal.aborted || this._run !== run) { return }
+        if (stage !== 'refine' || signal.aborted || this._run !== run) {
+          return
+        }
         this._transition('refining')
       })
     } finally {
-      if (this._abortSignal === signal) { this._abortSignal = null }
+      if (this._abortSignal === signal) {
+        this._abortSignal = null
+      }
     }
   }
 
-  cancel () {
-    if (this._state === 'idle') { return }
+  cancel() {
+    if (this._state === 'idle') {
+      return
+    }
 
     const run = this._run
     this._abortSignal?.abort()
@@ -238,13 +251,17 @@ export class ToasOrchestrator {
     this._transition('idle')
   }
 
-  clearHistory () {
-    if (this._state !== 'idle') { return null }
+  clearHistory() {
+    if (this._state !== 'idle') {
+      return null
+    }
     return this._history.clear()
   }
 
-  _failLive (run, stage, error) {
-    if (this._run !== run) { return }
+  _failLive(run, stage, error) {
+    if (this._run !== run) {
+      return
+    }
 
     const failure = failureFrom(error, stage)
     const presentation = presentFailure(failure, stage)
@@ -255,18 +272,17 @@ export class ToasOrchestrator {
     }
 
     console.error(`[toas] ${error?.stack ?? error}`)
-    if (run.recording) { this._persistLive(run, 'error', failure) }
+    if (run.recording) {
+      this._persistLive(run, 'error', failure)
+    }
 
     this._finishRun(run)
     this._presentError(presentation)
     this._notifier.notify(presentation.summary, presentation.guidance)
   }
 
-  _failRetry (run, originalEntry, error) {
-    const failure = failureFrom(
-      error,
-      error?.category === 'configuration' ? 'configuration' : 'processing'
-    )
+  _failRetry(run, originalEntry, error) {
+    const failure = failureFrom(error, error?.category === 'configuration' ? 'configuration' : 'processing')
     const presentation = presentFailure(failure, failure.stage)
     if (!presentation) {
       this._finishRun(run)
@@ -281,10 +297,10 @@ export class ToasOrchestrator {
     return attempt
   }
 
-  _failDelivery (run, error) {
+  _failDelivery(run, error) {
     console.error(`[toas] ${error?.stack ?? error}`)
-    // Processing has already been persisted at this point. Delivery failure is
-    // not a second processing failure and must not append another history row.
+    // Processing was already persisted; a delivery failure is not a second
+    // processing failure and must not append another history row.
     this._finishRun(run)
     const summary = 'Text delivery failed'
     this._state = 'idle'
@@ -293,8 +309,10 @@ export class ToasOrchestrator {
     this._notifier.notify(summary, 'The voice input was processed, but the text could not be delivered.')
   }
 
-  _persistLive (run, status, error = null) {
-    if (!run.recording || !run.ownsRecording) { return false }
+  _persistLive(run, status, error = null) {
+    if (!run.recording || !run.ownsRecording) {
+      return false
+    }
 
     if (run.private) {
       this._history.discardRecording(run.recording)
@@ -304,8 +322,8 @@ export class ToasOrchestrator {
 
     try {
       this._history.append(this._historyEntry(run, status, error))
-      // Successful append transfers ownership to History. History may retain
-      // the WAV or delete it immediately according to recording-limit.
+      // A successful append transfers ownership to History, which retains or
+      // deletes the WAV according to the recording limit.
       run.ownsRecording = false
       return true
     } catch (historyError) {
@@ -316,11 +334,13 @@ export class ToasOrchestrator {
     }
   }
 
-  _appendRetryAttempt (originalEntry, run, error = null) {
+  _appendRetryAttempt(originalEntry, run, error = null) {
     const entry = this._historyEntry(run, error ? 'error' : 'ok', error)
     try {
       const attempt = this._history.appendAttempt(originalEntry, entry)
-      if (!attempt) { console.warn('[toas] Retry attempt dropped: original voice input is gone') }
+      if (!attempt) {
+        console.warn('[toas] Retry attempt dropped: original voice input is gone')
+      }
       return attempt
     } catch (historyError) {
       console.error(`[toas] Could not save retry attempt: ${historyError.message}`)
@@ -328,7 +348,7 @@ export class ToasOrchestrator {
     }
   }
 
-  _historyEntry (run, status, error = null) {
+  _historyEntry(run, status, error = null) {
     const result = run.result || {}
     const trace = result.trace ?? error?.trace ?? []
     const transcribeTrace = trace.find(item => item.role === 'primary' || item.role === 'transcribe')
@@ -346,7 +366,9 @@ export class ToasOrchestrator {
         sampleRate: run.recording.sampleRate ?? DEFAULT_SAMPLE_RATE
       }
     }
-    if (typeof result.text === 'string' && result.text) { entry.text = result.text }
+    if (typeof result.text === 'string' && result.text) {
+      entry.text = result.text
+    }
 
     if (transcribeTrace) {
       entry.transcribe = historyStep(transcribeTrace)
@@ -357,39 +379,46 @@ export class ToasOrchestrator {
       entry.transcribe = { error: historyError(error) }
     }
 
-    if (refineTrace) { entry.refine = historyStep(refineTrace) }
+    if (refineTrace) {
+      entry.refine = historyStep(refineTrace)
+    }
     return entry
   }
 
-  _presentError (presentation) {
+  _presentError(presentation) {
     this._state = 'idle'
     this._overlay.render('error', presentation.summary)
     this._onStateChanged?.('error', presentation.summary)
   }
 
-  _transition (state, message = '') {
+  _transition(state, message = '') {
     this._state = state
     this._overlay.render(state, message)
     this._onStateChanged?.(state, message)
   }
 
-  _finishRun (run) {
-    if (!run) { return }
+  _finishRun(run) {
+    if (!run) {
+      return
+    }
 
+    // Best effort: extension disable or cancellation may race a dead process.
     try {
       run.recorder?.destroy()
     } catch {
-      // Best effort during extension disable or voice-input cancellation.
+      // Recorder teardown failure is not caller-recoverable.
     }
 
     if (run.ownsRecording && run.recording) {
       this._history.discardRecording(run.recording)
       run.ownsRecording = false
     }
-    if (this._run === run) { this._run = null }
+    if (this._run === run) {
+      this._run = null
+    }
   }
 
-  destroy () {
+  destroy() {
     this._onStateChanged = null
     this._abortSignal?.abort()
     this._output?.cancel()
@@ -407,7 +436,7 @@ export class ToasOrchestrator {
   }
 }
 
-function failureFrom (error, stage) {
+function failureFrom(error, stage) {
   return {
     stage,
     message: error?.message ?? String(error),
@@ -416,15 +445,17 @@ function failureFrom (error, stage) {
   }
 }
 
-function historyStep (trace) {
+// Persisted per-stage details: text, provider/model, latency, usage, and
+// ids — never raw HTTP bodies or credentials.
+function historyStep(trace) {
   const step = {}
-  if (trace.provider) { step.provider = trace.provider }
-  if (trace.model) { step.model = trace.model }
-  if (trace.text) { step.text = trace.text }
-  if (Number.isFinite(trace.elapsedMs)) { step.latencyMs = Math.round(trace.elapsedMs) }
-  if (trace.usage) { step.usage = trace.usage }
-  if (trace.requestId) { step.requestId = trace.requestId }
-  if (trace.responseId) { step.responseId = trace.responseId }
+  if (trace.provider) step.provider = trace.provider
+  if (trace.model) step.model = trace.model
+  if (trace.text) step.text = trace.text
+  if (Number.isFinite(trace.elapsedMs)) step.latencyMs = Math.round(trace.elapsedMs)
+  if (trace.usage) step.usage = trace.usage
+  if (trace.requestId) step.requestId = trace.requestId
+  if (trace.responseId) step.responseId = trace.responseId
   if (trace.status === 'error' || trace.error) {
     step.error = historyError({
       category: trace.errorCategory,
@@ -434,7 +465,7 @@ function historyStep (trace) {
   return step
 }
 
-function historyError (error) {
+function historyError(error) {
   return {
     ...(error?.category ? { code: error.category } : {}),
     message: error?.message ?? String(error)

@@ -1,16 +1,18 @@
+// Refine failure policy end to end through the real registry.
+
 import { process as kernelProcess, secretKey } from '../kernel/process.js'
 import { providers } from '../kernel/providers/registry.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
 class FakeTransport {
-  constructor () {
+  constructor() {
     this.requests = []
   }
 
-  async send (request) {
+  async send(request) {
     this.requests.push({
       ...request,
       body: JSON.parse(decoder.decode(request.body))
@@ -18,13 +20,15 @@ class FakeTransport {
     return {
       status: 200,
       headers: {},
-      body: encoder.encode(JSON.stringify({
-        request_id: 'req-primary',
-        output: {
-          output: { sentence: { text: 'primary text' } },
-          text: 'primary text'
-        }
-      }))
+      body: encoder.encode(
+        JSON.stringify({
+          request_id: 'req-primary',
+          output: {
+            output: { sentence: { text: 'primary text' } },
+            text: 'primary text'
+          }
+        })
+      )
     }
   }
 }

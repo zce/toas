@@ -15,24 +15,27 @@ import Soup from 'gi://Soup?version=3.0'
 // orchestrator aborts it.
 
 export class AttemptSignal {
-  constructor () {
+  constructor() {
     this._aborted = false
     this._listeners = []
   }
 
-  get aborted () {
+  get aborted() {
     return this._aborted
   }
 
-  abort () {
-    if (this._aborted) { return }
+  abort() {
+    if (this._aborted) {
+      return
+    }
     this._aborted = true
     for (const listener of this._listeners.splice(0)) {
       listener()
     }
   }
 
-  addEventListener (_type, listener) {
+  // A listener registered on an already-aborted signal fires immediately.
+  addEventListener(_type, listener) {
     if (this._aborted) {
       listener()
       return
@@ -40,22 +43,20 @@ export class AttemptSignal {
     this._listeners.push(listener)
   }
 
-  removeEventListener (_type, listener) {
+  removeEventListener(_type, listener) {
     const index = this._listeners.indexOf(listener)
-    if (index >= 0) { this._listeners.splice(index, 1) }
+    if (index >= 0) {
+      this._listeners.splice(index, 1)
+    }
   }
 }
 
 // Whole-response API, matching the verified production client: promisified
 // Soup covers send and complete body read, including on HTTP error statuses.
-Gio._promisify(
-  Soup.Session.prototype,
-  'send_and_read_async',
-  'send_and_read_finish'
-)
+Gio._promisify(Soup.Session.prototype, 'send_and_read_async', 'send_and_read_finish')
 
 export class SoupHttpTransport {
-  constructor ({ timeoutMs = 120000 } = {}) {
+  constructor({ timeoutMs = 120000 } = {}) {
     this._session = new Soup.Session()
     this._timeoutMs = timeoutMs
   }
@@ -67,7 +68,7 @@ export class SoupHttpTransport {
    * @param {AbortSignal} signal
    * @returns {Promise<{status: number, headers: Object, body: Uint8Array}>}
    */
-  async send (request, signal) {
+  async send(request, signal) {
     const message = Soup.Message.new(request.method, request.url)
     if (!message) {
       throw transportError('network', `Invalid request URL: ${request.url}`)
@@ -80,34 +81,23 @@ export class SoupHttpTransport {
     if (request.body) {
       // Content-Type is a request property, not transport policy.
       const contentType = request.headers?.['Content-Type'] ?? null
-      message.set_request_body_from_bytes(
-        contentType,
-        GLib.Bytes.new(request.body)
-      )
+      message.set_request_body_from_bytes(contentType, GLib.Bytes.new(request.body))
     }
 
     const cancellable = new Gio.Cancellable()
     let timedOut = false
-    let timeoutId = GLib.timeout_add(
-      GLib.PRIORITY_DEFAULT,
-      this._timeoutMs,
-      () => {
-        timeoutId = 0
-        timedOut = true
-        cancellable.cancel()
-        return GLib.SOURCE_REMOVE
-      }
-    )
+    let timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._timeoutMs, () => {
+      timeoutId = 0
+      timedOut = true
+      cancellable.cancel()
+      return GLib.SOURCE_REMOVE
+    })
 
     const onAbort = () => cancellable.cancel()
     signal?.addEventListener?.('abort', onAbort)
 
     try {
-      const bytes = await this._session.send_and_read_async(
-        message,
-        GLib.PRIORITY_DEFAULT,
-        cancellable
-      )
+      const bytes = await this._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, cancellable)
 
       if (signal?.aborted) {
         throw transportError('cancelled', 'Request was cancelled')
@@ -121,9 +111,11 @@ export class SoupHttpTransport {
         headers[String(name).toLowerCase()] = String(value)
       })
 
-      const body = bytes.get_data() ?? new Uint8Array(0)
-
-      return { status: message.get_status(), headers, body }
+      return {
+        status: message.get_status(),
+        headers,
+        body: bytes.get_data() ?? new Uint8Array(0)
+      }
     } catch (err) {
       if (signal?.aborted) {
         throw transportError('cancelled', 'Request was cancelled')
@@ -131,21 +123,25 @@ export class SoupHttpTransport {
       if (timedOut) {
         throw transportError('timeout', 'Request timed out')
       }
-      if (err.category) { throw err }
+      if (err.category) {
+        throw err
+      }
       throw transportError('network', safeTransportMessage(err))
     } finally {
-      if (timeoutId) { GLib.source_remove(timeoutId) }
+      if (timeoutId) {
+        GLib.source_remove(timeoutId)
+      }
       signal?.removeEventListener?.('abort', onAbort)
     }
   }
 
-  destroy () {
+  destroy() {
     this._session?.abort()
     this._session = null
   }
 }
 
-function transportError (category, message) {
+function transportError(category, message) {
   const err = new Error(message)
   err.category = category
   return err
@@ -153,7 +149,7 @@ function transportError (category, message) {
 
 // GIO error messages can carry provider URLs; bound them and strip stack-like
 // noise. The category is what matters to callers.
-function safeTransportMessage (err) {
+function safeTransportMessage(err) {
   const message = String(err?.message ?? err)
   return message.length > 200 ? `${message.slice(0, 200)}…` : message
 }

@@ -1,6 +1,8 @@
-import { recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeSizeLimit, recordingOutcomeCancelled, RecorderOutcomeKind } from '../host/audio.js'
+// FakeRecorder contract plus recorder outcome kind partition.
+
+import { RecorderOutcomeKind, recordingOutcomeCancelled, recordingOutcomeOk, recordingOutcomeShortTap, recordingOutcomeSizeLimit } from '../host/audio.js'
 import { FakeRecorder } from './fakes.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 const recording = { id: 'r', path: '/tmp/r.wav', durationMs: 3000, mimeType: 'audio/wav' }
 

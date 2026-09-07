@@ -1,9 +1,7 @@
-import {
-  RecorderOutcomeKind,
-  recordingOutcomeSizeLimit,
-  recordingOutcomeCancelled
-} from '../host/audio.js'
-import { test, expectEqual, run } from './harness.js'
+// Recorder outcome payload shapes for the remaining terminal states.
+
+import { RecorderOutcomeKind, recordingOutcomeCancelled, recordingOutcomeSizeLimit } from '../host/audio.js'
+import { expectEqual, run, test } from './harness.js'
 
 test('size limit outcome carries a valid capped recording', () => {
   const recording = { id: 'lim-1', path: '/tmp/lim-1.wav', durationMs: 780000, mimeType: 'audio/wav' }

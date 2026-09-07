@@ -5,11 +5,7 @@
 //
 // This module must not import GNOME/GI libraries.
 
-import {
-  cancelledError,
-  processingError,
-  serviceErrorFromHttpStatus
-} from '../error.js'
+import { cancelledError, processingError, serviceErrorFromHttpStatus } from '../error.js'
 import { Provider } from './provider.js'
 
 const encoder = new TextEncoder()
@@ -26,7 +22,7 @@ const MODEL_SHAPES = {
 }
 
 class DoubaoProvider extends Provider {
-  constructor () {
+  constructor() {
     super({
       id: 'doubao',
       manifest: {
@@ -54,9 +50,7 @@ class DoubaoProvider extends Provider {
             type: 'string',
             label: 'Model',
             required: true,
-            choices: [
-              { value: 'volc.bigasr.auc_turbo', label: 'BigASR Flash' }
-            ]
+            choices: [{ value: 'volc.bigasr.auc_turbo', label: 'BigASR Flash' }]
           }
         ],
         support: { inputs: ['audio'], instructions: false },
@@ -65,7 +59,7 @@ class DoubaoProvider extends Provider {
     })
   }
 
-  resolveSelection ({ providerValues, values }) {
+  resolveSelection({ providerValues, values }) {
     const issues = []
     const endpoint = providerValues.endpoint?.trim()
     if (endpoint && !endpoint.startsWith('https://')) {
@@ -94,26 +88,29 @@ class DoubaoProvider extends Provider {
     }
   }
 
-  createProcessor (config, secrets, runtime) {
+  createProcessor(config, secrets, runtime) {
     return new DoubaoProcessor(this, config, secrets.key, runtime)
   }
 }
 
 export const doubaoProvider = new DoubaoProvider()
 
-function audioCapabilities () {
+function audioCapabilities() {
   return { inputs: ['audio'], instructions: false, context: true }
 }
 
 class DoubaoProcessor {
-  constructor (provider, config, apiKey, runtime) {
+  constructor(provider, config, apiKey, runtime) {
     this._provider = provider
     this._config = config
     this._apiKey = apiKey
     this._runtime = runtime
   }
 
-  async process ({ input, context, signal }) {
+  // Success requires HTTP 200 plus the documented business status header
+  // (x-api-status-code 20000000); anything else is a service error carrying
+  // the provider's logid for troubleshooting.
+  async process({ input, context, signal }) {
     if (input.kind !== 'audio') {
       throw processingError('configuration', 'Doubao processing requires audio input')
     }
@@ -137,36 +134,34 @@ class DoubaoProcessor {
     }
 
     const clientRequestId = createRequestId()
-    const response = await this._runtime.transport.send({
-      method: 'POST',
-      url: this._config.endpoint,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': this._apiKey,
-        'X-Api-Resource-Id': this._config.resourceId,
-        'X-Api-Request-Id': clientRequestId,
-        'X-Api-Sequence': '-1'
+    const response = await this._runtime.transport.send(
+      {
+        method: 'POST',
+        url: this._config.endpoint,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': this._apiKey,
+          'X-Api-Resource-Id': this._config.resourceId,
+          'X-Api-Request-Id': clientRequestId,
+          'X-Api-Sequence': '-1'
+        },
+        body: encodeBody({
+          user: { uid: 'toas' },
+          audio: { data: input.base64 },
+          request
+        })
       },
-      body: encodeBody({
-        user: { uid: 'toas' },
-        audio: { data: input.base64 },
-        request
-      })
-    }, signal)
+      signal
+    )
 
-    if (signal?.aborted) { throw cancelledError() }
+    if (signal?.aborted) {
+      throw cancelledError()
+    }
 
     const logId = responseHeader(response.headers, 'x-tt-logid')
 
     if (response.status < 200 || response.status >= 300) {
-      throw withLogId(
-        serviceErrorFromHttpStatus(
-          response.status,
-          'Doubao',
-          doubaoHttpErrorDetail(response.body)
-        ),
-        logId
-      )
+      throw withLogId(serviceErrorFromHttpStatus(response.status, 'Doubao', doubaoHttpErrorDetail(response.body)), logId)
     }
 
     const statusCode = responseHeader(response.headers, 'x-api-status-code')
@@ -176,10 +171,7 @@ class DoubaoProcessor {
     if (statusCode !== '20000000') {
       const message = safeHeader(responseHeader(response.headers, 'x-api-message'))
       const logSuffix = logId ? ` [logid ${safeHeader(logId)}]` : ''
-      throw processingError(
-        'service',
-        `Doubao service error (${safeHeader(statusCode)})${message ? `: ${message}` : ''}${logSuffix}`
-      )
+      throw processingError('service', `Doubao service error (${safeHeader(statusCode)})${message ? `: ${message}` : ''}${logSuffix}`)
     }
 
     const data = decodeBody(response.body)
@@ -200,11 +192,11 @@ class DoubaoProcessor {
   }
 }
 
-function encodeBody (value) {
+function encodeBody(value) {
   return encoder.encode(JSON.stringify(value))
 }
 
-function decodeBody (bytes) {
+function decodeBody(bytes) {
   if (!bytes || bytes.length === 0) {
     throw processingError('invalid-response', 'The service returned an empty body')
   }
@@ -215,7 +207,7 @@ function decodeBody (bytes) {
   }
 }
 
-function doubaoHttpErrorDetail (bodyBytes) {
+function doubaoHttpErrorDetail(bodyBytes) {
   try {
     return JSON.parse(decoder.decode(bodyBytes))?.error?.message ?? ''
   } catch {
@@ -223,22 +215,26 @@ function doubaoHttpErrorDetail (bodyBytes) {
   }
 }
 
-function responseHeader (headers, name) {
+function responseHeader(headers, name) {
   const target = name.toLowerCase()
   for (const [key, value] of Object.entries(headers || {})) {
-    if (key.toLowerCase() === target) { return String(value) }
+    if (key.toLowerCase() === target) {
+      return String(value)
+    }
   }
   return ''
 }
 
-function safeHeader (value) {
+// Scrub control characters so hostile header values cannot smuggle newlines
+// into notifications, history, or logs.
+function safeHeader(value) {
   return String(value ?? '')
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/[\p{Cc}]/gu, ' ')
     .trim()
     .slice(0, 120)
 }
 
-function withLogId (error, logId) {
+function withLogId(error, logId) {
   const safeLogId = safeHeader(logId)
   if (safeLogId) {
     error.message = `${error.message} [logid ${safeLogId}]`
@@ -246,7 +242,8 @@ function withLogId (error, logId) {
   return error
 }
 
-function createRequestId () {
+// RFC 4122 v4-shaped UUID for the X-Api-Request-Id header.
+function createRequestId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
     const random = Math.floor(Math.random() * 16)
     const value = char === 'x' ? random : (random & 0x3) | 0x8

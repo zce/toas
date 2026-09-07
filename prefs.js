@@ -3,7 +3,6 @@ import Gdk from 'gi://Gdk'
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk'
-
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
 
 import {
@@ -15,12 +14,16 @@ import {
   switchProcessingProvider,
   writeProcessingConfig
 } from './host/config.js'
-import { providers as providerRegistry } from './kernel/providers/registry.js'
 import { inspectSelection, secretKey } from './kernel/process.js'
+import { providers as providerRegistry } from './kernel/providers/registry.js'
 
+// Combo-row order for the "On refine failure" setting.
 const REFINE_ON_ERROR_VALUES = ['fallback', 'abort']
 
-function buildShortcutControl (settings) {
+// Captures a shortcut live: bare modifiers prompt for another key, Escape
+// cancels, Backspace disables, and a valid combo commits after a short
+// debounce so fast keypresses replace each other.
+function buildShortcutControl(settings) {
   const label = new Adw.ShortcutLabel({ disabled_text: 'Disabled' })
   const button = new Gtk.Button({ valign: Gtk.Align.CENTER, child: label })
   button.add_css_class('flat')
@@ -81,12 +84,18 @@ function buildShortcutControl (settings) {
         }
       }
 
+      // Bare modifier presses keep waiting for a non-modifier key.
       const bareModifiers = [
-        Gdk.KEY_Shift_L, Gdk.KEY_Shift_R,
-        Gdk.KEY_Control_L, Gdk.KEY_Control_R,
-        Gdk.KEY_Alt_L, Gdk.KEY_Alt_R,
-        Gdk.KEY_Super_L, Gdk.KEY_Super_R,
-        Gdk.KEY_Meta_L, Gdk.KEY_Meta_R
+        Gdk.KEY_Shift_L,
+        Gdk.KEY_Shift_R,
+        Gdk.KEY_Control_L,
+        Gdk.KEY_Control_R,
+        Gdk.KEY_Alt_L,
+        Gdk.KEY_Alt_R,
+        Gdk.KEY_Super_L,
+        Gdk.KEY_Super_R,
+        Gdk.KEY_Meta_L,
+        Gdk.KEY_Meta_R
       ]
       if (bareModifiers.includes(keyval)) {
         showPrompt('Add a key…')
@@ -116,7 +125,7 @@ function buildShortcutControl (settings) {
 }
 
 export default class ToasPreferences extends ExtensionPreferences {
-  fillPreferencesWindow (window) {
+  fillPreferencesWindow(window) {
     const settings = this.getSettings()
 
     loadPrefsCss(this.path)
@@ -130,125 +139,154 @@ export default class ToasPreferences extends ExtensionPreferences {
     configurationBanner.add_css_class('toas-config-banner')
     page.banner = configurationBanner
 
-    const inputGroup = new Adw.PreferencesGroup({
-      title: 'Voice Input',
-      description: 'Hold the shortcut to record, then release to process.'
-    })
-    const shortcutControl = buildShortcutControl(settings)
-    const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' })
-    shortcutRow.add_suffix(shortcutControl)
-    shortcutRow.activatable_widget = shortcutControl
+    page.add(buildInputGroup(settings))
+    page.add(buildProcessingGroup(settings, configurationBanner))
+    page.add(buildLocalGroup(settings))
+    window.add(page)
+  }
+}
 
-    const autoInsert = new Adw.SwitchRow({
-      title: 'Insert automatically',
-      subtitle: 'Insert the result into the focused app; otherwise copy it to the clipboard.'
-    })
-    settings.bind('auto-paste', autoInsert, 'active', Gio.SettingsBindFlags.DEFAULT)
+// Voice input group: shortcut capture and delivery toggles.
+function buildInputGroup(settings) {
+  const group = new Adw.PreferencesGroup({
+    title: 'Voice Input',
+    description: 'Hold the shortcut to record, then release to process.'
+  })
 
-    const restoreClipboard = new Adw.SwitchRow({
-      title: 'Restore clipboard',
-      subtitle: 'Restore the previous clipboard text after insertion.'
-    })
-    settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
-    settings.bind('auto-paste', restoreClipboard, 'visible', Gio.SettingsBindFlags.GET)
+  const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' })
+  const shortcutControl = buildShortcutControl(settings)
+  shortcutRow.add_suffix(shortcutControl)
+  shortcutRow.activatable_widget = shortcutControl
 
-    inputGroup.add(shortcutRow)
-    inputGroup.add(autoInsert)
-    inputGroup.add(restoreClipboard)
+  const autoInsert = new Adw.SwitchRow({
+    title: 'Insert automatically',
+    subtitle: 'Insert the result into the focused app; otherwise copy it to the clipboard.'
+  })
+  settings.bind('auto-paste', autoInsert, 'active', Gio.SettingsBindFlags.DEFAULT)
 
-    const processingGroup = new Adw.PreferencesGroup({
-      title: 'Processing',
-      description: 'Audio is sent to the selected provider after recording.'
-    })
-    const processingConfig = readProcessingConfig(settings, providerRegistry)
-    const saveProcessingConfig = () => writeProcessingConfig(settings, processingConfig)
-    const providerLabel = id => providerRegistry.get(id)?.manifest?.label ?? id
-    const primaryProviderIds = providerIdsFor(providerRegistry, 'audio')
-    const refineProviderIds = providerIdsFor(providerRegistry, 'text', true)
+  const restoreClipboard = new Adw.SwitchRow({
+    title: 'Restore clipboard',
+    subtitle: 'Restore the previous clipboard text after insertion.'
+  })
+  settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
+  // Restoring only makes sense when results are inserted automatically.
+  settings.bind('auto-paste', restoreClipboard, 'visible', Gio.SettingsBindFlags.GET)
 
-    const contextGroup = new Adw.PreferencesGroup({
-      title: 'Context',
-      description: 'Names, terms, and background sent to providers that support context.'
-    })
-    contextGroup.add(textAreaRow(settings, 'context', {
+  group.add(shortcutRow)
+  group.add(autoInsert)
+  group.add(restoreClipboard)
+  return group
+}
+
+// Processing group plus its Context sibling. The Processing rows rebuild on
+// every provider/selection change, and the banner mirrors the first
+// configuration issue across both roles.
+function buildProcessingGroup(settings, configurationBanner) {
+  const processingGroup = new Adw.PreferencesGroup({
+    title: 'Processing',
+    description: 'Audio is sent to the selected provider after recording.'
+  })
+  const contextGroup = new Adw.PreferencesGroup({
+    title: 'Context',
+    description: 'Names, terms, and background sent to providers that support context.'
+  })
+  contextGroup.add(
+    textAreaRow(settings, 'context', {
       placeholder: 'Names, product terms, acronyms, or background that may help recognition.',
       minHeight: 140,
       maxHeight: 260
-    }))
+    })
+  )
 
-    let processingRows = []
-    const replaceProcessingRows = rows => {
-      for (const row of processingRows) { processingGroup.remove(row) }
-      processingRows = rows
-      for (const row of processingRows) { processingGroup.add(row) }
+  const processingConfig = readProcessingConfig(settings, providerRegistry)
+  const saveProcessingConfig = () => writeProcessingConfig(settings, processingConfig)
+  const providerLabel = id => providerRegistry.get(id)?.manifest?.label ?? id
+  const primaryProviderIds = providerIdsFor(providerRegistry, 'audio')
+  const refineProviderIds = providerIdsFor(providerRegistry, 'text', true)
+
+  let processingRows = []
+  const replaceProcessingRows = rows => {
+    for (const row of processingRows) {
+      processingGroup.remove(row)
+    }
+    processingRows = rows
+    for (const row of processingRows) {
+      processingGroup.add(row)
+    }
+  }
+
+  const renderProcessing = () => {
+    let refreshMeta = () => {}
+    const rows = []
+
+    const primaryProviderRow = new Adw.ComboRow({
+      title: 'Provider',
+      model: Gtk.StringList.new(primaryProviderIds.map(providerLabel)),
+      selected: Math.max(0, primaryProviderIds.indexOf(processingConfig.primary.provider))
+    })
+    primaryProviderRow.connect('notify::selected', () => {
+      const id = primaryProviderIds[primaryProviderRow.selected] ?? primaryProviderIds[0]
+      if (!id || id === processingConfig.primary.provider) {
+        return
+      }
+      switchProcessingProvider(processingConfig, 'primary', id, providerRegistry)
+      saveProcessingConfig()
+      renderProcessing()
+    })
+    rows.push(primaryProviderRow)
+
+    const primaryFields = buildProviderRows({
+      settings,
+      providerId: processingConfig.primary.provider,
+      input: 'audio',
+      config: processingConfig,
+      selection: processingConfig.primary,
+      includeProviderFields: true,
+      save: saveProcessingConfig,
+      onChanged: () => refreshMeta()
+    })
+    rows.push(...primaryFields.selectionRows, ...primaryFields.providerRows)
+    rows.push(buildConnectionRow({ settings, role: 'primary' }).row)
+
+    const refineExpander = new Adw.ExpanderRow({
+      title: 'Refine',
+      subtitle: 'Additional processing may increase latency and provider usage or cost.',
+      show_enable_switch: true,
+      enable_expansion: processingConfig.refine.enabled
+    })
+    const refineProviderRow = new Adw.ComboRow({
+      title: 'Provider',
+      model: Gtk.StringList.new(refineProviderIds.map(providerLabel)),
+      selected: Math.max(0, refineProviderIds.indexOf(processingConfig.refine.provider))
+    })
+    refineProviderRow.connect('notify::selected', () => {
+      const id = refineProviderIds[refineProviderRow.selected] ?? refineProviderIds[0]
+      if (!id || id === processingConfig.refine.provider) {
+        return
+      }
+      switchProcessingProvider(processingConfig, 'refine', id, providerRegistry)
+      saveProcessingConfig()
+      renderProcessing()
+    })
+    refineExpander.add_row(refineProviderRow)
+
+    const refineFields = buildProviderRows({
+      settings,
+      providerId: processingConfig.refine.provider,
+      input: 'text',
+      config: processingConfig,
+      selection: processingConfig.refine,
+      // Shared providers already show their fields under the primary role.
+      includeProviderFields: processingConfig.refine.provider !== processingConfig.primary.provider,
+      save: saveProcessingConfig,
+      onChanged: () => refreshMeta()
+    })
+    for (const row of [...refineFields.selectionRows, ...refineFields.providerRows]) {
+      refineExpander.add_row(row)
     }
 
-    const renderProcessing = () => {
-      let refreshMeta = () => {}
-      const rows = []
-
-      const primaryProviderRow = new Adw.ComboRow({
-        title: 'Provider',
-        model: Gtk.StringList.new(primaryProviderIds.map(providerLabel)),
-        selected: Math.max(0, primaryProviderIds.indexOf(processingConfig.primary.provider))
-      })
-      primaryProviderRow.connect('notify::selected', () => {
-        const id = primaryProviderIds[primaryProviderRow.selected] ?? primaryProviderIds[0]
-        if (!id || id === processingConfig.primary.provider) { return }
-        switchProcessingProvider(processingConfig, 'primary', id, providerRegistry)
-        saveProcessingConfig()
-        renderProcessing()
-      })
-      rows.push(primaryProviderRow)
-
-      const primaryFields = buildProviderRows({
-        settings,
-        providerId: processingConfig.primary.provider,
-        input: 'audio',
-        config: processingConfig,
-        selection: processingConfig.primary,
-        includeProviderFields: true,
-        save: saveProcessingConfig,
-        onChanged: () => refreshMeta()
-      })
-      rows.push(...primaryFields.selectionRows, ...primaryFields.providerRows)
-      rows.push(buildConnectionRow({ settings, role: 'primary' }).row)
-
-      const refineExpander = new Adw.ExpanderRow({
-        title: 'Refine',
-        subtitle: 'Additional processing may increase latency and provider usage or cost.',
-        show_enable_switch: true,
-        enable_expansion: processingConfig.refine.enabled
-      })
-      const refineProviderRow = new Adw.ComboRow({
-        title: 'Provider',
-        model: Gtk.StringList.new(refineProviderIds.map(providerLabel)),
-        selected: Math.max(0, refineProviderIds.indexOf(processingConfig.refine.provider))
-      })
-      refineProviderRow.connect('notify::selected', () => {
-        const id = refineProviderIds[refineProviderRow.selected] ?? refineProviderIds[0]
-        if (!id || id === processingConfig.refine.provider) { return }
-        switchProcessingProvider(processingConfig, 'refine', id, providerRegistry)
-        saveProcessingConfig()
-        renderProcessing()
-      })
-      refineExpander.add_row(refineProviderRow)
-
-      const refineFields = buildProviderRows({
-        settings,
-        providerId: processingConfig.refine.provider,
-        input: 'text',
-        config: processingConfig,
-        selection: processingConfig.refine,
-        includeProviderFields: processingConfig.refine.provider !== processingConfig.primary.provider,
-        save: saveProcessingConfig,
-        onChanged: () => refreshMeta()
-      })
-      for (const row of [...refineFields.selectionRows, ...refineFields.providerRows]) {
-        refineExpander.add_row(row)
-      }
-
-      refineExpander.add_row(textAreaValueRow('Instructions', {
+    refineExpander.add_row(
+      textAreaValueRow('Instructions', {
         text: processingConfig.refine.instructions,
         placeholder: 'Describe how you want the transcription rewritten.',
         onChanged: text => {
@@ -257,166 +295,168 @@ export default class ToasPreferences extends ExtensionPreferences {
         },
         minHeight: 120,
         maxHeight: 260
-      }))
+      })
+    )
 
-      const refineOnErrorRow = new Adw.ComboRow({
-        title: 'On refine failure',
-        model: Gtk.StringList.new(['Use transcription', 'Fail voice input']),
-        selected: Math.max(0, REFINE_ON_ERROR_VALUES.indexOf(processingConfig.refine.onError))
-      })
-      refineOnErrorRow.connect('notify::selected', () => {
-        processingConfig.refine.onError = REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
-        saveProcessingConfig()
-        refreshMeta()
-      })
-      refineExpander.add_row(refineOnErrorRow)
-      refineExpander.add_row(buildConnectionRow({ settings, role: 'refine' }).row)
-      refineExpander.connect('notify::enable-expansion', () => {
-        if (processingConfig.refine.enabled === refineExpander.enable_expansion) { return }
-        processingConfig.refine.enabled = refineExpander.enable_expansion
-        saveProcessingConfig()
-        renderProcessing()
-      })
-      rows.push(refineExpander)
-
-      const advancedRows = [
-        ...primaryFields.advancedRows,
-        ...(processingConfig.refine.enabled ? refineFields.advancedRows : [])
-      ]
-      if (advancedRows.length > 0) {
-        const advancedExpander = new Adw.ExpanderRow({ title: 'Advanced' })
-        for (const row of advancedRows) { advancedExpander.add_row(row) }
-        rows.push(advancedExpander)
+    const refineOnErrorRow = new Adw.ComboRow({
+      title: 'On refine failure',
+      model: Gtk.StringList.new(['Use transcription', 'Fail voice input']),
+      selected: Math.max(0, REFINE_ON_ERROR_VALUES.indexOf(processingConfig.refine.onError))
+    })
+    refineOnErrorRow.connect('notify::selected', () => {
+      processingConfig.refine.onError = REFINE_ON_ERROR_VALUES[refineOnErrorRow.selected] ?? 'fallback'
+      saveProcessingConfig()
+      refreshMeta()
+    })
+    refineExpander.add_row(refineOnErrorRow)
+    refineExpander.add_row(buildConnectionRow({ settings, role: 'refine' }).row)
+    refineExpander.connect('notify::enable-expansion', () => {
+      if (processingConfig.refine.enabled === refineExpander.enable_expansion) {
+        return
       }
+      processingConfig.refine.enabled = refineExpander.enable_expansion
+      saveProcessingConfig()
+      renderProcessing()
+    })
+    rows.push(refineExpander)
 
-      const securityNote = new Gtk.Label({
-        label: 'API keys entered here are stored as plain text in GNOME settings. Environment variables can be used instead.',
-        xalign: 0,
-        wrap: true
-      })
-      securityNote.add_css_class('caption')
-      securityNote.add_css_class('dimmed')
-      securityNote.add_css_class('toas-group-note')
-      rows.push(securityNote)
+    const advancedRows = [...primaryFields.advancedRows, ...(processingConfig.refine.enabled ? refineFields.advancedRows : [])]
+    if (advancedRows.length > 0) {
+      const advancedExpander = new Adw.ExpanderRow({ title: 'Advanced' })
+      for (const row of advancedRows) {
+        advancedExpander.add_row(row)
+      }
+      rows.push(advancedExpander)
+    }
 
-      refreshMeta = () => {
-        const resolvedConfig = snapshotProcessingConfig(settings, providerRegistry)
-        const secrets = snapshotProviderSecrets(settings, providerRegistry)
-        const inspect = (selection, role) => inspectSelection({
+    const securityNote = new Gtk.Label({
+      label: 'API keys entered here are stored as plain text in GNOME settings. Environment variables can be used instead.',
+      xalign: 0,
+      wrap: true
+    })
+    securityNote.add_css_class('caption')
+    securityNote.add_css_class('dimmed')
+    securityNote.add_css_class('toas-group-note')
+    rows.push(securityNote)
+
+    refreshMeta = () => {
+      const resolvedConfig = snapshotProcessingConfig(settings, providerRegistry)
+      const secrets = snapshotProviderSecrets(settings, providerRegistry)
+      const inspect = (selection, role) =>
+        inspectSelection({
           providers: providerRegistry,
           selection,
           providerValues: resolvedConfig.providers[selection.provider] || {},
           role,
           secrets
         })
-        const primary = inspect(processingConfig.primary, 'primary')
-        const refine = inspect(processingConfig.refine, 'refine')
+      const primary = inspect(processingConfig.primary, 'primary')
+      const refine = inspect(processingConfig.refine, 'refine')
 
-        const contextSupported = Boolean(
-          primary.capabilities?.context ||
-          (processingConfig.refine.enabled && refine.capabilities?.context)
-        )
-        contextGroup.remove_css_class('toas-context-unused')
-        if (!contextSupported) { contextGroup.add_css_class('toas-context-unused') }
-        contextGroup.description = contextSupported
-          ? 'Names, terms, and background sent to providers that support context.'
-          : 'Not used by the current processing setup.'
-
-        let status = null
-        if (primary.issues.length > 0) {
-          status = {
-            style: 'error',
-            title: `Voice input: ${primary.issues[0]?.message ?? 'Provider settings need attention'}`
-          }
-        } else if (processingConfig.refine.enabled && refine.issues.length > 0) {
-          status = {
-            style: processingConfig.refine.onError === 'abort' ? 'error' : 'warning',
-            title: `Refine: ${refine.issues[0]?.message ?? 'Provider settings need attention'}`
-          }
-        }
-
-        configurationBanner.remove_css_class('warning')
-        configurationBanner.remove_css_class('error')
-        if (status) {
-          configurationBanner.add_css_class(status.style)
-          configurationBanner.title = status.title
-          configurationBanner.revealed = true
-        } else {
-          configurationBanner.title = ''
-          configurationBanner.revealed = false
-        }
-      }
-
-      replaceProcessingRows(rows)
-      refreshMeta()
+      updateContextGroup(contextGroup, primary, refine, processingConfig)
+      updateConfigurationBanner(configurationBanner, primary, refine, processingConfig)
     }
 
-    renderProcessing()
-
-    const localGroup = new Adw.PreferencesGroup({
-      title: 'Recording & History',
-      description: 'Recording quality and local retention.'
-    })
-
-    const qualityValues = ['minimum', 'low', 'standard', 'high', 'maximum']
-    const qualityRow = new Adw.ComboRow({
-      title: 'Audio quality',
-      model: Gtk.StringList.new([
-        'Minimum · 8 kHz · ~26 min',
-        'Low · 12 kHz · ~17 min',
-        'Standard · 16 kHz · ~13 min',
-        'High · 24 kHz · ~9 min',
-        'Maximum · 48 kHz · ~4 min'
-      ]),
-      selected: Math.max(0, qualityValues.indexOf(settings.get_string('audio-quality')))
-    })
-    qualityRow.connect('notify::selected', () => {
-      settings.set_string('audio-quality', qualityValues[qualityRow.selected] ?? 'standard')
-    })
-
-    const minimumRecordingRow = new Adw.SpinRow({
-      title: 'Minimum recording',
-      subtitle: 'Ignore shorter recordings · milliseconds',
-      adjustment: new Gtk.Adjustment({
-        lower: 200,
-        upper: 2000,
-        step_increment: 100,
-        page_increment: 100,
-        value: settings.get_uint('minimum-recording-duration')
-      }),
-      digits: 0,
-      numeric: true
-    })
-    minimumRecordingRow.connect('notify::value', () => {
-      settings.set_uint('minimum-recording-duration', Math.round(minimumRecordingRow.value))
-    })
-
-    localGroup.add(qualityRow)
-    localGroup.add(minimumRecordingRow)
-    localGroup.add(spinRow(settings, 'history-limit', 'History entries', 1, 1000))
-    localGroup.add(spinRow(settings, 'recording-limit', 'Saved recordings', 0, 1000))
-
-    page.add(inputGroup)
-    page.add(processingGroup)
-    page.add(contextGroup)
-    page.add(localGroup)
-    window.add(page)
+    replaceProcessingRows(rows)
+    refreshMeta()
   }
+
+  renderProcessing()
+  return processingGroup
+}
+
+// Dims the Context group and rewrites its description when the resolved
+// selections cannot use Context at all.
+function updateContextGroup(contextGroup, primary, refine, processingConfig) {
+  const contextSupported = Boolean(primary.capabilities?.context || (processingConfig.refine.enabled && refine.capabilities?.context))
+  contextGroup.remove_css_class('toas-context-unused')
+  if (!contextSupported) {
+    contextGroup.add_css_class('toas-context-unused')
+  }
+  contextGroup.description = contextSupported
+    ? 'Names, terms, and background sent to providers that support context.'
+    : 'Not used by the current processing setup.'
+}
+
+// First issue wins: primary errors, then refine (error style under the abort
+// policy, warning under fallback).
+function updateConfigurationBanner(banner, primary, refine, processingConfig) {
+  let status = null
+  if (primary.issues.length > 0) {
+    status = {
+      style: 'error',
+      title: `Voice input: ${primary.issues[0]?.message ?? 'Provider settings need attention'}`
+    }
+  } else if (processingConfig.refine.enabled && refine.issues.length > 0) {
+    status = {
+      style: processingConfig.refine.onError === 'abort' ? 'error' : 'warning',
+      title: `Refine: ${refine.issues[0]?.message ?? 'Provider settings need attention'}`
+    }
+  }
+
+  banner.remove_css_class('warning')
+  banner.remove_css_class('error')
+  if (status) {
+    banner.add_css_class(status.style)
+    banner.title = status.title
+    banner.revealed = true
+  } else {
+    banner.title = ''
+    banner.revealed = false
+  }
+}
+
+// Recording & History group: capture quality plus local retention limits.
+function buildLocalGroup(settings) {
+  const group = new Adw.PreferencesGroup({
+    title: 'Recording & History',
+    description: 'Recording quality and local retention.'
+  })
+
+  const qualityValues = ['minimum', 'low', 'standard', 'high', 'maximum']
+  const qualityRow = new Adw.ComboRow({
+    title: 'Audio quality',
+    model: Gtk.StringList.new([
+      'Minimum · 8 kHz · ~26 min',
+      'Low · 12 kHz · ~17 min',
+      'Standard · 16 kHz · ~13 min',
+      'High · 24 kHz · ~9 min',
+      'Maximum · 48 kHz · ~4 min'
+    ]),
+    selected: Math.max(0, qualityValues.indexOf(settings.get_string('audio-quality')))
+  })
+  qualityRow.connect('notify::selected', () => {
+    settings.set_string('audio-quality', qualityValues[qualityRow.selected] ?? 'standard')
+  })
+
+  const minimumRecordingRow = new Adw.SpinRow({
+    title: 'Minimum recording',
+    subtitle: 'Ignore shorter recordings · milliseconds',
+    adjustment: new Gtk.Adjustment({
+      lower: 200,
+      upper: 2000,
+      step_increment: 100,
+      page_increment: 100,
+      value: settings.get_uint('minimum-recording-duration')
+    }),
+    digits: 0,
+    numeric: true
+  })
+  minimumRecordingRow.connect('notify::value', () => {
+    settings.set_uint('minimum-recording-duration', Math.round(minimumRecordingRow.value))
+  })
+
+  group.add(qualityRow)
+  group.add(minimumRecordingRow)
+  group.add(spinRow(settings, 'history-limit', 'History entries', 1, 1000))
+  group.add(spinRow(settings, 'recording-limit', 'Saved recordings', 0, 1000))
+  return group
 }
 
 // Build only the rows for the currently selected Provider. Provider changes
 // rebuild the small Processing group instead of maintaining hidden controls
 // for every possible Provider.
-function buildProviderRows ({
-  settings,
-  providerId,
-  input,
-  config,
-  selection,
-  includeProviderFields,
-  save,
-  onChanged
-}) {
+function buildProviderRows({ settings, providerId, input, config, selection, includeProviderFields, save, onChanged }) {
   const provider = providerRegistry.get(providerId)
   const selectionRows = []
   const providerRows = []
@@ -431,6 +471,8 @@ function buildProviderRows ({
         continue
       }
 
+      // Endpoint overrides with a manifest default are advanced controls;
+      // they hide in the Advanced expander to keep the main flow minimal.
       const advanced = field.type === 'url' && Object.hasOwn(field, 'default')
       const row = new Adw.EntryRow({
         title: advanced ? `${provider.manifest.label} ${field.label}` : field.label,
@@ -446,23 +488,23 @@ function buildProviderRows ({
     }
   }
 
-  for (const field of (provider?.manifest?.selectionFields || [])) {
-    if (field.inputs !== undefined && !field.inputs.includes(input)) { continue }
-    selectionRows.push(selectionFieldRow(
-      field,
-      selection.values[field.key] ?? field.default ?? '',
-      value => {
+  for (const field of provider?.manifest?.selectionFields || []) {
+    if (field.inputs !== undefined && !field.inputs.includes(input)) {
+      continue
+    }
+    selectionRows.push(
+      selectionFieldRow(field, selection.values[field.key] ?? field.default ?? '', value => {
         selection.values[field.key] = value
         save()
         onChanged()
-      }
-    ))
+      })
+    )
   }
 
   return { selectionRows, providerRows, advancedRows }
 }
 
-function selectionFieldRow (field, value, onChanged) {
+function selectionFieldRow(field, value, onChanged) {
   if (Array.isArray(field.choices) && field.choices.length > 0) {
     const selected = field.choices.findIndex(choice => String(choice.value) === String(value))
     const row = new Adw.ComboRow({
@@ -472,7 +514,9 @@ function selectionFieldRow (field, value, onChanged) {
     })
     row.connect('notify::selected', () => {
       const choice = field.choices[row.selected]
-      if (choice) { onChanged(String(choice.value)) }
+      if (choice) {
+        onChanged(String(choice.value))
+      }
     })
     return row
   }
@@ -482,25 +526,14 @@ function selectionFieldRow (field, value, onChanged) {
   return row
 }
 
-function textAreaValueRow (title, {
-  text = '',
-  placeholder = '',
-  onChanged,
-  minHeight = 92,
-  maxHeight = 200
-} = {}) {
+function textAreaValueRow(title, { text = '', placeholder = '', onChanged, minHeight = 92, maxHeight = 200 } = {}) {
   const { row, buffer } = buildTextAreaRow({ title, placeholder, minHeight, maxHeight })
   buffer.set_text(text, -1)
   buffer.connect('changed', () => onChanged(buffer.text))
   return row
 }
 
-function textAreaRow (settings, key, {
-  defaultText = '',
-  placeholder = '',
-  minHeight = 92,
-  maxHeight = 180
-} = {}) {
+function textAreaRow(settings, key, { defaultText = '', placeholder = '', minHeight = 92, maxHeight = 180 } = {}) {
   const { row, buffer } = buildTextAreaRow({ placeholder, minHeight, maxHeight })
   const stored = settings.get_string(key)
   buffer.set_text(stored || defaultText, -1)
@@ -508,10 +541,14 @@ function textAreaRow (settings, key, {
   return row
 }
 
-function buildTextAreaRow ({ title = null, placeholder = '', minHeight, maxHeight }) {
+// A multiline TextView laid out directly on the row surface. An optional
+// placeholder label overlays the view until the buffer has content.
+function buildTextAreaRow({ title = null, placeholder = '', minHeight, maxHeight }) {
   const row = new Adw.PreferencesRow({ activatable: false, selectable: false })
   row.add_css_class('toas-multiline-row')
-  if (!title) { row.add_css_class('toas-multiline-standalone') }
+  if (!title) {
+    row.add_css_class('toas-multiline-standalone')
+  }
 
   const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })
   row.set_child(box)
@@ -552,7 +589,9 @@ function buildTextAreaRow ({ title = null, placeholder = '', minHeight, maxHeigh
 
     const overlay = new Gtk.Overlay({ child: scroller })
     overlay.add_overlay(placeholderLabel)
-    buffer.connect('changed', () => { placeholderLabel.visible = buffer.text.length === 0 })
+    buffer.connect('changed', () => {
+      placeholderLabel.visible = buffer.text.length === 0
+    })
     box.append(overlay)
   } else {
     box.append(scroller)
@@ -561,17 +600,13 @@ function buildTextAreaRow ({ title = null, placeholder = '', minHeight, maxHeigh
   return { row, buffer }
 }
 
-function loadPrefsCss (path) {
+function loadPrefsCss(path) {
   const provider = new Gtk.CssProvider()
   provider.load_from_path(`${path}/prefs.css`)
-  Gtk.StyleContext.add_provider_for_display(
-    Gdk.Display.get_default(),
-    provider,
-    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-  )
+  Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }
 
-function spinRow (settings, key, title, lower, upper) {
+function spinRow(settings, key, title, lower, upper) {
   const row = new Adw.SpinRow({
     title,
     adjustment: new Gtk.Adjustment({
@@ -590,7 +625,9 @@ function spinRow (settings, key, title, lower, upper) {
   return row
 }
 
-function secretRow ({ settings, providerId, field }) {
+// Secret entry backed by the provider-secrets GSettings map. The suffix icon
+// lights up when no stored value exists but an environment variable does.
+function secretRow({ settings, providerId, field }) {
   const entry = new Adw.PasswordEntryRow({ title: field.label })
   const envIcon = new Gtk.Image({
     icon_name: 'emblem-ok-symbolic',
@@ -605,14 +642,20 @@ function secretRow ({ settings, providerId, field }) {
     return map[storageKey] ?? ''
   }
   const envPresent = () => (field.env ?? []).some(name => Boolean(GLib.getenv(name)?.trim()))
-  const updateEnvIndicator = () => { envIcon.visible = !readStored() && envPresent() }
+  const updateEnvIndicator = () => {
+    envIcon.visible = !readStored() && envPresent()
+  }
 
   entry.text = readStored()
   updateEnvIndicator()
   entry.connect('changed', () => {
     const map = settings.get_value('provider-secrets').deep_unpack()
     const value = entry.get_text().trim()
-    if (value) { map[storageKey] = value } else { delete map[storageKey] }
+    if (value) {
+      map[storageKey] = value
+    } else {
+      delete map[storageKey]
+    }
     settings.set_value('provider-secrets', new GLib.Variant('a{ss}', map))
     updateEnvIndicator()
     changeHandlers.forEach(handler => handler())
@@ -621,16 +664,17 @@ function secretRow ({ settings, providerId, field }) {
   return { row: entry, onChange: handler => changeHandlers.push(handler) }
 }
 
-function buildConnectionRow ({ settings, role }) {
-  const description = 'Verify the current settings.'
+function buildConnectionRow({ settings, role }) {
   const button = new Gtk.Button({ valign: Gtk.Align.CENTER, label: 'Test' })
-  const row = new Adw.ActionRow({ title: 'Connection', subtitle: description })
+  const row = new Adw.ActionRow({ title: 'Connection', subtitle: 'Verify the current settings.' })
   row.add_suffix(button)
   row.activatable_widget = button
 
   let busy = false
   button.connect('clicked', async () => {
-    if (busy) { return }
+    if (busy) {
+      return
+    }
     busy = true
     button.sensitive = false
     row.subtitle = 'Testing…'

@@ -1,6 +1,9 @@
-import { openaiCompatibleProvider } from '../kernel/providers/openai.js'
+// Refine prompt composition: system/user role separation and
+// verbatim user content.
+
 import { mimoProvider } from '../kernel/providers/mimo.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { openaiCompatibleProvider } from '../kernel/providers/openai.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 const INSTRUCTIONS = 'Make this concise.\nKeep technical details.'
 const CONTEXT = 'Names: useEffect, Payabli.'
@@ -14,10 +17,10 @@ test('Provider composes the lightweight Refine task separately from per-run cont
   const prompt = composePrompt(openaiCompatibleProvider)
 
   expectEqual(prompt.systemPrompt, SYSTEM_PROMPT)
-  expectEqual(prompt.userPrompt,
-    `<instructions>\n${INSTRUCTIONS}\n</instructions>\n\n` +
-    `<context>\n${CONTEXT}\n</context>\n\n` +
-    `<transcript>\n${TRANSCRIPT}\n</transcript>`)
+  expectEqual(
+    prompt.userPrompt,
+    `<instructions>\n${INSTRUCTIONS}\n</instructions>\n\n` + `<context>\n${CONTEXT}\n</context>\n\n` + `<transcript>\n${TRANSCRIPT}\n</transcript>`
+  )
   expectTruthy(!prompt.systemPrompt.includes(INSTRUCTIONS))
   expectTruthy(!prompt.systemPrompt.includes(CONTEXT))
   expectTruthy(!prompt.systemPrompt.includes(TRANSCRIPT))
@@ -32,10 +35,10 @@ test('Provider preserves non-empty user-owned text verbatim inside structural ta
     instructions
   })
 
-  expectEqual(prompt.userPrompt,
-    `<instructions>\n${instructions}\n</instructions>\n\n` +
-    `<context>\n${context}\n</context>\n\n` +
-    `<transcript>\n${TRANSCRIPT}\n</transcript>`)
+  expectEqual(
+    prompt.userPrompt,
+    `<instructions>\n${instructions}\n</instructions>\n\n` + `<context>\n${context}\n</context>\n\n` + `<transcript>\n${TRANSCRIPT}\n</transcript>`
+  )
 })
 
 test('Provider omits an empty Context section', () => {
@@ -45,8 +48,7 @@ test('Provider omits an empty Context section', () => {
       context: { text: '' },
       instructions: INSTRUCTIONS
     }).userPrompt,
-    `<instructions>\n${INSTRUCTIONS}\n</instructions>\n\n` +
-    `<transcript>\n${TRANSCRIPT}\n</transcript>`
+    `<instructions>\n${INSTRUCTIONS}\n</instructions>\n\n` + `<transcript>\n${TRANSCRIPT}\n</transcript>`
   )
 })
 
@@ -58,9 +60,7 @@ test('Provider keeps a lightweight default when user Instructions are empty', ()
   })
 
   expectEqual(prompt.systemPrompt, SYSTEM_PROMPT)
-  expectEqual(prompt.userPrompt,
-    `<context>\n${CONTEXT}\n</context>\n\n` +
-    `<transcript>\n${TRANSCRIPT}\n</transcript>`)
+  expectEqual(prompt.userPrompt, `<context>\n${CONTEXT}\n</context>\n\n` + `<transcript>\n${TRANSCRIPT}\n</transcript>`)
 })
 
 test('Structural tags are hints rather than an escaping or containment boundary', () => {
@@ -77,20 +77,14 @@ test('Structural tags are hints rather than an escaping or containment boundary'
 })
 
 test('OpenAI-compatible maps Provider Refine semantics to system and user messages', async () => {
-  expectEqual(
-    await sentMessages(openaiCompatibleProvider, 'custom-model-id'),
-    expectedMessages(openaiCompatibleProvider)
-  )
+  expectEqual(await sentMessages(openaiCompatibleProvider, 'custom-model-id'), expectedMessages(openaiCompatibleProvider))
 })
 
 test('MiMo text maps the same inherited Refine semantics to system and user messages', async () => {
-  expectEqual(
-    await sentMessages(mimoProvider, 'mimo-v2.5'),
-    expectedMessages(mimoProvider)
-  )
+  expectEqual(await sentMessages(mimoProvider, 'mimo-v2.5'), expectedMessages(mimoProvider))
 })
 
-function composePrompt (provider) {
+function composePrompt(provider) {
   return provider.composeRefinePrompt({
     transcript: TRANSCRIPT,
     context: { text: CONTEXT },
@@ -98,7 +92,7 @@ function composePrompt (provider) {
   })
 }
 
-function expectedMessages (provider) {
+function expectedMessages(provider) {
   const prompt = composePrompt(provider)
   return [
     { role: 'system', content: prompt.systemPrompt },
@@ -106,7 +100,7 @@ function expectedMessages (provider) {
   ]
 }
 
-async function sentMessages (provider, model) {
+async function sentMessages(provider, model) {
   const resolved = provider.resolve({
     providerValues: { endpoint: 'https://example.test/v1' },
     values: { model },
@@ -115,10 +109,14 @@ async function sentMessages (provider, model) {
   expectEqual(resolved.issues, [])
 
   const transport = new FakeTransport()
-  const processor = provider.create(resolved.config, { key: 'secret' }, {
-    transport,
-    clock: { now: () => 0 }
-  })
+  const processor = provider.create(
+    resolved.config,
+    { key: 'secret' },
+    {
+      transport,
+      clock: { now: () => 0 }
+    }
+  )
 
   await processor.process({
     input: { kind: 'text', text: TRANSCRIPT },
@@ -131,11 +129,11 @@ async function sentMessages (provider, model) {
 }
 
 class FakeTransport {
-  constructor () {
+  constructor() {
     this.requests = []
   }
 
-  async send (request) {
+  async send(request) {
     this.requests.push({ ...request, body: decodeBody(request.body) })
     return {
       status: 200,
@@ -151,7 +149,11 @@ class FakeTransport {
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
-function encodeBody (value) { return encoder.encode(JSON.stringify(value)) }
-function decodeBody (bytes) { return JSON.parse(decoder.decode(bytes)) }
+function encodeBody(value) {
+  return encoder.encode(JSON.stringify(value))
+}
+function decodeBody(bytes) {
+  return JSON.parse(decoder.decode(bytes))
+}
 
 await run()

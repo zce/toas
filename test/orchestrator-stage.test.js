@@ -1,10 +1,12 @@
-import { ToasOrchestrator } from '../host/orchestrator.js'
+// Overlay stage sequencing across a live voice input.
+
 import { recordingOutcomeOk } from '../host/audio.js'
-import { FakeRecorder, FakePaster, FakeHistory, FakeOverlay, FakeNotifier } from './fakes.js'
-import { test, expectEqual, run } from './harness.js'
+import { ToasOrchestrator } from '../host/orchestrator.js'
+import { FakeHistory, FakeNotifier, FakeOverlay, FakePaster, FakeRecorder } from './fakes.js'
+import { expectEqual, run, test } from './harness.js'
 
 class FakeSettings {
-  constructor () {
+  constructor() {
     this.values = {
       'private-mode': false,
       'auto-paste': true,
@@ -13,13 +15,19 @@ class FakeSettings {
     }
   }
 
-  get_boolean (key) { return Boolean(this.values[key]) }
-  get_string (key) { return String(this.values[key] ?? '') }
-  get_uint (key) { return Number(this.values[key] ?? 0) }
+  get_boolean(key) {
+    return Boolean(this.values[key])
+  }
+  get_string(key) {
+    return String(this.values[key] ?? '')
+  }
+  get_uint(key) {
+    return Number(this.values[key] ?? 0)
+  }
 }
 
 class StageKernel {
-  async run (_recording, _signal, onStage) {
+  async run(_recording, _signal, onStage) {
     onStage?.('refine')
     return {
       text: 'refined text',

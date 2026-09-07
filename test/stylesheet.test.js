@@ -4,41 +4,18 @@
 // The reverse direction (a class used but undefined) is caught at runtime by
 // missing styling, so it is not asserted.
 
-import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-import { test, expectEqual, run } from './harness.js'
+import { expectEqual, run, test } from './harness.js'
 
 const rootDir = GLib.get_current_dir()
 
-function read (path) {
+function read(path) {
   const [, contents] = GLib.file_get_contents(path)
   return new TextDecoder().decode(contents)
 }
 
-function listModules (dir, prefix = '') {
-  const modules = []
-  const enumerator = Gio.File.new_for_path(dir).enumerate_children(
-    'standard::name,standard::type',
-    Gio.FileQueryInfoFlags.NONE,
-    null
-  )
-  let info
-  while ((info = enumerator.next_file(null)) !== null) {
-    const name = info.get_name()
-    const type = info.get_file_type()
-    const child = `${dir}/${name}`
-    if (type === Gio.FileType.DIRECTORY) {
-      modules.push(...listModules(child, `${prefix}${name}/`))
-    } else if (name.endsWith('.js')) {
-      modules.push(`${prefix}${name}`)
-    }
-  }
-  enumerator.close(null)
-  return modules
-}
-
-function cssClasses (source) {
+function cssClasses(source) {
   const classes = new Set()
   // Strip comments first so file names like prefs.css are not parsed as
   // class selectors.
@@ -49,11 +26,13 @@ function cssClasses (source) {
   return classes
 }
 
-function usedClasses (source) {
+function usedClasses(source) {
   const used = new Set()
   for (const m of source.matchAll(/(?:style_class\s*[:=]|add_style_class_name|remove_style_class_name|add_css_class)\s*\(?\s*['"`]([^'"`]+)/g)) {
     for (const name of m[1].split(/\s+/)) {
-      if (name && !name.startsWith('-')) { used.add(name) }
+      if (name && !name.startsWith('-')) {
+        used.add(name)
+      }
     }
   }
   return used
@@ -66,9 +45,7 @@ test('every stylesheet.css class is referenced by Shell-side code', () => {
   // Classes the Shell theme itself owns; toas styles only decorate them.
   const shellTheme = new Set(['panel-button', 'icon-button', 'system-status-icon', 'card', 'inline', 'warning'])
 
-  const sources = ['extension.js', 'ui/indicator.js', 'ui/overlay.js']
-    .map(f => read(`${rootDir}/${f}`))
-    .join('\n')
+  const sources = ['extension.js', 'ui/indicator.js', 'ui/overlay.js'].map(f => read(`${rootDir}/${f}`)).join('\n')
 
   const used = usedClasses(sources)
   const dead = [...defined].filter(c => !used.has(c) && !shellTheme.has(c))
@@ -83,9 +60,14 @@ test('every prefs.css class is referenced by prefs.js', () => {
   // libadwaita built-ins the CSS reuses, not toas-owned classes.
   const adwaitaBuiltins = new Set(['card'])
 
+  // libadwaita internal CSS nodes styled structurally (row.combo,
+  // label.title, .header .body, banner variants): they target widget
+  // internals, so prefs.js cannot reference them by class name.
+  const libadwaitaNodes = new Set(['body', 'combo', 'error', 'header', 'spin', 'switch', 'title', 'warning'])
+
   const sources = read(`${rootDir}/prefs.js`)
   const used = usedClasses(sources)
-  const dead = [...defined].filter(c => !used.has(c) && !adwaitaBuiltins.has(c))
+  const dead = [...defined].filter(c => !used.has(c) && !adwaitaBuiltins.has(c) && !libadwaitaNodes.has(c))
 
   expectEqual(dead.sort().join(','), '', `unused classes: ${dead.join(', ')}`)
 })

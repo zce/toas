@@ -1,26 +1,20 @@
-import {
-  AudioRecorder,
-  DEFAULT_MINIMUM_RECORDING_DURATION_MS,
-  RecorderOutcomeKind,
-  resolveMinimumRecordingDuration
-} from '../host/audio.js'
+// Minimum-recording-duration thresholds and Host wiring.
+
+import { AudioRecorder, DEFAULT_MINIMUM_RECORDING_DURATION_MS, RecorderOutcomeKind, resolveMinimumRecordingDuration } from '../host/audio.js'
 import { ToasOrchestrator } from '../host/orchestrator.js'
 import { FakeHistory, FakeKernel, FakeNotifier, FakeOverlay, FakePaster, FakeRecorder } from './fakes.js'
-import { test, expectEqual, run } from './harness.js'
+import { expectEqual, run, test } from './harness.js'
 
-function stoppedRecorderForDuration (durationMs, {
-  sampleRate = 16000,
-  minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS
-} = {}) {
+function stoppedRecorderForDuration(durationMs, { sampleRate = 16000, minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS } = {}) {
   const recorder = new AudioRecorder({
     recordingsDirectory: '/tmp/x',
     sampleRate,
     minimumDurationMs
   })
-  recorder._process = { send_signal () {} }
+  recorder._process = { send_signal() {} }
   recorder._readPromise = Promise.resolve()
   recorder._totalBytes = Math.round(recorder._bytesPerMs * durationMs)
-  recorder._output = { seek () {}, write_all () {}, close () {} }
+  recorder._output = { seek() {}, write_all() {}, close() {} }
   return recorder
 }
 
@@ -58,7 +52,7 @@ test('host resolves configured duration before constructing the recorder', () =>
     settings: {
       get_boolean: () => false,
       get_string: () => 'standard',
-      get_uint: key => key === 'minimum-recording-duration' ? 800 : 0
+      get_uint: key => (key === 'minimum-recording-duration' ? 800 : 0)
     },
     history: new FakeHistory(),
     kernel: new FakeKernel(),

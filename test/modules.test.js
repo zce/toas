@@ -4,23 +4,12 @@ import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import System from 'system'
 
-const SHELL_ONLY = new Set([
-  'host/input.js',
-  'host/output.js',
-  'ui/dialog.js',
-  'ui/indicator.js',
-  'ui/notifier.js',
-  'ui/overlay.js'
-])
+const SHELL_ONLY = new Set(['host/input.js', 'host/output.js', 'ui/dialog.js', 'ui/indicator.js', 'ui/notifier.js', 'ui/overlay.js'])
 
-function listModules (directory, prefix = '') {
+function listModules(directory, prefix = '') {
   const result = []
   const dir = Gio.File.new_for_path(directory)
-  const children = dir.enumerate_children(
-    'standard::name,standard::type',
-    Gio.FileQueryInfoFlags.NONE,
-    null
-  )
+  const children = dir.enumerate_children('standard::name,standard::type', Gio.FileQueryInfoFlags.NONE, null)
   try {
     let info
     while ((info = children.next_file(null))) {
@@ -40,11 +29,7 @@ function listModules (directory, prefix = '') {
 }
 
 const root = GLib.get_current_dir()
-const modules = [
-  ...listModules(`${root}/host`, 'host/'),
-  ...listModules(`${root}/kernel`, 'kernel/'),
-  ...listModules(`${root}/ui`, 'ui/')
-]
+const modules = [...listModules(`${root}/host`, 'host/'), ...listModules(`${root}/kernel`, 'kernel/'), ...listModules(`${root}/ui`, 'ui/')]
 
 let failed = 0
 
@@ -54,10 +39,7 @@ for (const { relative, path } of modules) {
     print(`ok (loads) - ${relative}`)
   } catch (error) {
     const message = String(error?.message ?? error)
-    const environmentOnly =
-      message.includes('resource:///org/gnome/shell') ||
-      message.includes('Typelib') ||
-      message.includes('Requiring Shell')
+    const environmentOnly = message.includes('resource:///org/gnome/shell') || message.includes('Typelib') || message.includes('Requiring Shell')
 
     if (SHELL_ONLY.has(relative) && environmentOnly) {
       print(`ok (shell-only, parsed) - ${relative}`)

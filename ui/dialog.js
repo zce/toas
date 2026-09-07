@@ -4,7 +4,6 @@
 
 import Clutter from 'gi://Clutter'
 import GObject from 'gi://GObject'
-
 import * as Dialog from 'resource:///org/gnome/shell/ui/dialog.js'
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js'
 
@@ -13,7 +12,7 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
     GObject.registerClass(this)
   }
 
-  constructor ({ title, description, confirmLabel = 'Confirm', onConfirm }) {
+  constructor({ title, description, confirmLabel = 'Confirm', onConfirm }) {
     super({
       destroyOnClose: false,
       styleClass: 'toas-confirm-dialog'
@@ -21,11 +20,12 @@ export class ConfirmDialog extends ModalDialog.ModalDialog {
 
     this._onConfirm = onConfirm
 
-    const content = new Dialog.MessageDialogContent({
-      title,
-      description
-    })
-    this.contentLayout.add_child(content)
+    this.contentLayout.add_child(
+      new Dialog.MessageDialogContent({
+        title,
+        description
+      })
+    )
 
     this.addButton({
       label: 'Cancel',

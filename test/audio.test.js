@@ -1,9 +1,9 @@
 // AudioRecorder parameterization check: configured capture settings flow
 // into byte sizing. Pure GJS + GLib; no recording is started.
 import { AudioRecorder, recordingIdForNow } from '../host/audio.js'
-import { test, expectEqual, run } from './harness.js'
+import { expectEqual, run, test } from './harness.js'
 
-function recorder (options = {}) {
+function recorder(options = {}) {
   return new AudioRecorder({ recordingsDirectory: '/tmp/x', ...options })
 }
 
@@ -39,7 +39,9 @@ test('recording ids are UTC timestamp file names', () => {
 test('ids differ across different milliseconds', () => {
   const a = recordingIdForNow()
   const t = Date.now()
-  while (Date.now() <= t) { /* spin to the next millisecond */ }
+  while (Date.now() <= t) {
+    /* spin to the next millisecond */
+  }
   const b = recordingIdForNow()
   expectEqual(a === b, false)
 })

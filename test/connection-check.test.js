@@ -1,11 +1,13 @@
 // Connection test behavior: provider-level diagnostics resolve the same
 // configuration as a real attempt but call only the selected Processor.
 
-import { test, expectEqual, expectTruthy, run } from './harness.js'
 import { runConnectionTest } from '../host/config.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
+// Minimal double standing in for a registered Provider: manifest, pure
+// resolution, and a Processor that records its calls.
 class FakeProvider {
-  constructor ({ id, input, reply = { text: 'ok' } }) {
+  constructor({ id, input, reply = { text: 'ok' } }) {
     this.id = id
     this.manifest = {
       label: id,
@@ -22,11 +24,17 @@ class FakeProvider {
     this.calls = []
   }
 
-  resolve ({ providerValues, values, secretPresence }) {
+  resolve({ providerValues, values, secretPresence }) {
     const issues = []
-    if (!secretPresence.key) { issues.push({ message: `a ${this.id} key is required` }) }
-    if (!values.model) { issues.push({ message: 'a model is required' }) }
-    if (issues.length > 0) { return { config: null, capabilities: null, issues } }
+    if (!secretPresence.key) {
+      issues.push({ message: `a ${this.id} key is required` })
+    }
+    if (!values.model) {
+      issues.push({ message: 'a model is required' })
+    }
+    if (issues.length > 0) {
+      return { config: null, capabilities: null, issues }
+    }
 
     return {
       config: { endpoint: providerValues.endpoint ?? 'https://example.test', model: values.model },
@@ -39,18 +47,21 @@ class FakeProvider {
     }
   }
 
-  create () {
-    const provider = this
+  supports(input, { instructions = false } = {}) {
+    return Boolean(this.manifest.support.inputs.includes(input) && (!instructions || this.manifest.support.instructions))
+  }
+
+  create() {
     return {
-      async process (call) {
-        provider.calls.push(call)
-        return { ...provider._reply }
+      process: call => {
+        this.calls.push(call)
+        return { ...this._reply }
       }
     }
   }
 }
 
-function freshProviders () {
+function freshProviders() {
   return new Map([
     ['primary-audio', new FakeProvider({ id: 'primary-audio', input: 'audio' })],
     ['refine-text', new FakeProvider({ id: 'refine-text', input: 'text' })]
@@ -58,18 +69,24 @@ function freshProviders () {
 }
 
 class FakeSettings {
-  constructor (config) {
+  constructor(config) {
     this._config = config
   }
 
-  get_string (key) {
-    if (key === 'processing-config') { return JSON.stringify(this._config) }
-    if (key === 'context') { return '' }
+  get_string(key) {
+    if (key === 'processing-config') {
+      return JSON.stringify(this._config)
+    }
+    if (key === 'context') {
+      return ''
+    }
     throw new Error(`unexpected key ${key}`)
   }
 
-  get_value (key) {
-    if (key !== 'provider-secrets') { throw new Error(`unexpected key ${key}`) }
+  get_value(key) {
+    if (key !== 'provider-secrets') {
+      throw new Error(`unexpected key ${key}`)
+    }
     return {
       deep_unpack: () => ({
         'providers/primary-audio/key': 'k1',
@@ -79,7 +96,7 @@ class FakeSettings {
   }
 }
 
-function baseConfig ({ refineEnabled = true } = {}) {
+function baseConfig({ refineEnabled = true } = {}) {
   return {
     providers: {},
     primary: { provider: 'primary-audio', values: { model: 'asr-1' } },

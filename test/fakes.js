@@ -3,7 +3,7 @@
 // optional-chain around incomplete test doubles.
 
 export class FakeRecorder {
-  constructor ({ recording = null, stopError = null } = {}) {
+  constructor({ recording = null, stopError = null } = {}) {
     this.recording = recording
     this.stopError = stopError
     this.starts = 0
@@ -12,20 +12,30 @@ export class FakeRecorder {
     this.destroys = 0
   }
 
-  async start () { this.starts++ }
+  async start() {
+    this.starts++
+  }
 
-  async stop () {
+  async stop() {
     this.stops++
-    if (this.stopError) { throw this.stopError }
+    if (this.stopError) {
+      throw this.stopError
+    }
     return this.recording
   }
 
-  cancel () { this.cancels++ }
-  destroy () { this.destroys++ }
+  cancel() {
+    this.cancels++
+  }
+  destroy() {
+    this.destroys++
+  }
 }
 
+// Kernel stand-in: replays a scripted result or error after an optional
+// delay, and records every call so tests can assert ordering and signals.
 export class FakeKernel {
-  constructor ({ text = 'hello', error = null, warning = null, trace = null, delayMs = 0 } = {}) {
+  constructor({ text = 'hello', error = null, warning = null, trace = null, delayMs = 0 } = {}) {
     this.text = text
     this.error = error
     this.warning = warning
@@ -35,34 +45,40 @@ export class FakeKernel {
     this.receivedSignals = []
   }
 
-  async run (recording, signal) {
+  async run(recording, signal) {
     this.calls.push({ recording, signal })
     this.receivedSignals.push(signal)
-    if (this.delayMs) { await new Promise(resolve => setTimeout(resolve, this.delayMs)) }
-    if (this.error) { throw this.error }
+    if (this.delayMs) {
+      await new Promise(resolve => setTimeout(resolve, this.delayMs))
+    }
+    if (this.error) {
+      throw this.error
+    }
 
     return {
       text: this.text,
-      trace: this.trace ?? [{
-        role: 'primary',
-        provider: 'fake',
-        model: 'fake-model',
-        input: 'audio',
-        status: 'ok',
-        elapsedMs: 100,
-        context: [],
-        usage: null,
-        requestId: null,
-        responseId: 'fake-id',
-        text: this.text
-      }],
+      trace: this.trace ?? [
+        {
+          role: 'primary',
+          provider: 'fake',
+          model: 'fake-model',
+          input: 'audio',
+          status: 'ok',
+          elapsedMs: 100,
+          context: [],
+          usage: null,
+          requestId: null,
+          responseId: 'fake-id',
+          text: this.text
+        }
+      ],
       warning: this.warning
     }
   }
 }
 
 export class FakePaster {
-  constructor ({ delayMs = 0, deliveryMode = 'insert', focusMismatch = false, error = null } = {}) {
+  constructor({ delayMs = 0, deliveryMode = 'insert', focusMismatch = false, error = null } = {}) {
     this.delayMs = delayMs
     this.mode = deliveryMode
     this.focusMismatch = focusMismatch
@@ -71,32 +87,45 @@ export class FakePaster {
     this.capturedWindows = []
     this.cancels = 0
     this.destroys = 0
+    // Resolved externally to release a pending write mid-test.
     this.resolveWrite = null
     this.monitorIndex = null
   }
 
-  getFocusedMonitorIndex () { return this.monitorIndex }
+  getFocusedMonitorIndex() {
+    return this.monitorIndex
+  }
 
-  captureFocusedWindow () {
+  captureFocusedWindow() {
     this.capturedWindows.push(`capture-${this.capturedWindows.length}`)
   }
 
-  async write (text) {
+  async write(text) {
     this.writes.push(text)
     if (this.delayMs) {
-      await new Promise(resolve => { this.resolveWrite = resolve })
+      await new Promise(resolve => {
+        this.resolveWrite = resolve
+      })
     }
-    if (this.error) { throw this.error }
-    if (this.focusMismatch) { return { mode: 'copied', reason: 'focus-mismatch' } }
+    if (this.error) {
+      throw this.error
+    }
+    if (this.focusMismatch) {
+      return { mode: 'copied', reason: 'focus-mismatch' }
+    }
     return { mode: this.mode === 'clipboard' ? 'copied' : 'inserted' }
   }
 
-  cancel () { this.cancels++ }
-  destroy () { this.destroys++ }
+  cancel() {
+    this.cancels++
+  }
+  destroy() {
+    this.destroys++
+  }
 }
 
 export class FakeHistory {
-  constructor () {
+  constructor() {
     this.appends = []
     this.discarded = []
     this.attempts = []
@@ -104,44 +133,50 @@ export class FakeHistory {
     this.clears = 0
   }
 
-  get recordingsDirectory () { return '/tmp/fake-recordings' }
+  get recordingsDirectory() {
+    return '/tmp/fake-recordings'
+  }
 
-  append (entry) {
+  append(entry) {
     this.appends.push(entry)
     this.entries.push(entry)
     return entry
   }
 
-  appendAttempt (original, entry) {
-    const { audio: _audio, ...rest } = entry
+  appendAttempt(original, entry) {
     const attempt = {
-      ...rest,
+      ...entry,
       id: entry.id ?? `attempt-${this.attempts.length + 1}`,
       retryOf: original.retryOf ?? original.id
     }
+    delete attempt.audio
     this.attempts.push(attempt)
     this.entries.push(attempt)
     return attempt
   }
 
-  resolveAudio (entry) {
+  resolveAudio(entry) {
     return {
       available: Boolean(entry?.audio?.file),
       path: entry?.audio?.file ? `/tmp/state/recordings/${entry.audio.file}` : null
     }
   }
 
-  get (id) { return this.entries.find(entry => entry.id === id) ?? null }
-  discardRecording (recording) { this.discarded.push(recording) }
+  get(id) {
+    return this.entries.find(entry => entry.id === id) ?? null
+  }
+  discardRecording(recording) {
+    this.discarded.push(recording)
+  }
 
-  clear () {
+  clear() {
     this.clears++
     return this.appends.length
   }
 }
 
 export class FakeOverlay {
-  constructor () {
+  constructor() {
     this.states = []
     this.levels = []
     this.resets = 0
@@ -150,18 +185,32 @@ export class FakeOverlay {
     this.monitors = []
   }
 
-  render (state, message = '') { this.states.push({ state, message }) }
-  setLevel (level) { this.levels.push(level) }
-  resetLevels () { this.resets++ }
-  setPrivate (enabled) { this.privateFlags.push(enabled) }
-  setMonitor (index) { this.monitors.push(index) }
-  destroy () { this.destroys++ }
+  render(state, message = '') {
+    this.states.push({ state, message })
+  }
+  setLevel(level) {
+    this.levels.push(level)
+  }
+  resetLevels() {
+    this.resets++
+  }
+  setPrivate(enabled) {
+    this.privateFlags.push(enabled)
+  }
+  setMonitor(index) {
+    this.monitors.push(index)
+  }
+  destroy() {
+    this.destroys++
+  }
 }
 
 export class FakeNotifier {
-  constructor () { this.notifications = [] }
+  constructor() {
+    this.notifications = []
+  }
 
-  notify (title, body) {
+  notify(title, body) {
     this.notifications.push({ title, body })
   }
 }

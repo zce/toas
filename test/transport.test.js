@@ -15,7 +15,7 @@ const PORT = 47655
 
 let passed = 0
 let failed = 0
-function check (label, condition, detail = '') {
+function check(label, condition, detail = '') {
   if (condition) {
     passed++
     print(`ok - ${label}`)
@@ -27,7 +27,7 @@ function check (label, condition, detail = '') {
 
 // A libsoup server that answers POST /ok immediately with a fixed body, and
 // holds POST /hang without answering (to drive timeout and cancellation).
-function startServer () {
+function startServer() {
   const server = new Soup.Server()
   server.add_handler('/ok', (_server, message) => {
     const body = encoder.encode('ok')
@@ -45,7 +45,7 @@ function startServer () {
 
 const loop = GLib.MainLoop.new(null, false)
 
-async function run () {
+async function run() {
   const server = startServer()
   const base = `http://127.0.0.1:${PORT}`
 
@@ -53,15 +53,16 @@ async function run () {
   {
     const transport = new SoupHttpTransport({ timeoutMs: 5000 })
     try {
-      const res = await transport.send({
-        method: 'POST',
-        url: `${base}/ok`,
-        headers: { 'Content-Type': 'application/json' },
-        body: encoder.encode('{}')
-      }, null)
-      check('whole-response round trip returns status and body',
-        res.status === 200 && decoder.decode(res.body) === 'ok',
-        `status=${res.status}`)
+      const res = await transport.send(
+        {
+          method: 'POST',
+          url: `${base}/ok`,
+          headers: { 'Content-Type': 'application/json' },
+          body: encoder.encode('{}')
+        },
+        null
+      )
+      check('whole-response round trip returns status and body', res.status === 200 && decoder.decode(res.body) === 'ok', `status=${res.status}`)
     } catch (e) {
       check('whole-response round trip returns status and body', false, e.message)
     }
@@ -74,18 +75,23 @@ async function run () {
     const transport = new SoupHttpTransport({ timeoutMs: 400 })
     const startedAt = GLib.get_monotonic_time()
     try {
-      await transport.send({
-        method: 'POST',
-        url: `${base}/hang`,
-        headers: {},
-        body: encoder.encode('{}')
-      }, null)
+      await transport.send(
+        {
+          method: 'POST',
+          url: `${base}/hang`,
+          headers: {},
+          body: encoder.encode('{}')
+        },
+        null
+      )
       check('timeout is classified as timeout', false, 'unexpected success')
     } catch (e) {
       const elapsedMs = (GLib.get_monotonic_time() - startedAt) / 1000
-      check('timeout is classified as timeout',
+      check(
+        'timeout is classified as timeout',
         e.category === 'timeout' && elapsedMs < 3000,
-        `category=${e.category} elapsed=${Math.round(elapsedMs)}ms message="${e.message}"`)
+        `category=${e.category} elapsed=${Math.round(elapsedMs)}ms message="${e.message}"`
+      )
     }
     transport.destroy()
   }
@@ -95,21 +101,25 @@ async function run () {
     const transport = new SoupHttpTransport({ timeoutMs: 10000 })
     const signal = new AttemptSignal()
     const startedAt = GLib.get_monotonic_time()
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => { signal.abort(); return GLib.SOURCE_REMOVE })
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, () => {
+      signal.abort()
+      return GLib.SOURCE_REMOVE
+    })
 
     try {
-      await transport.send({
-        method: 'POST',
-        url: `${base}/hang`,
-        headers: {},
-        body: encoder.encode('{}')
-      }, signal)
+      await transport.send(
+        {
+          method: 'POST',
+          url: `${base}/hang`,
+          headers: {},
+          body: encoder.encode('{}')
+        },
+        signal
+      )
       check('signal abort cancels the request', false, 'unexpected success')
     } catch (e) {
       const elapsedMs = (GLib.get_monotonic_time() - startedAt) / 1000
-      check('signal abort cancels the request',
-        e.category === 'cancelled' && elapsedMs < 3000,
-        `category=${e.category} elapsed=${Math.round(elapsedMs)}ms`)
+      check('signal abort cancels the request', e.category === 'cancelled' && elapsedMs < 3000, `category=${e.category} elapsed=${Math.round(elapsedMs)}ms`)
     }
     transport.destroy()
   }
@@ -117,7 +127,9 @@ async function run () {
   server.disconnect()
   print(`\n${passed}/${passed + failed} passed`)
   loop.quit()
-  if (failed > 0) { System.exit(1) }
+  if (failed > 0) {
+    System.exit(1)
+  }
 }
 
 run().catch(e => {
@@ -125,5 +137,10 @@ run().catch(e => {
   loop.quit()
   System.exit(1)
 })
-GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30000, () => { print('TIMEOUT'); loop.quit(); System.exit(1); return GLib.SOURCE_REMOVE })
+GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30000, () => {
+  print('TIMEOUT')
+  loop.quit()
+  System.exit(1)
+  return GLib.SOURCE_REMOVE
+})
 loop.run()

@@ -1,15 +1,21 @@
-export function processingError (category, message, status = null) {
+// Stable processing-error categories. `category` drives user-facing failure
+// presentation; `status` optionally carries the HTTP status for diagnostics.
+export function processingError(category, message, status = null) {
   const error = new Error(message)
   error.category = category
-  if (status !== null) { error.status = status }
+  if (status !== null) {
+    error.status = status
+  }
   return error
 }
 
-export function cancelledError () {
+export function cancelledError() {
   return processingError('cancelled', 'Request was cancelled')
 }
 
-export function serviceErrorFromHttpStatus (status, label, detail = '') {
+// Maps an HTTP status to its stable category and message. Unknown statuses
+// stay generic service errors.
+export function serviceErrorFromHttpStatus(status, label, detail = '') {
   let category = 'service'
   let message = `${label} service error (HTTP ${status})`
 
@@ -28,6 +34,8 @@ export function serviceErrorFromHttpStatus (status, label, detail = '') {
   }
 
   const safeDetail = String(detail ?? '').slice(0, 200)
-  if (safeDetail) { message = `${message}: ${safeDetail}` }
+  if (safeDetail) {
+    message = `${message}: ${safeDetail}`
+  }
   return processingError(category, message, status)
 }

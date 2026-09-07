@@ -1,5 +1,8 @@
+// Doubao Provider contract: manifest resolution, Context encoding,
+// and the Speech API business-status handling.
+
 import { doubaoProvider } from '../kernel/providers/doubao.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -10,15 +13,15 @@ const AUDIO = {
   durationMs: 1000
 }
 
-function encodeBody (value) {
+function encodeBody(value) {
   return encoder.encode(JSON.stringify(value))
 }
 
-function decodeBody (bytes) {
+function decodeBody(bytes) {
   return JSON.parse(decoder.decode(bytes))
 }
 
-function resolveDoubao ({ secret = true } = {}) {
+function resolveDoubao({ secret = true } = {}) {
   return doubaoProvider.resolve({
     providerValues: {
       endpoint: 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash'
@@ -49,7 +52,7 @@ test('Doubao requires its Speech API key before processor creation', () => {
 test('Doubao Flash sends Context through the native dialog context contract', async () => {
   let request = null
   const transport = {
-    async send (value) {
+    async send(value) {
       request = value
       return {
         status: 200,
@@ -77,9 +80,7 @@ test('Doubao Flash sends Context through the native dialog context contract', as
   expectEqual(request.headers['X-Api-Key'], 'doubao-secret')
   expectEqual(request.headers['X-Api-Resource-Id'], 'volc.bigasr.auc_turbo')
   expectEqual(request.headers['X-Api-Sequence'], '-1')
-  expectTruthy(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
-    request.headers['X-Api-Request-Id']
-  ))
+  expectTruthy(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(request.headers['X-Api-Request-Id']))
 
   const body = decodeBody(request.body)
   expectEqual(body.audio.data, AUDIO.base64)
@@ -101,7 +102,7 @@ test('Doubao Flash sends Context through the native dialog context contract', as
 test('Doubao Flash omits corpus when Context is empty', async () => {
   let request = null
   const transport = {
-    async send (value) {
+    async send(value) {
       request = value
       return {
         status: 200,
@@ -127,7 +128,7 @@ test('Doubao Flash omits corpus when Context is empty', async () => {
 
 test('Doubao does not treat HTTP 200 as business success', async () => {
   const transport = {
-    async send () {
+    async send() {
       return {
         status: 200,
         headers: {
@@ -156,7 +157,7 @@ test('Doubao does not treat HTTP 200 as business success', async () => {
 
 test('Doubao requires the documented business status header', async () => {
   const transport = {
-    async send () {
+    async send() {
       return {
         status: 200,
         headers: {},

@@ -2,7 +2,7 @@
 
 import { Provider } from '../kernel/providers/provider.js'
 import { providers } from '../kernel/providers/registry.js'
-import { test, expectEqual, expectTruthy, run } from './harness.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 const PRESENT = { key: true }
 
@@ -20,7 +20,10 @@ test('manifest required fields are validated once by the Provider template', () 
     secretPresence: {}
   })
   expectEqual(
-    resolved.issues.filter(issue => issue.code === 'required').map(issue => issue.path).sort(),
+    resolved.issues
+      .filter(issue => issue.code === 'required')
+      .map(issue => issue.path)
+      .sort(),
     ['providers.mimo.endpoint', 'providers.mimo.key', 'values.model']
   )
 })
@@ -34,17 +37,20 @@ test('manifest support is discovery only and resolved capabilities are explicit'
     secretPresence: PRESENT
   })
   expectEqual(resolved.capabilities, {
-    inputs: ['audio'], instructions: false, context: true
+    inputs: ['audio'],
+    instructions: false,
+    context: true
   })
 })
 
 test('MiMo selection determines audio or text behavior without a product role', () => {
   const mimo = providers.get('mimo')
-  const resolve = model => mimo.resolve({
-    providerValues: { endpoint: 'https://example.test/v1' },
-    values: { model },
-    secretPresence: PRESENT
-  })
+  const resolve = model =>
+    mimo.resolve({
+      providerValues: { endpoint: 'https://example.test/v1' },
+      values: { model },
+      secretPresence: PRESENT
+    })
   expectEqual(resolve('mimo-v2.5-asr').capabilities.inputs, ['audio'])
   expectEqual(resolve('mimo-v2.5').capabilities.inputs, ['text'])
   expectEqual(resolve('mimo-v2.5-pro').capabilities.inputs, ['text'])

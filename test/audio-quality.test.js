@@ -1,12 +1,14 @@
-import { resolveSampleRate, AUDIO_QUALITY_PRESETS } from '../host/audio.js'
-import { test, expectEqual, run } from './harness.js'
+// Audio quality preset resolution from settings.
+
+import { AUDIO_QUALITY_PRESETS, resolveSampleRate } from '../host/audio.js'
+import { expectEqual, run, test } from './harness.js'
 
 class FakeSettings {
-  constructor (values = {}) {
+  constructor(values = {}) {
     this.values = values
   }
 
-  get_string (key) {
+  get_string(key) {
     return this.values[key] ?? 'standard'
   }
 }

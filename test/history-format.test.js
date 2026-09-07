@@ -1,5 +1,8 @@
-import { formatRelativeTime, formatDuration, previewText, projectLatestAttempt } from '../host/history.js'
-import { test, expectEqual, run } from './harness.js'
+// History presentation helpers: relative time, durations, previews,
+// and retry projection.
+
+import { formatDuration, formatRelativeTime, previewText, projectLatestAttempt } from '../host/history.js'
+import { expectEqual, run, test } from './harness.js'
 
 test('relative time buckets', () => {
   const now = Date.now()
@@ -31,10 +34,13 @@ test('whitespace is collapsed for previews', () => {
 })
 
 test('failed preview shows stable stage error context instead of raw detail', () => {
-  expectEqual(previewText({
-    status: 'error',
-    transcribe: { error: { code: 'no-text', message: 'No speech was recognized' } }
-  }), 'No speech detected')
+  expectEqual(
+    previewText({
+      status: 'error',
+      transcribe: { error: { code: 'no-text', message: 'No speech was recognized' } }
+    }),
+    'No speech detected'
+  )
 
   const provider = previewText({
     status: 'error',

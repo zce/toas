@@ -2,19 +2,17 @@ import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
 import Meta from 'gi://Meta'
 import Shell from 'gi://Shell'
-
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
-const MODIFIER_MASK =
-  Clutter.ModifierType.CONTROL_MASK |
-  Clutter.ModifierType.SHIFT_MASK |
-  Clutter.ModifierType.MOD1_MASK |
-  Clutter.ModifierType.SUPER_MASK
+const MODIFIER_MASK = Clutter.ModifierType.CONTROL_MASK | Clutter.ModifierType.SHIFT_MASK | Clutter.ModifierType.MOD1_MASK | Clutter.ModifierType.SUPER_MASK
 
 const POLL_INTERVAL_MS = 40
 
+// Push-to-talk keybinding. With modifiers held, recording runs until the
+// held modifiers are released (polled); without modifiers it degrades to a
+// start/stop toggle.
 export class PushToTalkBinding {
-  constructor ({ settings, canStart, onToggle, onBegin, onEnd }) {
+  constructor({ settings, canStart, onToggle, onBegin, onEnd }) {
     this._settings = settings
     this._canStart = canStart
     this._onToggle = onToggle
@@ -24,53 +22,53 @@ export class PushToTalkBinding {
     this._enabled = false
   }
 
-  enable () {
-    if (this._enabled) { return }
+  enable() {
+    if (this._enabled) {
+      return
+    }
 
-    Main.wm.addKeybinding(
-      'push-to-talk',
-      this._settings,
-      Meta.KeyBindingFlags.NONE,
-      Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-      () => this._activate()
+    Main.wm.addKeybinding('push-to-talk', this._settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW, () =>
+      this._activate()
     )
     this._enabled = true
   }
 
-  _activate () {
-    if (this._pollId) { return }
+  _activate() {
+    if (this._pollId) {
+      return
+    }
 
     const heldModifiers = global.get_pointer()[2] & MODIFIER_MASK
 
     // GNOME's keybinding callback only gives us the press. With no modifier
     // there is no cheap/reliable release signal, so degrade to toggle mode.
     if (heldModifiers === 0) {
-      if (this._canStart()) { this._onToggle?.() }
+      if (this._canStart()) {
+        this._onToggle?.()
+      }
       return
     }
 
-    if (!this._canStart()) { return }
+    if (!this._canStart()) {
+      return
+    }
 
     this._onBegin?.()
 
-    this._pollId = GLib.timeout_add(
-      GLib.PRIORITY_DEFAULT,
-      POLL_INTERVAL_MS,
-      () => {
-        const modifiers = global.get_pointer()[2]
+    this._pollId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, POLL_INTERVAL_MS, () => {
+      const modifiers = global.get_pointer()[2]
 
-        if ((modifiers & heldModifiers) !== 0) {
-          return GLib.SOURCE_CONTINUE
-        }
-
-        this._pollId = 0
-        this._onEnd?.()
-        return GLib.SOURCE_REMOVE
+      if ((modifiers & heldModifiers) !== 0) {
+        return GLib.SOURCE_CONTINUE
       }
-    )
+
+      this._pollId = 0
+      this._onEnd?.()
+      return GLib.SOURCE_REMOVE
+    })
   }
 
-  destroy () {
+  destroy() {
     if (this._pollId) {
       GLib.source_remove(this._pollId)
       this._pollId = 0
