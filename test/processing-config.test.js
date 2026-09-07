@@ -36,6 +36,8 @@ test('empty persistence gets product defaults from Provider selection defaults',
   expectEqual(config.refine.provider, 'mimo')
   expectEqual(config.refine.values.model, 'mimo-v2.5')
   expectEqual(config.refine.instructions, DEFAULT_REFINE_INSTRUCTIONS)
+  expectTruthy(DEFAULT_REFINE_INSTRUCTIONS.includes('within otherwise meaningful speech'))
+  expectTruthy(DEFAULT_REFINE_INSTRUCTIONS.includes('Preserve standalone interjections or acknowledgements'))
 })
 
 test('stored Refine instructions remain verbatim user-owned data', () => {

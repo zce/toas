@@ -12,7 +12,8 @@ export const DEFAULT_REFINE_INSTRUCTIONS = `Refine the speech transcript into co
 Core rule: improve how the message is expressed without changing what the speaker means.
 
 Do:
-* Remove filler words, false starts, and meaningless repetition.
+* Remove filler words, false starts, and meaningless repetition when they occur within otherwise meaningful speech.
+* Preserve standalone interjections or acknowledgements instead of turning them into empty output.
 * Keep the latest version when the speaker corrects themselves.
 * Fix punctuation, broken sentences, and obvious speech-to-text errors.
 * Preserve code, identifiers, commands, paths, URLs, product names, and technical terms.
@@ -275,7 +276,6 @@ function silenceWavBase64(sampleRate) {
   writeAscii(0, 'RIFF')
   view.setUint32(4, 36 + dataBytes, true)
   writeAscii(8, 'WAVE')
-  writeAscii(12, 'fmt ')
   view.setUint32(16, 16, true)
   view.setUint16(20, 1, true)
   view.setUint16(22, 1, true)

@@ -1,10 +1,11 @@
 import { processingError } from '../error.js'
 
-// The Refine system prompt stays a small default task: toas structures
-// prompts for clarity, not containment, and user Instructions customize it.
+// The Refine system prompt stays a small product invariant. User Instructions
+// customize the transformation, but a non-empty transcript must stay real text.
 const REFINE_SYSTEM_PROMPT = `Refine the transcript into clear written text.
-Follow the user's instructions when provided and use context as helpful reference.
-By default, return only the refined text.`
+Follow the user's instructions when provided and use context only as helpful reference.
+Return only text derived from the transcript, never a placeholder or explanation for empty content.
+If refinement would remove all meaningful content, return the original transcript unchanged.`
 
 // Provider base template: manifest-driven required-field validation,
 // manifest-level discovery, model-shape lookup, secret validation before
