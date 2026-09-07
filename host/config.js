@@ -16,6 +16,7 @@ Do:
 * Preserve standalone interjections or acknowledgements instead of turning them into empty output.
 * Keep the latest version when the speaker corrects themselves.
 * Fix punctuation, broken sentences, and obvious speech-to-text errors.
+* Use paragraph breaks when the speaker clearly moves to a new thought or topic; keep short, continuous speech in a single paragraph.
 * Preserve code, identifiers, commands, paths, URLs, product names, and technical terms.
 * Preserve numbers, dates, times, units, versions, and other exact values.
 * Keep the original language and natural mixed-language usage.
