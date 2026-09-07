@@ -219,7 +219,7 @@ export class ToasIndicator extends PanelMenu.Button {
       preview.get_clutter_text().set_ellipsize(Pango.EllipsizeMode.END)
       preview.get_clutter_text().set_single_line_mode(true)
       const meta = new St.Label({
-        text: `${formatRelativeTime(entry.createdAt)} · ${formatDuration(entry.durationMs)}`,
+        text: `${formatRelativeTime(entry.time)} · ${formatDuration(entry.audio?.durationMs)}`,
         style_class: 'toas-history-meta'
       })
       textColumn.add_child(preview)

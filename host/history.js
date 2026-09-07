@@ -8,6 +8,7 @@ const DEFAULT_PAGE_SIZE = 30
 export class HistoryStore {
   constructor (settings) {
     this._settings = settings
+    this._recent = null
     this.stateDirectory = GLib.build_filenamev([
       GLib.get_user_state_dir(),
       'toas'
@@ -30,15 +31,15 @@ export class HistoryStore {
         }
       }
     )
-    this._pruneSafely()
-    this._removeOrphanedRecordings()
+    const entries = this._pruneSafely()
+    this._removeOrphanedRecordings(entries)
   }
 
   append (entry) {
     let retainedEntry = entry
-    if (entry.audio && this._settings.get_uint('recording-limit') === 0) {
+    if (entry.audio?.file && this._settings.get_uint('recording-limit') === 0) {
       this._discardEntryRecording(entry)
-      retainedEntry = { ...entry, audio: null }
+      retainedEntry = withoutAudioFile(entry)
     }
 
     const line = new TextEncoder().encode(`${JSON.stringify(retainedEntry)}\n`)
@@ -54,50 +55,37 @@ export class HistoryStore {
     return retainedEntry
   }
 
-  // Newest-first logical voice inputs. Retry attempts are projected onto their
-  // parent from the same file snapshot, so opening History never reparses the
-  // JSONL once per row.
+  // Newest-first logical voice inputs. The first page is already produced by
+  // pruning, so normal menu opens avoid another synchronous file read/parse.
   list ({ limit = DEFAULT_PAGE_SIZE, beforeId = null } = {}) {
-    const entries = this.readEntries()
-    const attempts = new Map()
-    for (const entry of entries) {
-      if (!entry.attemptOf) { continue }
-      const list = attempts.get(entry.attemptOf) ?? []
-      list.push(entry)
-      attempts.set(entry.attemptOf, list)
+    if (!beforeId && limit <= DEFAULT_PAGE_SIZE && this._recent) {
+      return this._recent.slice(0, limit)
     }
-
-    const newestFirst = entries.filter(entry => !entry.attemptOf).reverse()
-    const startIndex = beforeId
-      ? newestFirst.findIndex(entry => entry.id === beforeId) + 1
-      : 0
-    if (beforeId && startIndex === 0) { return [] }
-
-    return newestFirst
-      .slice(startIndex, startIndex + limit)
-      .map(entry => projectLatestAttempt(entry, attempts.get(entry.id) ?? []))
+    return listEntries(this.readEntries(), { limit, beforeId })
   }
 
   appendAttempt (original, entry) {
-    const entries = this.readEntries()
-    const current = entries.find(candidate => candidate.id === original?.id && !candidate.attemptOf)
+    const rootId = original?.retryOf ?? original?.id
+    const recentRoot = this._recent?.find(candidate => candidate.id === rootId)
+    const current = recentRoot ?? this.readEntries()
+      .find(candidate => candidate.id === rootId && !candidate.retryOf)
     if (!current) { return null }
 
+    const { audio: _audio, retryOf: _retryOf, ...attemptEntry } = entry
     const attempt = {
-      ...entry,
+      ...attemptEntry,
       id: entry.id ?? GLib.uuid_string_random(),
-      attemptOf: current.id,
-      attemptNumber: entries.filter(candidate => candidate.attemptOf === current.id).length + 1,
-      audio: null
+      retryOf: current.id
     }
     this.append(attempt)
     return attempt
   }
 
   resolveAudio (entry) {
-    if (!entry?.audio) { return { available: false, path: null } }
+    const file = entry?.audio?.file
+    if (!file) { return { available: false, path: null } }
 
-    const path = GLib.build_filenamev([this.stateDirectory, entry.audio])
+    const path = GLib.build_filenamev([this.recordingsDirectory, file])
     const exists = GLib.file_test(path, GLib.FileTest.EXISTS) &&
       !GLib.file_test(path, GLib.FileTest.IS_DIR)
     return { available: exists, path: exists ? path : null }
@@ -105,11 +93,12 @@ export class HistoryStore {
 
   clear () {
     const entries = this.readEntries()
-    const count = entries.filter(entry => !entry.attemptOf).length
+    const count = entries.filter(entry => !entry.retryOf).length
 
     if (GLib.file_test(this._historyPath, GLib.FileTest.EXISTS)) {
       GLib.file_set_contents(this._historyPath, '')
     }
+    this._recent = []
 
     this._forEachRecording(name =>
       this.discardRecording({
@@ -134,44 +123,49 @@ export class HistoryStore {
 
   _pruneSafely () {
     try {
-      this._prune()
+      return this._prune()
     } catch (error) {
+      this._recent = null
       console.error(`[toas] Could not prune history: ${error.message}`)
+      return null
     }
   }
 
   _prune () {
     const entries = this.readEntries()
     const historyLimit = this._settings.get_uint('history-limit')
-    const roots = entries.filter(entry => !entry.attemptOf)
+    const roots = entries.filter(entry => !entry.retryOf)
     const retainedRoots = historyLimit > 0 ? roots.slice(-historyLimit) : []
     const retainedRootIds = new Set(retainedRoots.map(entry => entry.id))
     const removedRoots = roots.filter(entry => !retainedRootIds.has(entry.id))
 
     for (const entry of removedRoots) { this._discardEntryRecording(entry) }
 
-    // Attempts are children of a logical voice input and consume no retention
-    // slots. Orphaned attempts disappear with their parent.
+    // Retries consume no logical History retention slots and disappear with
+    // their root voice input.
     const retained = entries.filter(entry =>
-      entry.attemptOf
-        ? retainedRootIds.has(entry.attemptOf)
+      entry.retryOf
+        ? retainedRootIds.has(entry.retryOf)
         : retainedRootIds.has(entry.id)
     )
 
     const recordingLimit = this._settings.get_uint('recording-limit')
     const rootsWithAudio = retained
       .map((entry, index) => ({ entry, index }))
-      .filter(({ entry }) => !entry.attemptOf && entry.audio)
+      .filter(({ entry }) => !entry.retryOf && entry.audio?.file)
     const dropCount = Math.max(0, rootsWithAudio.length - recordingLimit)
 
     for (const { entry, index } of rootsWithAudio.slice(0, dropCount)) {
       this._discardEntryRecording(entry)
-      retained[index] = { ...entry, audio: null }
+      retained[index] = withoutAudioFile(entry)
     }
 
     if (retained.length !== entries.length || dropCount > 0) {
       this._writeEntries(retained)
     }
+
+    this._recent = listEntries(retained, { limit: DEFAULT_PAGE_SIZE })
+    return retained
   }
 
   _writeEntries (entries) {
@@ -182,24 +176,27 @@ export class HistoryStore {
   }
 
   _discardEntryRecording (entry) {
-    if (!entry.audio) { return }
+    const file = entry.audio?.file
+    if (!file) { return }
 
     this.discardRecording({
-      path: GLib.build_filenamev([this.stateDirectory, entry.audio])
+      path: GLib.build_filenamev([this.recordingsDirectory, file])
     })
   }
 
-  _removeOrphanedRecordings () {
+  _removeOrphanedRecordings (entries = null) {
     const referenced = new Set(
-      this.readEntries()
-        .map(entry => entry.audio)
+      (entries ?? this.readEntries())
+        .map(entry => entry.audio?.file)
         .filter(Boolean)
-        .map(path => GLib.build_filenamev([this.stateDirectory, path]))
     )
 
     this._forEachRecording(name => {
-      const path = GLib.build_filenamev([this.recordingsDirectory, name])
-      if (!referenced.has(path)) { this.discardRecording({ path }) }
+      if (!referenced.has(name)) {
+        this.discardRecording({
+          path: GLib.build_filenamev([this.recordingsDirectory, name])
+        })
+      }
     })
   }
 
@@ -239,6 +236,7 @@ export class HistoryStore {
   destroy () {
     if (this._settingsChangedId) { this._settings.disconnect(this._settingsChangedId) }
     this._settingsChangedId = 0
+    this._recent = null
     this._settings = null
   }
 }
@@ -263,29 +261,68 @@ export function formatDuration (ms) {
   return `${minutes}m ${seconds % 60}s`
 }
 
-export function projectLatestAttempt (entry, attempts = []) {
-  const latest = attempts[attempts.length - 1]
+export function projectLatestAttempt (entry, latest = null) {
   if (!latest) { return entry }
 
-  return {
+  const projected = {
     ...entry,
     status: latest.status,
-    text: latest.text ?? null,
-    error: latest.status === 'error' ? (latest.error ?? null) : null,
-    attemptNumber: latest.attemptNumber
+    transcribe: latest.transcribe
   }
+
+  if (Object.hasOwn(latest, 'text')) { projected.text = latest.text } else { delete projected.text }
+  if (latest.refine) { projected.refine = latest.refine } else { delete projected.refine }
+  return projected
 }
 
-// output/transcript are compatibility fallbacks for older retained entries.
+export function extractText (entry) {
+  return String(entry?.text ?? '')
+}
+
 export function previewText (entry) {
   const text = extractText(entry).replace(/\s+/g, ' ').trim()
-  if (!text && entry?.status === 'error' && entry.error) {
-    return presentFailure(entry.error, entry.error.stage)?.summary ?? '(no text)'
+  if (!text && entry?.status === 'error') {
+    const error = entry.refine?.error ?? entry.transcribe?.error
+    if (error) {
+      return presentFailure({ category: error.code, message: error.message })?.summary ?? '(no text)'
+    }
   }
   if (!text) { return '(no text)' }
   return text.length > PREVIEW_MAX ? `${text.slice(0, PREVIEW_MAX - 1)}…` : text
 }
 
-export function extractText (entry) {
-  return entry.text || entry.output || entry.transcript || ''
+function listEntries (entries, { limit, beforeId = null }) {
+  const latestRetries = new Map()
+  const listed = []
+  let collecting = !beforeId
+  let foundBefore = !beforeId
+
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const entry = entries[index]
+    if (entry.retryOf) {
+      if (!latestRetries.has(entry.retryOf)) { latestRetries.set(entry.retryOf, entry) }
+      continue
+    }
+
+    const latest = latestRetries.get(entry.id) ?? null
+    latestRetries.delete(entry.id)
+
+    if (!collecting) {
+      if (entry.id === beforeId) {
+        collecting = true
+        foundBefore = true
+      }
+      continue
+    }
+
+    listed.push(projectLatestAttempt(entry, latest))
+    if (listed.length >= limit) { break }
+  }
+
+  return beforeId && !foundBefore ? [] : listed
+}
+
+function withoutAudioFile (entry) {
+  const { file: _file, ...audio } = entry.audio ?? {}
+  return { ...entry, audio }
 }

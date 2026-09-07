@@ -53,7 +53,8 @@ export class FakeKernel {
         context: [],
         usage: null,
         requestId: null,
-        responseId: 'fake-id'
+        responseId: 'fake-id',
+        text: this.text
       }],
       warning: this.warning
     }
@@ -112,12 +113,11 @@ export class FakeHistory {
   }
 
   appendAttempt (original, entry) {
+    const { audio: _audio, ...rest } = entry
     const attempt = {
-      ...entry,
+      ...rest,
       id: entry.id ?? `attempt-${this.attempts.length + 1}`,
-      attemptOf: original.id,
-      attemptNumber: this.attempts.filter(candidate => candidate.attemptOf === original.id).length + 1,
-      audio: null
+      retryOf: original.retryOf ?? original.id
     }
     this.attempts.push(attempt)
     this.entries.push(attempt)
@@ -126,8 +126,8 @@ export class FakeHistory {
 
   resolveAudio (entry) {
     return {
-      available: Boolean(entry?.audio),
-      path: entry?.audio ? `/tmp/state/${entry.audio}` : null
+      available: Boolean(entry?.audio?.file),
+      path: entry?.audio?.file ? `/tmp/state/recordings/${entry.audio.file}` : null
     }
   }
 

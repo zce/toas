@@ -133,7 +133,7 @@ test('settings schema defines persistent privacy and recent-history defaults', (
   expectTruthy(prefs.includes("spinRow(settings, 'recording-limit', 'Saved recordings', 0, 1000)"))
 })
 
-test('saved recordings zero keeps successful text history but removes audio', async () => {
+test('saved recordings zero keeps successful text history but removes audio file', async () => {
   const session = makeStoredSession({ recordingLimit: 0 })
   session.orchestrator.begin()
   await session.orchestrator.end()
@@ -142,13 +142,15 @@ test('saved recordings zero keeps successful text history but removes audio', as
   expectEqual(entries.length, 1)
   expectEqual(entries[0].status, 'ok')
   expectEqual(entries[0].text, 'hello')
-  expectEqual(entries[0].audio, null)
+  expectEqual(Object.hasOwn(entries[0].audio, 'file'), false)
+  expectEqual(entries[0].audio.durationMs, 3000)
+  expectEqual(entries[0].audio.sampleRate, 16000)
   expectEqual(fileExists(session.recording.path), false)
   expectEqual(session.history.resolveAudio(entries[0]).available, false)
   session.destroy()
 })
 
-test('saved recordings zero keeps failure history but removes audio', async () => {
+test('saved recordings zero keeps failure history but removes audio file', async () => {
   const session = makeStoredSession({ recordingLimit: 0, kernelError: new Error('provider down') })
   session.orchestrator.begin()
   await session.orchestrator.end()
@@ -156,7 +158,7 @@ test('saved recordings zero keeps failure history but removes audio', async () =
   const entries = session.history.readEntries()
   expectEqual(entries.length, 1)
   expectEqual(entries[0].status, 'error')
-  expectEqual(entries[0].audio, null)
+  expectEqual(Object.hasOwn(entries[0].audio, 'file'), false)
   expectEqual(fileExists(session.recording.path), false)
   session.destroy()
 })
@@ -167,13 +169,13 @@ test('retained failed recording remains available for retry', async () => {
   await session.orchestrator.end()
 
   const entry = session.history.readEntries()[0]
-  expectTruthy(entry.audio)
+  expectTruthy(entry.audio.file)
   expectEqual(fileExists(session.recording.path), true)
   expectEqual(session.history.resolveAudio(entry).available, true)
   session.destroy()
 })
 
-test('changing saved recordings to zero prunes audio without dropping text', async () => {
+test('changing saved recordings to zero prunes audio file without dropping metadata or text', async () => {
   const session = makeStoredSession({ recordingLimit: 20 })
   session.orchestrator.begin()
   await session.orchestrator.end()
@@ -183,7 +185,9 @@ test('changing saved recordings to zero prunes audio without dropping text', asy
 
   const entry = session.history.readEntries()[0]
   expectEqual(entry.text, 'hello')
-  expectEqual(entry.audio, null)
+  expectEqual(Object.hasOwn(entry.audio, 'file'), false)
+  expectEqual(entry.audio.durationMs, 3000)
+  expectEqual(entry.audio.sampleRate, 16000)
   expectEqual(fileExists(session.recording.path), false)
   session.destroy()
 })

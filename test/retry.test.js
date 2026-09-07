@@ -15,8 +15,13 @@ function makeOrchestrator ({ history, kernel = new FakeKernel(), recorderFactory
   })
 }
 
-function original (id = 'orig-1', audio = `recordings/${id}.wav`) {
-  return { id, status: 'error', audio, durationMs: 3000, sampleRate: 16000 }
+function original (id = 'orig-1', file = `${id}.wav`) {
+  return {
+    id,
+    status: 'error',
+    audio: file ? { file, durationMs: 3000, sampleRate: 16000 } : {},
+    transcribe: { error: { code: 'no-text', message: 'No speech was recognized' } }
+  }
 }
 
 function waitFor (predicate, timeoutMs = 2000) {
@@ -42,15 +47,15 @@ test('retry processes retained audio and appends an attempt without recording or
 
   expectEqual(kernel.calls.length, 1)
   expectEqual(attempt.status, 'ok')
-  expectEqual(attempt.attemptOf, entry.id)
-  expectEqual(attempt.attemptNumber, 1)
+  expectEqual(attempt.retryOf, entry.id)
   expectEqual(attempt.text, 'retried text')
-  expectEqual(attempt.audio, null)
+  expectEqual(Object.hasOwn(attempt, 'audio'), false)
+  expectEqual(Object.hasOwn(attempt, 'attemptNumber'), false)
   expectEqual(history.discarded, [])
   orchestrator.destroy()
 })
 
-test('retry failure appends categorized error attempt and preserves the original', async () => {
+test('retry failure appends categorized stage error and preserves the original', async () => {
   const history = new FakeHistory()
   const entry = original('orig-2')
   history.entries.push(entry)
@@ -60,9 +65,9 @@ test('retry failure appends categorized error attempt and preserves the original
   const attempt = await orchestrator.retry(entry)
 
   expectEqual(attempt.status, 'error')
-  expectEqual(attempt.error.category, 'network')
-  expectEqual(attempt.error.message, 'DNS lookup detail')
-  expectEqual(attempt.attemptOf, entry.id)
+  expectEqual(attempt.transcribe.error.code, 'network')
+  expectEqual(attempt.transcribe.error.message, 'DNS lookup detail')
+  expectEqual(attempt.retryOf, entry.id)
   expectEqual(history.get(entry.id), entry)
   expectEqual(history.discarded, [])
   orchestrator.destroy()

@@ -181,7 +181,10 @@ export default class ToasExtension extends Extension {
     if (attempt?.status === 'ok') {
       notifier.notify('Retry succeeded', 'Open the menu to copy the new result.')
     } else if (attempt?.status === 'error') {
-      const presentation = presentFailure(attempt.error, attempt.error?.stage)
+      const error = attempt.refine?.error ?? attempt.transcribe?.error
+      const presentation = presentFailure(
+        error ? { category: error.code, message: error.message } : null
+      )
       notifier.notify(
         'Retry failed',
         presentation

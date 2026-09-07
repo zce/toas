@@ -72,17 +72,27 @@ async function runPrimary ({ primary, primaryTrace, audio, context, runtime, sig
   assertNotCancelled(signal)
 
   const startedAt = runtime.clock.now()
-  const result = await primary.processor.process({
-    input: audio,
-    context: filterContext(context, primary.capabilities),
-    instructions: null,
-    signal
-  })
-  primaryTrace.elapsedMs = runtime.clock.now() - startedAt
-  recordTraceMeta(primaryTrace, result)
+  try {
+    const result = await primary.processor.process({
+      input: audio,
+      context: filterContext(context, primary.capabilities),
+      instructions: null,
+      signal
+    })
+    primaryTrace.elapsedMs = runtime.clock.now() - startedAt
+    recordTraceMeta(primaryTrace, result)
 
-  requireText(result, 'primary')
-  return { text: result.text, trace: [primaryTrace], warning: null }
+    requireText(result, 'primary')
+    primaryTrace.text = result.text
+    return { text: result.text, trace: [primaryTrace], warning: null }
+  } catch (error) {
+    if (signal?.aborted) {
+      throw processingError('cancelled', 'Processing was cancelled')
+    }
+    const failed = failedTrace(primaryTrace, error, runtime.clock.now() - startedAt)
+    error.trace = [failed]
+    throw error
+  }
 }
 
 async function runRefine ({
@@ -128,18 +138,21 @@ async function runRefine ({
     recordTraceMeta(refineTrace, result)
 
     requireText(result, 'refine')
+    refineTrace.text = result.text
     return { text: result.text, trace: [primaryTrace, refineTrace], warning: null }
   } catch (error) {
     if (signal?.aborted) {
       throw processingError('cancelled', 'Processing was cancelled')
     }
-    if (refineConfig.onError === 'abort') { throw error }
+
+    const failed = failedTrace(refineTrace, error, runtime.clock.now() - startedAt)
+    if (refineConfig.onError === 'abort') {
+      error.trace = [primaryTrace, failed]
+      throw error
+    }
     return {
       text: primaryResult.text,
-      trace: [
-        primaryTrace,
-        failedTrace(refineTrace, error, runtime.clock.now() - startedAt)
-      ],
+      trace: [primaryTrace, failed],
       warning: {
         type: 'refine-failed',
         provider: refineConfig.provider,
@@ -291,7 +304,8 @@ function traceFor ({ resolved, context }) {
     context: contextInUse(context, resolved.capabilities),
     usage: null,
     requestId: null,
-    responseId: null
+    responseId: null,
+    text: null
   }
 }
 
@@ -306,7 +320,8 @@ function pendingRefineTrace (refineConfig) {
     context: [],
     usage: null,
     requestId: null,
-    responseId: null
+    responseId: null,
+    text: null
   }
 }
 
@@ -314,6 +329,7 @@ function recordTraceMeta (trace, result) {
   trace.usage = result?.usage ?? null
   trace.requestId = result?.requestId ?? null
   trace.responseId = result?.responseId ?? null
+  trace.text = typeof result?.text === 'string' ? result.text.trim() : null
 }
 
 function contextInUse (context, capabilities) {
@@ -321,7 +337,13 @@ function contextInUse (context, capabilities) {
 }
 
 function failedTrace (trace, error, elapsedMs) {
-  return { ...trace, status: 'error', elapsedMs, error: safeMessage(error) }
+  return {
+    ...trace,
+    status: 'error',
+    elapsedMs,
+    error: safeMessage(error),
+    errorCategory: error?.category ?? null
+  }
 }
 
 function safeMessage (error) {
