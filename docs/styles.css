@@ -1228,7 +1228,11 @@ kbd {
 }
 
 .privacy {
-  background: #111612;
+  --muted: var(--light-muted);
+  --line: rgba(23, 27, 23, 0.16);
+  --accent: #536f17;
+  background: var(--light);
+  color: var(--light-text);
 }
 
 .privacy-points {
@@ -1247,7 +1251,7 @@ kbd {
 
 .privacy-points article:hover {
   transform: translateY(-3px);
-  border-color: rgba(200, 243, 106, 0.28);
+  border-color: rgba(83, 111, 23, 0.32);
 }
 
 .privacy-points article > span {

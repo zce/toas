@@ -1,10 +1,10 @@
 import { processingError } from '../error.js'
 
-// The Refine system prompt stays a small default task: toas structures
-// prompts for clarity, not containment, and user Instructions customize it.
-const REFINE_SYSTEM_PROMPT = `Refine the transcript into clear written text.
-Follow the user's instructions when provided and use context as helpful reference.
-By default, return only the refined text.`
+// The Refine system prompt defines only the shared protocol. User Instructions
+// own the transformation itself.
+const REFINE_SYSTEM_PROMPT = `Apply the user's instructions to the transcript.
+Use context only as reference.
+Return only the result, without commentary or placeholders.`
 
 // Provider base template: manifest-driven required-field validation,
 // manifest-level discovery, model-shape lookup, secret validation before

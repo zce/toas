@@ -202,6 +202,9 @@ Supported Refine providers are:
 
 Configure the provider, model, API key, and your own Refine instructions in Preferences.
 
+Looking for a starting point? See [Refine recipes](docs/refine-recipes.md) for Natural,
+Translate, Inline directives, and other practical Instructions.
+
 The **On refine failure** setting controls what happens when Refine fails:
 
 - **Use transcription** — continue with the transcription result.
