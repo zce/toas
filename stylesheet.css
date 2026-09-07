@@ -5,7 +5,24 @@
 
 /* --- Overlay (ui/overlay.js) ------------------------------------------------- */
 
+/* The overlay owns positioning, lifecycle and state; its children own visuals. */
 .toas-overlay {
+}
+
+/*
+ * Fixed shadow source, hidden behind the capsule. The y offset places the
+ * shadow's brightest area near the monitor edge; blur carries it upward.
+ */
+.toas-glow {
+  width: 128px;
+  height: 20px;
+
+  border-radius: 999px;
+  background-color: black;
+  box-shadow: 0 130px 150px 70px st-transparentize(-st-accent-color, 0.12);
+}
+
+.toas-capsule {
   spacing: 8px;
   padding: 8px;
 
@@ -13,13 +30,11 @@
   border-radius: 999px;
 
   background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.1);
-  box-shadow: 0 150px 130px 100px -st-accent-color;
-
   color: -st-accent-fg-color;
 }
 
 /* Error feedback has no side controls, so give the text more breathing room. */
-.toas-overlay.toas-error {
+.toas-overlay.toas-error .toas-capsule {
   padding: 8px 16px;
 }
 
@@ -153,17 +168,12 @@
   color: st-lighten(-st-accent-color, 0.4);
 }
 
-/*
- * Private mode changes the atmosphere of the capsule rather than adding
- * another surface inside it. A soft accent-colored inner glow provides a
- * persistent visual distinction without looking like a focus ring.
- */
-.toas-overlay.toas-private {
+.toas-overlay.toas-private .toas-capsule {
   background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.2);
 }
 
 /* Terminal error feedback should not carry the Private run decoration. */
-.toas-overlay.toas-private.toas-error {
+.toas-overlay.toas-private.toas-error .toas-capsule {
   background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.1);
 }
 

@@ -120,6 +120,9 @@ const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
 const OVERLAY_BOTTOM_MARGIN = 112
+const CAPSULE_FADE_MS = 150
+const GLOW_FADE_MS = 220
+const GLOW_RISE_PX = 18
 
 export class ShellOverlayView {
   constructor () {
@@ -127,12 +130,28 @@ export class ShellOverlayView {
     this._compositingHeld = false
     this._monitorIndex = null
 
-    this._actor = new St.BoxLayout({
+    this._overlay = new St.Widget({
       style_class: 'toas-overlay',
+      layout_manager: new Clutter.BinLayout(),
       reactive: false,
       visible: false
     })
-    this._actor.connect('notify::width', () => this._reposition())
+    this._overlay.connect('notify::width', () => this._reposition())
+    this._overlay.connect('notify::height', () => this._reposition())
+
+    this._glow = new St.Widget({
+      style_class: 'toas-glow',
+      reactive: false,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER
+    })
+
+    this._capsule = new St.BoxLayout({
+      style_class: 'toas-capsule',
+      reactive: false,
+      x_align: Clutter.ActorAlign.CENTER,
+      y_align: Clutter.ActorAlign.CENTER
+    })
 
     this._icon = new St.Icon({
       style_class: 'toas-icon',
@@ -187,16 +206,21 @@ export class ShellOverlayView {
       y_align: Clutter.ActorAlign.CENTER
     })
 
-    this._actor.add_child(this._icon)
-    this._actor.add_child(this._bars)
-    this._actor.add_child(this._privateIcon)
-    this._actor.add_child(this._spinner)
-    this._actor.add_child(this._status)
-    this._actor.add_child(this._closeButton)
+    this._capsule.add_child(this._icon)
+    this._capsule.add_child(this._bars)
+    this._capsule.add_child(this._privateIcon)
+    this._capsule.add_child(this._spinner)
+    this._capsule.add_child(this._status)
+    this._capsule.add_child(this._closeButton)
+
+    // Glow and capsule are two visual layers of one overlay. The glow uses a
+    // fixed source, so capsule content changes cannot reshape the atmosphere.
+    this._overlay.add_child(this._glow)
+    this._overlay.add_child(this._capsule)
 
     // This is transient system feedback, so keep it above application windows.
     // Do not use trackFullscreen: tracked actors are hidden in fullscreen.
-    Main.layoutManager.addTopChrome(this._actor)
+    Main.layoutManager.addTopChrome(this._overlay)
 
     this._monitorsChangedId = Main.layoutManager.connect(
       'monitors-changed',
@@ -229,9 +253,9 @@ export class ShellOverlayView {
     this._closeButton.visible = recording || busy
 
     if (error) {
-      this._actor.add_style_class_name('toas-error')
+      this._overlay.add_style_class_name('toas-error')
     } else {
-      this._actor.remove_style_class_name('toas-error')
+      this._overlay.remove_style_class_name('toas-error')
     }
   }
 
@@ -249,9 +273,9 @@ export class ShellOverlayView {
   setPrivate (enabled) {
     this._private = Boolean(enabled)
     if (this._private) {
-      this._actor.add_style_class_name('toas-private')
+      this._overlay.add_style_class_name('toas-private')
     } else {
-      this._actor.remove_style_class_name('toas-private')
+      this._overlay.remove_style_class_name('toas-private')
     }
     this._privateIcon.visible = this._privateIcon.visible && this._private
   }
@@ -274,41 +298,66 @@ export class ShellOverlayView {
 
   show () {
     this._reposition()
-    // A new recording can start while the previous hide animation is still
-    // running. Stop it so the stale onStopped callback cannot hide this run.
-    this._actor.remove_all_transitions()
+    this._capsule.remove_all_transitions()
+    this._glow.remove_all_transitions()
     this._acquireCompositing()
 
-    if (this._actor.visible) {
-      this._actor.opacity = 255
+    if (this._overlay.visible) {
+      this._capsule.opacity = 255
+      this._glow.opacity = 255
+      this._glow.translation_y = 0
       return
     }
 
-    this._actor.show()
-    // Keep stage changes steady; only the first appearance fades in.
-    this._actor.opacity = 0
-    this._actor.ease({
+    this._overlay.show()
+
+    // The capsule appears quickly; the ambient light rises more gently from
+    // below so it reads as illumination rather than another scaling surface.
+    this._capsule.opacity = 0
+    this._glow.opacity = 0
+    this._glow.translation_y = GLOW_RISE_PX
+
+    this._capsule.ease({
       opacity: 255,
-      duration: 150,
+      duration: CAPSULE_FADE_MS,
+      mode: Clutter.AnimationMode.EASE_OUT_QUAD
+    })
+    this._glow.ease({
+      opacity: 255,
+      translation_y: 0,
+      duration: GLOW_FADE_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD
     })
   }
 
   hide () {
     this._closeButton.visible = false
-    if (!this._actor.visible) {
+    if (!this._overlay.visible) {
       this._releaseCompositing()
       return
     }
 
-    this._actor.ease({
+    this._capsule.remove_all_transitions()
+    this._glow.remove_all_transitions()
+
+    this._capsule.ease({
       opacity: 0,
-      duration: 150,
+      duration: CAPSULE_FADE_MS,
+      mode: Clutter.AnimationMode.EASE_OUT_QUAD
+    })
+    this._glow.ease({
+      opacity: 0,
+      translation_y: GLOW_RISE_PX,
+      duration: GLOW_FADE_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => {
         // Only hide if nothing re-showed during the transition.
-        if (this._actor && this._actor.opacity === 0) {
-          this._actor.hide()
+        if (
+          this._overlay &&
+          this._capsule?.opacity === 0 &&
+          this._glow?.opacity === 0
+        ) {
+          this._overlay.hide()
           this._releaseCompositing()
         }
       }
@@ -339,17 +388,17 @@ export class ShellOverlayView {
       Main.layoutManager.primaryMonitor,
       this._monitorIndex
     )
-    if (!monitor || !this._actor) { return }
+    if (!monitor || !this._overlay) { return }
 
-    const [, width] = this._actor.get_preferred_width(-1)
-    const [, height] = this._actor.get_preferred_height(width)
+    const [, width] = this._overlay.get_preferred_width(-1)
+    const [, height] = this._overlay.get_preferred_height(width)
     const { x, y } = calculateOverlayPosition(
       monitor,
       width,
       height,
       OVERLAY_BOTTOM_MARGIN
     )
-    this._actor.set_position(x, y)
+    this._overlay.set_position(x, y)
   }
 
   _acquireCompositing () {
@@ -370,18 +419,20 @@ export class ShellOverlayView {
     this._spinner?.stop()
     this._onCancelRequested = null
 
-    // Kill any in-flight ease before tearing down the chrome actor.
-    this._actor?.remove_all_transitions()
+    this._capsule?.remove_all_transitions()
+    this._glow?.remove_all_transitions()
     this._releaseCompositing()
 
     if (this._monitorsChangedId) { Main.layoutManager.disconnect(this._monitorsChangedId) }
 
-    if (this._actor) {
-      Main.layoutManager.removeChrome(this._actor)
-      this._actor.destroy()
+    if (this._overlay) {
+      Main.layoutManager.removeChrome(this._overlay)
+      this._overlay.destroy()
     }
 
-    this._actor = null
+    this._overlay = null
+    this._glow = null
+    this._capsule = null
     this._icon = null
     this._spinner = null
     this._status = null
