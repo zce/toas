@@ -1,5 +1,6 @@
 import Pango from 'gi://Pango'
 import Clutter from 'gi://Clutter'
+import GLib from 'gi://GLib'
 import St from 'gi://St'
 
 import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
@@ -45,10 +46,9 @@ export class ToasOverlayPresenter {
     this._clearTimer()
 
     if (state === 'idle') {
-      if (this._mode === 'busy') { this._view.stopSpinner() }
       this._mode = 'hidden'
-      // Keep whatever is on screen so the fade-out stays continuous: tearing
-      // children down first would flash an empty pill or a lone spinner.
+      // Keep the final frame intact until the fade finishes. ShellOverlayView
+      // performs visual cleanup only after the overlay is fully hidden.
       this._view.hide()
       return
     }
@@ -123,12 +123,20 @@ const OVERLAY_BOTTOM_MARGIN = 112
 const CAPSULE_FADE_MS = 150
 const GLOW_FADE_MS = 220
 const GLOW_RISE_PX = 18
+const WAVEFORM_TIMELINE_MS = 60 * 60 * 1000
+const WAVEFORM_ATTACK_MS = 45
+const WAVEFORM_RELEASE_MS = 90
 
 export class ShellOverlayView {
   constructor () {
     this._levels = Array(BAR_COUNT).fill(0)
+    this._targetHeights = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
+    this._displayHeights = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
+    this._waveformRunning = false
+    this._waveformFrameUs = 0
     this._compositingHeld = false
     this._monitorIndex = null
+    this._mode = 'hidden'
 
     this._overlay = new St.Widget({
       style_class: 'toas-overlay',
@@ -136,8 +144,6 @@ export class ShellOverlayView {
       reactive: false,
       visible: false
     })
-    this._overlay.connect('notify::width', () => this._reposition())
-    this._overlay.connect('notify::height', () => this._reposition())
 
     this._glow = new St.Widget({
       style_class: 'toas-glow',
@@ -174,6 +180,14 @@ export class ShellOverlayView {
       this._bars.add_child(bar)
     }
 
+    this._waveformTimeline = new Clutter.Timeline({
+      duration: WAVEFORM_TIMELINE_MS
+    })
+    this._waveformTimeline.connect(
+      'new-frame',
+      () => this._renderWaveformFrame()
+    )
+
     this._status = new St.Label({
       style_class: 'toas-status',
       text: '',
@@ -196,7 +210,8 @@ export class ShellOverlayView {
       y_align: Clutter.ActorAlign.CENTER
     })
     this._closeButton.connect('clicked', () => {
-      this._closeButton.visible = false
+      // Preserve the final visual frame while cancellation begins; cleanup is
+      // deferred until the overlay has actually faded away.
       this._onCancelRequested?.()
     })
 
@@ -246,11 +261,18 @@ export class ShellOverlayView {
     const busy = mode === 'busy'
     const error = mode === 'error'
 
+    this._mode = mode
     this._icon.visible = recording
     this._bars.visible = recording
     this._status.visible = busy || error
     this._privateIcon.visible = recording && this._private
     this._closeButton.visible = recording || busy
+
+    if (recording) {
+      this._startWaveform()
+    } else {
+      this._stopWaveform()
+    }
 
     if (error) {
       this._overlay.add_style_class_name('toas-error')
@@ -278,6 +300,7 @@ export class ShellOverlayView {
       this._overlay.remove_style_class_name('toas-private')
     }
     this._privateIcon.visible = this._privateIcon.visible && this._private
+    this._reposition()
   }
 
   startSpinner () {
@@ -290,8 +313,9 @@ export class ShellOverlayView {
 
   resetLevels () {
     this._levels.fill(0)
+    this._targetHeights.fill(BAR_MIN_HEIGHT)
+    this._displayHeights.fill(BAR_MIN_HEIGHT)
     this._barActors.forEach(bar => {
-      bar.remove_all_transitions()
       bar.height = BAR_MIN_HEIGHT
     })
   }
@@ -303,6 +327,9 @@ export class ShellOverlayView {
     this._acquireCompositing()
 
     if (this._overlay.visible) {
+      // A new non-busy state may have interrupted a busy fade-out before the
+      // deferred spinner cleanup ran.
+      if (this._mode !== 'busy') { this._spinner.stop() }
       this._capsule.opacity = 255
       this._glow.opacity = 255
       this._glow.translation_y = 0
@@ -331,8 +358,9 @@ export class ShellOverlayView {
   }
 
   hide () {
-    this._closeButton.visible = false
     if (!this._overlay.visible) {
+      this._spinner.stop()
+      this._closeButton.visible = false
       this._releaseCompositing()
       return
     }
@@ -351,13 +379,15 @@ export class ShellOverlayView {
       duration: GLOW_FADE_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => {
-        // Only hide if nothing re-showed during the transition.
+        // Only clean up the final frame if nothing re-showed during the fade.
         if (
           this._overlay &&
           this._capsule?.opacity === 0 &&
           this._glow?.opacity === 0
         ) {
           this._overlay.hide()
+          this._spinner.stop()
+          this._closeButton.visible = false
           this._releaseCompositing()
         }
       }
@@ -369,16 +399,51 @@ export class ShellOverlayView {
     this._levels.unshift(safeLevel)
     this._levels.length = BAR_COUNT
 
-    this._barActors.forEach((bar, index) => {
-      const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
-      const height = Math.round(
+    this._levels.forEach((sample, index) => {
+      const shaped = Math.pow(sample ?? 0, 0.45)
+      this._targetHeights[index] =
         BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
-      )
-      bar.ease({
-        height,
-        duration: 100,
-        mode: Clutter.AnimationMode.LINEAR
-      })
+    })
+  }
+
+  _startWaveform () {
+    if (this._waveformRunning) { return }
+
+    this._waveformRunning = true
+    this._waveformFrameUs = GLib.get_monotonic_time()
+    this._waveformTimeline.start()
+  }
+
+  _stopWaveform () {
+    if (!this._waveformRunning) { return }
+
+    this._waveformRunning = false
+    this._waveformFrameUs = 0
+    this._waveformTimeline.stop()
+  }
+
+  _renderWaveformFrame () {
+    if (!this._waveformRunning) { return }
+
+    const nowUs = GLib.get_monotonic_time()
+    const elapsedMs = this._waveformFrameUs
+      ? Math.min(50, Math.max(1, (nowUs - this._waveformFrameUs) / 1000))
+      : 16
+    this._waveformFrameUs = nowUs
+
+    this._barActors.forEach((bar, index) => {
+      const current = this._displayHeights[index]
+      const target = this._targetHeights[index]
+      const responseMs = target > current
+        ? WAVEFORM_ATTACK_MS
+        : WAVEFORM_RELEASE_MS
+      const alpha = 1 - Math.exp(-elapsedMs / responseMs)
+      const next = current + (target - current) * alpha
+      const settled = Math.abs(target - next) < 0.1 ? target : next
+
+      this._displayHeights[index] = settled
+      const height = Math.round(settled)
+      if (bar.height !== height) { bar.height = height }
     })
   }
 
@@ -417,6 +482,7 @@ export class ShellOverlayView {
 
   destroy () {
     this._spinner?.stop()
+    this._stopWaveform()
     this._onCancelRequested = null
 
     this._capsule?.remove_all_transitions()
@@ -433,6 +499,7 @@ export class ShellOverlayView {
     this._overlay = null
     this._glow = null
     this._capsule = null
+    this._waveformTimeline = null
     this._icon = null
     this._spinner = null
     this._status = null
