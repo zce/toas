@@ -11,8 +11,6 @@ class FakeOverlayView {
     this.hideCalls = 0
     this.showCalls = 0
     this.resetCalls = 0
-    this.spinnerStarts = 0
-    this.spinnerStops = 0
     this.destroyed = 0
   }
 
@@ -24,12 +22,6 @@ class FakeOverlayView {
     this.modes.push(mode)
   }
 
-  startSpinner() {
-    this.spinnerStarts++
-  }
-  stopSpinner() {
-    this.spinnerStops++
-  }
   show() {
     this.showCalls++
   }
@@ -59,20 +51,19 @@ test('idle hides the overlay and clears timers', () => {
   presenter.render('error', 'boom')
   presenter.render('idle')
 
-  expectEqual(view.hideCalls >= 1, true)
+  expectEqual(view.hideCalls, 1)
   expectEqual(presenter._timer, null)
   presenter.destroy()
 })
 
-test('idle leaves busy cleanup to the view so fade-out keeps the final frame', () => {
+test('idle preserves the current visual mode until the view hides', () => {
   const view = new FakeOverlayView()
   const presenter = new ToasOverlayPresenter({ view })
 
   presenter.render('transcribing')
   presenter.render('idle')
 
-  expectEqual(view.spinnerStarts, 1)
-  expectEqual(view.spinnerStops, 0)
+  expectEqual(view.modes, ['busy'])
   expectEqual(view.hideCalls, 1)
   presenter.destroy()
 })
@@ -121,25 +112,7 @@ test('busy states render truthful stage labels', () => {
   presenter.destroy()
 })
 
-test('spinner stays continuous across busy stage changes', () => {
-  const view = new FakeOverlayView()
-  const presenter = new ToasOverlayPresenter({ view })
-
-  presenter.render('transcribing')
-  presenter.render('refining')
-  presenter.render('outputting')
-  presenter.render('copying')
-
-  expectEqual(view.spinnerStarts, 1)
-  expectEqual(view.spinnerStops, 0)
-
-  presenter.render('recording')
-  expectEqual(view.spinnerStarts, 1)
-  expectEqual(view.spinnerStops, 1)
-  presenter.destroy()
-})
-
-test('error uses the terminal visual mode and stops a running spinner', () => {
+test('error uses the terminal visual mode', () => {
   const view = new FakeOverlayView()
   const presenter = new ToasOverlayPresenter({ view })
 
@@ -147,8 +120,6 @@ test('error uses the terminal visual mode and stops a running spinner', () => {
   presenter.render('error', 'broken')
 
   expectEqual(view.modes, ['busy', 'error'])
-  expectEqual(view.spinnerStarts, 1)
-  expectEqual(view.spinnerStops, 1)
   presenter.destroy()
 })
 
@@ -188,21 +159,6 @@ test('private mode is delegated to the view without a text label', () => {
 
   presenter.setPrivate(false)
   expectEqual(view.privateFlags.at(-1), false)
-  presenter.destroy()
-})
-
-test('repeated setPrivate calls delegate only on change', () => {
-  const view = new FakeOverlayView()
-  const presenter = new ToasOverlayPresenter({ view })
-
-  presenter.setPrivate(true)
-  expectEqual(view.privateFlags.length, 1)
-
-  presenter.setPrivate(true)
-  expectEqual(view.privateFlags.length, 1)
-
-  presenter.setPrivate(false)
-  expectEqual(view.privateFlags.length, 2)
   presenter.destroy()
 })
 

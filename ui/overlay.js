@@ -19,8 +19,6 @@ export class ToasOverlayPresenter {
     this._hideDelay = hideDelay
     this._timer = null
     this._generation = 0
-    this._private = false
-    this._mode = 'hidden'
   }
 
   setOnCancelRequested(handler) {
@@ -32,15 +30,7 @@ export class ToasOverlayPresenter {
   }
 
   setPrivate(enabled) {
-    const next = Boolean(enabled)
-    if (this._private === next) {
-      return
-    }
-
-    this._private = next
-    // The flag is the run snapshot, not the live switch, so changing Private
-    // mode mid-run cannot decorate a non-private run.
-    this._view.setPrivate?.(next)
+    this._view.setPrivate?.(Boolean(enabled))
   }
 
   render(state, message = '') {
@@ -48,9 +38,8 @@ export class ToasOverlayPresenter {
     this._clearTimer()
 
     if (state === 'idle') {
-      this._mode = 'hidden'
-      // Keep the final frame intact until the fade finishes. ShellOverlayView
-      // performs visual cleanup only after the overlay is fully hidden.
+      // Keep the current visual mode intact until the fade finishes so the
+      // final frame cannot collapse before it disappears.
       this._view.hide()
       return
     }
@@ -58,16 +47,6 @@ export class ToasOverlayPresenter {
     const mode = visualModeFor(state)
     const error = mode === 'error'
     const label = STATE_LABELS[state] ?? ''
-
-    if (mode !== this._mode) {
-      if (this._mode === 'busy') {
-        this._view.stopSpinner()
-      }
-      if (mode === 'busy') {
-        this._view.startSpinner()
-      }
-    }
-    this._mode = mode
 
     this._view.render(state, error ? message || 'Voice input failed' : label)
     this._view.setMode(mode)
@@ -94,10 +73,6 @@ export class ToasOverlayPresenter {
 
   destroy() {
     this._clearTimer()
-    if (this._mode === 'busy') {
-      this._view.stopSpinner()
-    }
-    this._mode = 'hidden'
     this._view.destroy?.()
   }
 
@@ -190,8 +165,6 @@ export class ShellOverlayView {
       y_align: Clutter.ActorAlign.CENTER
     })
     this._closeButton.connect('clicked', () => {
-      // Preserve the final visual frame while cancellation begins; cleanup is
-      // deferred until the overlay has actually faded away.
       this._onCancelRequested?.()
     })
 
@@ -233,7 +206,12 @@ export class ShellOverlayView {
     const busy = mode === 'busy'
     const error = mode === 'error'
 
-    this._mode = mode
+    if (mode !== this._mode) {
+      if (this._mode === 'busy') this._spinner.stop()
+      if (busy) this._spinner.play()
+      this._mode = mode
+    }
+
     this._icon.visible = recording
     this._bars.visible = recording
     this._status.visible = busy || error
@@ -263,16 +241,8 @@ export class ShellOverlayView {
     } else {
       this._overlay.remove_style_class_name('toas-private')
     }
-    this._privateIcon.visible = this._privateIcon.visible && this._private
+    this._privateIcon.visible = this._mode === 'recording' && this._private
     this._reposition()
-  }
-
-  startSpinner() {
-    this._spinner.play()
-  }
-
-  stopSpinner() {
-    this._spinner.stop()
   }
 
   resetLevels() {
@@ -289,20 +259,14 @@ export class ShellOverlayView {
     this._acquireCompositing()
 
     if (this._overlay.visible) {
-      // A new non-busy state may have interrupted a busy fade-out before the
-      // deferred spinner cleanup ran.
-      if (this._mode !== 'busy') {
-        this._spinner.stop()
-      }
       this._overlay.opacity = 255
       this._overlay.translation_y = 0
       return
     }
 
-    this._overlay.opacity = 255
-    this._overlay.translation_y = 0
-
     if (!St.Settings.get().enable_animations) {
+      this._overlay.opacity = 255
+      this._overlay.translation_y = 0
       this._overlay.show()
       return
     }
@@ -310,8 +274,6 @@ export class ShellOverlayView {
     const [, width] = this._overlay.get_preferred_width(-1)
     const [, height] = this._overlay.get_preferred_height(width)
 
-    // Match toast motion: arrive from roughly one capsule height below the
-    // resting position, then stay spatially anchored for the rest of the run.
     this._overlay.opacity = 0
     this._overlay.translation_y = height
     this._overlay.show()
@@ -324,40 +286,20 @@ export class ShellOverlayView {
   }
 
   hide() {
-    if (!this._overlay.visible) {
-      this._spinner.stop()
-      this._closeButton.visible = false
-      this._releaseCompositing()
-      return
-    }
-
     this._overlay.remove_all_transitions()
 
-    if (!St.Settings.get().enable_animations) {
-      this._overlay.hide()
-      this._overlay.opacity = 255
-      this._overlay.translation_y = 0
-      this._spinner.stop()
-      this._closeButton.visible = false
-      this._releaseCompositing()
+    if (!this._overlay.visible || !St.Settings.get().enable_animations) {
+      this._finishHide()
       return
     }
 
-    // Exit does not reverse the entrance. Once settled, the overlay simply
-    // fades away from its current position.
     this._overlay.ease({
       opacity: 0,
       duration: OVERLAY_EXIT_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => {
-        // Only clean up the final frame if nothing re-showed during the fade.
-        if (this._overlay && this._overlay.opacity === 0) {
-          this._overlay.hide()
-          this._overlay.opacity = 255
-          this._overlay.translation_y = 0
-          this._spinner.stop()
-          this._closeButton.visible = false
-          this._releaseCompositing()
+        if (this._overlay?.opacity === 0) {
+          this._finishHide()
         }
       }
     })
@@ -378,6 +320,14 @@ export class ShellOverlayView {
         mode: Clutter.AnimationMode.LINEAR
       })
     })
+  }
+
+  _finishHide() {
+    this._overlay.hide()
+    this._mode = 'hidden'
+    this._spinner.stop()
+    this._closeButton.visible = false
+    this._releaseCompositing()
   }
 
   _reposition() {
