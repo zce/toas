@@ -338,6 +338,7 @@
       cover.addEventListener('click', async () => {
         frame.classList.add('is-playing')
         try {
+          video.playbackRate = 1.5
           await video.play()
         } catch {
           frame.classList.remove('is-playing')

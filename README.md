@@ -27,6 +27,8 @@
 
 ## What It Does
 
+[Demo](docs/assets/toas.mp4)
+
 `toas` turns one held shortcut into text in the application that is already in focus:
 
 ```text
