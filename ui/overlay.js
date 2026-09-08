@@ -129,8 +129,8 @@ const BAR_MIN_HEIGHT = 2
 const BAR_MAX_HEIGHT = 20
 const WAVEFORM_EASE_MS = 140
 const OVERLAY_BOTTOM_MARGIN = 112
-const OVERLAY_MOTION_MS = 180
-const OVERLAY_OFFSET_PX = 6
+const OVERLAY_ENTER_MS = 220
+const OVERLAY_EXIT_MS = 160
 
 // The Shell half of the overlay: builds the actors, animates show/hide, and
 // holds compositor unredirect while visible so the waveform stays smooth.
@@ -299,14 +299,27 @@ export class ShellOverlayView {
       return
     }
 
+    this._overlay.opacity = 255
+    this._overlay.translation_y = 0
+
+    if (!St.Settings.get().enable_animations) {
+      this._overlay.show()
+      return
+    }
+
+    const [, width] = this._overlay.get_preferred_width(-1)
+    const [, height] = this._overlay.get_preferred_height(width)
+
+    // Match toast motion: arrive from roughly one capsule height below the
+    // resting position, then stay spatially anchored for the rest of the run.
     this._overlay.opacity = 0
-    this._overlay.translation_y = OVERLAY_OFFSET_PX
+    this._overlay.translation_y = height
     this._overlay.show()
     this._overlay.ease({
       opacity: 255,
       translation_y: 0,
-      duration: OVERLAY_MOTION_MS,
-      mode: Clutter.AnimationMode.EASE_OUT_QUAD
+      duration: OVERLAY_ENTER_MS,
+      mode: Clutter.AnimationMode.EASE_OUT_CUBIC
     })
   }
 
@@ -319,15 +332,28 @@ export class ShellOverlayView {
     }
 
     this._overlay.remove_all_transitions()
+
+    if (!St.Settings.get().enable_animations) {
+      this._overlay.hide()
+      this._overlay.opacity = 255
+      this._overlay.translation_y = 0
+      this._spinner.stop()
+      this._closeButton.visible = false
+      this._releaseCompositing()
+      return
+    }
+
+    // Exit does not reverse the entrance. Once settled, the overlay simply
+    // fades away from its current position.
     this._overlay.ease({
       opacity: 0,
-      translation_y: OVERLAY_OFFSET_PX,
-      duration: OVERLAY_MOTION_MS,
+      duration: OVERLAY_EXIT_MS,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => {
         // Only clean up the final frame if nothing re-showed during the fade.
         if (this._overlay && this._overlay.opacity === 0) {
           this._overlay.hide()
+          this._overlay.opacity = 255
           this._overlay.translation_y = 0
           this._spinner.stop()
           this._closeButton.visible = false
