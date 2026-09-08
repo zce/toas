@@ -184,6 +184,9 @@ override is available for advanced configurations.
 
 MiMo with `mimo-v2.5-asr` is the alternative transcription provider.
 
+Looking for a starting point? See [Recipes](docs/recipes.md) for practical Context and
+Refine Instructions you can copy, combine, and adapt.
+
 ### Context
 
 **Context** is free text you write once — domain terms, background, names, or anything else
@@ -203,9 +206,6 @@ Supported Refine providers are:
 - OpenAI-compatible endpoints
 
 Configure the provider, model, API key, and your own Refine instructions in Preferences.
-
-Looking for a starting point? See [Refine recipes](docs/refine-recipes.md) for Natural,
-Translate, Inline directives, and other practical Instructions.
 
 The **On refine failure** setting controls what happens when Refine fails:
 
