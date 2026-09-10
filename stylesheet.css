@@ -15,8 +15,8 @@
   /* Match GNOME's dark toast treatment in every system appearance. The
    * restrained shadow is functional rather than decorative: it keeps this
    * transient surface legible over unpredictable application backgrounds. */
-  background-color: #505053;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  background-color: rgba(80, 80, 83, 0.75);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.42);
   color: rgba(255, 255, 255, 0.92);
 }
 
@@ -60,7 +60,7 @@
   width: 4px;
 
   border-radius: 999px;
-  background-color: rgba(255, 255, 255, 0.55);
+  background-color: -st-accent-color;
 }
 
 /* The capsule is always dark, so its compact action needs a stable light
