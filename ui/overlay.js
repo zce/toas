@@ -99,10 +99,8 @@ function visualModeFor(state) {
 }
 
 const BAR_COUNT = 8
-const BAR_MIN_HEIGHT = 2
-// Keep the .toas-bars height in stylesheet.css in sync with this value.
-const BAR_MAX_HEIGHT = 16
-const WAVEFORM_EASE_MS = 100
+const WAVEFORM_NOISE_FLOOR = 0.04
+const WAVEFORM_EASE_MS = 120
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_ENTER_MS = 220
 const OVERLAY_EXIT_MS = 160
@@ -112,7 +110,7 @@ const OVERLAY_EXIT_MS = 160
 export class ShellOverlayView {
   constructor() {
     this._levels = Array(BAR_COUNT).fill(0)
-    this._barTargets = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
+    this._barTargets = Array(BAR_COUNT).fill(null)
     this._compositingHeld = false
     this._monitorIndex = null
     this._mode = 'hidden'
@@ -138,7 +136,6 @@ export class ShellOverlayView {
     for (let i = 0; i < BAR_COUNT; i++) {
       const bar = new St.Widget({
         style_class: 'toas-bar',
-        height: BAR_MIN_HEIGHT,
         y_align: Clutter.ActorAlign.CENTER
       })
       this._barActors.push(bar)
@@ -255,10 +252,11 @@ export class ShellOverlayView {
 
   resetLevels() {
     this._levels.fill(0)
-    this._barTargets.fill(BAR_MIN_HEIGHT)
+    this._barTargets.fill(null)
     this._barActors.forEach(bar => {
       bar.remove_all_transitions()
-      bar.height = BAR_MIN_HEIGHT
+      // Drop the explicit animated size and return to the CSS resting height.
+      bar.height = -1
     })
   }
 
@@ -316,15 +314,22 @@ export class ShellOverlayView {
 
   setLevel(level) {
     const safeLevel = Math.max(0, Math.min(1, level || 0))
-    this._levels.unshift(safeLevel)
+    const activeLevel = safeLevel <= WAVEFORM_NOISE_FLOOR ? 0 : (safeLevel - WAVEFORM_NOISE_FLOOR) / (1 - WAVEFORM_NOISE_FLOOR)
+    this._levels.unshift(activeLevel)
     this._levels.length = BAR_COUNT
 
-    this._barActors.forEach((bar, index) => {
-      // Keep the signal direct and expressive. Quantizing the target to whole
-      // CSS pixels avoids tiny retargets without damping or delaying the audio.
-      const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
-      const height = Math.round(BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT))
+    const range = this._waveformRange()
+    if (!range) {
+      return
+    }
 
+    this._barActors.forEach((bar, index) => {
+      const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
+      const height = Math.round(range.restingHeight + shaped * (range.maxHeight - range.restingHeight))
+
+      if (this._barTargets[index] === null) {
+        this._barTargets[index] = range.restingHeight
+      }
       if (height === this._barTargets[index]) {
         return
       }
@@ -336,6 +341,18 @@ export class ShellOverlayView {
         mode: Clutter.AnimationMode.LINEAR
       })
     })
+  }
+
+  _waveformRange() {
+    // CSS owns the visual geometry. ThemeNode resolves those lengths with the
+    // active Shell scale factor, so JS animates in the same coordinate space.
+    const restingHeight = this._barActors[0]?.get_theme_node().get_height() ?? 0
+    const maxHeight = this._bars?.get_theme_node().get_height() ?? 0
+
+    if (restingHeight <= 0 || maxHeight < restingHeight) {
+      return null
+    }
+    return { restingHeight, maxHeight }
   }
 
   _finishHide() {

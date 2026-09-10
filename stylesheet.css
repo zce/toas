@@ -50,14 +50,15 @@
   opacity: 0.8;
 }
 
-/* Keep in sync with BAR_MAX_HEIGHT in ui/overlay.js. */
+/* CSS owns waveform geometry so Shell scale-factor handling stays consistent. */
 .toas-bars {
   spacing: 3px;
-  height: 16px;
+  height: 20px;
 }
 
 .toas-bar {
   width: 3px;
+  height: 5px;
 
   border-radius: 999px;
   background-color: -st-accent-color;

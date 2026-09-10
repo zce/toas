@@ -53,7 +53,8 @@ export function recordingOutcomeCancelled() {
 
 Gio._promisify(Gio.InputStream.prototype, 'read_bytes_async', 'read_bytes_finish')
 
-const DEFAULT_CHUNK_MS = 100
+const LEVEL_WINDOW_MS = 100
+const LEVEL_GAIN = 5
 const BYTES_PER_SAMPLE = 2
 // Bounds an accidentally open recording so it cannot exhaust Shell memory
 // during upload (~4 minutes at 48 kHz mono s16).
@@ -82,7 +83,11 @@ export class AudioRecorder {
     this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0 ? minimumDurationMs : DEFAULT_MINIMUM_RECORDING_DURATION_MS
     this._bytesPerMs = (this._sampleRate * BYTES_PER_SAMPLE) / 1000
     this._minimumBytes = this._bytesPerMs * this._minimumDurationMs
-    this._chunkBytes = this._bytesPerMs * DEFAULT_CHUNK_MS
+    this._levelWindowSamples = Math.max(1, Math.round((this._sampleRate * LEVEL_WINDOW_MS) / 1000))
+    this._readBytes = this._levelWindowSamples * BYTES_PER_SAMPLE
+    this._levelSumSquares = 0
+    this._levelSampleCount = 0
+    this._levelCarryByte = null
     this._outcome = null
   }
 
@@ -106,6 +111,9 @@ export class AudioRecorder {
     this._id = id
     this._limitReached = false
     this._cancelled = false
+    this._levelSumSquares = 0
+    this._levelSampleCount = 0
+    this._levelCarryByte = null
     this._output = Gio.File.new_for_path(this._path).replace(null, false, Gio.FileCreateFlags.PRIVATE, null)
     this._output.write_all(new Uint8Array(44), null)
     this._totalBytes = 0
@@ -190,7 +198,7 @@ export class AudioRecorder {
 
   async _readLoop() {
     while (this._stream) {
-      const bytes = await this._stream.read_bytes_async(this._chunkBytes, GLib.PRIORITY_DEFAULT, null)
+      const bytes = await this._stream.read_bytes_async(this._readBytes, GLib.PRIORITY_DEFAULT, null)
 
       if (bytes.get_size() === 0) {
         break
@@ -208,8 +216,52 @@ export class AudioRecorder {
 
       this._output.write_all(data, null)
       this._totalBytes += data.length
-      this._onLevel?.(calculateRms(data))
+      this._accumulateLevel(data)
     }
+  }
+
+  _accumulateLevel(data) {
+    if (!data?.length) {
+      return
+    }
+
+    let sumSquares = this._levelSumSquares
+    let sampleCount = this._levelSampleCount
+    let index = 0
+
+    if (this._levelCarryByte !== null) {
+      let value = this._levelCarryByte | (data[0] << 8)
+      if (value & 0x8000) value -= 0x10000
+      const sample = value / 32768
+      sumSquares += sample * sample
+      sampleCount++
+      index = 1
+      this._levelCarryByte = null
+
+      if (sampleCount === this._levelWindowSamples) {
+        this._onLevel?.(Math.min(1, Math.sqrt(sumSquares / sampleCount) * LEVEL_GAIN))
+        sumSquares = 0
+        sampleCount = 0
+      }
+    }
+
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    while (index + 1 < data.length) {
+      const sample = view.getInt16(index, true) / 32768
+      sumSquares += sample * sample
+      sampleCount++
+      index += BYTES_PER_SAMPLE
+
+      if (sampleCount === this._levelWindowSamples) {
+        this._onLevel?.(Math.min(1, Math.sqrt(sumSquares / sampleCount) * LEVEL_GAIN))
+        sumSquares = 0
+        sampleCount = 0
+      }
+    }
+
+    this._levelCarryByte = index < data.length ? data[index] : null
+    this._levelSumSquares = sumSquares
+    this._levelSampleCount = sampleCount
   }
 
   cancel() {
@@ -236,6 +288,9 @@ export class AudioRecorder {
     this._totalBytes = 0
     this._limitReached = false
     this._cancelled = false
+    this._levelSumSquares = 0
+    this._levelSampleCount = 0
+    this._levelCarryByte = null
     this._outcome = null
     this._recordingsDirectory = null
     this._onLevel = null
@@ -291,23 +346,4 @@ function wavHeader(pcmBytes, sampleRate) {
   view.setUint32(40, pcmBytes, true)
 
   return header
-}
-
-// RMS of the chunk, normalized to 0..1 and boosted so normal speech spans the
-// waveform visibly.
-function calculateRms(data) {
-  if (!data || data.length < 2) {
-    return 0
-  }
-
-  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
-  const sampleCount = Math.floor(data.byteLength / 2)
-  let sumSquares = 0
-
-  for (let i = 0; i < sampleCount; i++) {
-    const sample = view.getInt16(i * 2, true) / 32768
-    sumSquares += sample * sample
-  }
-
-  return Math.min(1, Math.sqrt(sumSquares / sampleCount) * 5)
 }
