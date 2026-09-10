@@ -53,7 +53,7 @@ export function recordingOutcomeCancelled() {
 
 Gio._promisify(Gio.InputStream.prototype, 'read_bytes_async', 'read_bytes_finish')
 
-const DEFAULT_CHUNK_MS = 100
+const LEVEL_WINDOW_MS = 100
 const BYTES_PER_SAMPLE = 2
 // Bounds an accidentally open recording so it cannot exhaust Shell memory
 // during upload (~4 minutes at 48 kHz mono s16).
@@ -82,7 +82,9 @@ export class AudioRecorder {
     this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0 ? minimumDurationMs : DEFAULT_MINIMUM_RECORDING_DURATION_MS
     this._bytesPerMs = (this._sampleRate * BYTES_PER_SAMPLE) / 1000
     this._minimumBytes = this._bytesPerMs * this._minimumDurationMs
-    this._chunkBytes = this._bytesPerMs * DEFAULT_CHUNK_MS
+    this._chunkBytes = Math.max(BYTES_PER_SAMPLE, Math.round((this._sampleRate * LEVEL_WINDOW_MS) / 1000) * BYTES_PER_SAMPLE)
+    this._levelBuffer = new Uint8Array(this._chunkBytes)
+    this._levelBufferSize = 0
     this._outcome = null
   }
 
@@ -106,6 +108,7 @@ export class AudioRecorder {
     this._id = id
     this._limitReached = false
     this._cancelled = false
+    this._levelBufferSize = 0
     this._output = Gio.File.new_for_path(this._path).replace(null, false, Gio.FileCreateFlags.PRIVATE, null)
     this._output.write_all(new Uint8Array(44), null)
     this._totalBytes = 0
@@ -208,7 +211,23 @@ export class AudioRecorder {
 
       this._output.write_all(data, null)
       this._totalBytes += data.length
-      this._onLevel?.(calculateRms(data))
+      this._appendLevelData(data)
+    }
+  }
+
+  _appendLevelData(data) {
+    let offset = 0
+
+    while (offset < data.length) {
+      const length = Math.min(data.length - offset, this._chunkBytes - this._levelBufferSize)
+      this._levelBuffer.set(data.subarray(offset, offset + length), this._levelBufferSize)
+      this._levelBufferSize += length
+      offset += length
+
+      if (this._levelBufferSize === this._chunkBytes) {
+        this._onLevel?.(calculateRms(this._levelBuffer))
+        this._levelBufferSize = 0
+      }
     }
   }
 
@@ -236,6 +255,8 @@ export class AudioRecorder {
     this._totalBytes = 0
     this._limitReached = false
     this._cancelled = false
+    this._levelBuffer = null
+    this._levelBufferSize = 0
     this._outcome = null
     this._recordingsDirectory = null
     this._onLevel = null
@@ -293,21 +314,17 @@ function wavHeader(pcmBytes, sampleRate) {
   return header
 }
 
-// RMS of the chunk, normalized to 0..1 and boosted so normal speech spans the
-// waveform visibly.
+// Raw normalized RMS for one fixed-size level window. Presentation-specific
+// gain and shaping belong to the overlay, not the recorder.
 function calculateRms(data) {
-  if (!data || data.length < 2) {
-    return 0
-  }
-
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
-  const sampleCount = Math.floor(data.byteLength / 2)
+  const sampleCount = Math.floor(data.byteLength / BYTES_PER_SAMPLE)
   let sumSquares = 0
 
   for (let i = 0; i < sampleCount; i++) {
-    const sample = view.getInt16(i * 2, true) / 32768
+    const sample = view.getInt16(i * BYTES_PER_SAMPLE, true) / 32768
     sumSquares += sample * sample
   }
 
-  return Math.min(1, Math.sqrt(sumSquares / sampleCount) * 5)
+  return sampleCount ? Math.sqrt(sumSquares / sampleCount) : 0
 }

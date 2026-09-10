@@ -98,11 +98,10 @@ function visualModeFor(state) {
   return 'hidden'
 }
 
-const BAR_COUNT = 9
-const BAR_MIN_HEIGHT = 2
-// Keep the .toas-bars height in stylesheet.css in sync with this value.
-const BAR_MAX_HEIGHT = 20
-const WAVEFORM_EASE_MS = 140
+const BAR_COUNT = 8
+const WAVEFORM_GAIN = 5
+const WAVEFORM_NOISE_FLOOR = 0.04
+const WAVEFORM_EASE_MS = 120
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_ENTER_MS = 220
 const OVERLAY_EXIT_MS = 160
@@ -112,6 +111,7 @@ const OVERLAY_EXIT_MS = 160
 export class ShellOverlayView {
   constructor() {
     this._levels = Array(BAR_COUNT).fill(0)
+    this._barTargets = Array(BAR_COUNT).fill(null)
     this._compositingHeld = false
     this._monitorIndex = null
     this._mode = 'hidden'
@@ -185,6 +185,12 @@ export class ShellOverlayView {
     // Do not use trackFullscreen: tracked actors are hidden in fullscreen.
     Main.layoutManager.addTopChrome(this._overlay)
 
+    // Content swaps can change the allocated capsule size after the immediate
+    // reposition call. Recenter again when layout settles so the visual center
+    // stays pinned to the monitor center, including on first activation.
+    this._overlay.connect('notify::width', () => this._reposition())
+    this._overlay.connect('notify::height', () => this._reposition())
+
     this._monitorsChangedId = Main.layoutManager.connect('monitors-changed', () => {
       // Monitor indices may be reassigned after a topology change. Do not
       // risk moving a live run to a different display: safe fallback is the
@@ -247,9 +253,11 @@ export class ShellOverlayView {
 
   resetLevels() {
     this._levels.fill(0)
+    this._barTargets.fill(null)
     this._barActors.forEach(bar => {
       bar.remove_all_transitions()
-      bar.height = BAR_MIN_HEIGHT
+      // Drop the explicit animated size and return to the CSS resting height.
+      bar.height = -1
     })
   }
 
@@ -306,20 +314,46 @@ export class ShellOverlayView {
   }
 
   setLevel(level) {
-    const safeLevel = Math.max(0, Math.min(1, level || 0))
-    this._levels.unshift(safeLevel)
+    const safeLevel = Math.max(0, Math.min(1, (level || 0) * WAVEFORM_GAIN))
+    const activeLevel = safeLevel <= WAVEFORM_NOISE_FLOOR ? 0 : (safeLevel - WAVEFORM_NOISE_FLOOR) / (1 - WAVEFORM_NOISE_FLOOR)
+    this._levels.unshift(activeLevel)
     this._levels.length = BAR_COUNT
 
+    const range = this._waveformRange()
+    if (!range) {
+      return
+    }
+
     this._barActors.forEach((bar, index) => {
-      // Power shaping lifts quiet speech visually above the noise floor.
       const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
-      const height = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
+      const height = Math.round(range.restingHeight + shaped * (range.maxHeight - range.restingHeight))
+
+      if (this._barTargets[index] === null) {
+        this._barTargets[index] = range.restingHeight
+      }
+      if (height === this._barTargets[index]) {
+        return
+      }
+      this._barTargets[index] = height
+
       bar.ease({
         height,
         duration: WAVEFORM_EASE_MS,
         mode: Clutter.AnimationMode.LINEAR
       })
     })
+  }
+
+  _waveformRange() {
+    // CSS owns the visual geometry. ThemeNode resolves those lengths with the
+    // active Shell scale factor, so JS animates in the same coordinate space.
+    const restingHeight = this._barActors[0]?.get_theme_node().get_height() ?? 0
+    const maxHeight = this._bars?.get_theme_node().get_height() ?? 0
+
+    if (restingHeight <= 0 || maxHeight < restingHeight) {
+      return null
+    }
+    return { restingHeight, maxHeight }
   }
 
   _finishHide() {
@@ -383,6 +417,7 @@ export class ShellOverlayView {
     this._closeButton = null
     this._privateIcon = null
     this._barActors = []
+    this._barTargets = []
   }
 }
 
