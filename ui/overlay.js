@@ -98,10 +98,11 @@ function visualModeFor(state) {
   return 'hidden'
 }
 
-const BAR_COUNT = 9
+const BAR_COUNT = 13
 const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
+const BAR_MIN_SCALE = BAR_MIN_HEIGHT / BAR_MAX_HEIGHT
 const WAVEFORM_EASE_MS = 150
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_ENTER_MS = 220
@@ -137,8 +138,11 @@ export class ShellOverlayView {
     for (let i = 0; i < BAR_COUNT; i++) {
       const bar = new St.Widget({
         style_class: 'toas-bar',
+        height: BAR_MAX_HEIGHT,
+        scale_y: BAR_MIN_SCALE,
         y_align: Clutter.ActorAlign.CENTER
       })
+      bar.set_pivot_point(0.5, 0.5)
       this._barActors.push(bar)
       this._bars.add_child(bar)
     }
@@ -255,7 +259,7 @@ export class ShellOverlayView {
     this._levels.fill(0)
     this._barActors.forEach(bar => {
       bar.remove_all_transitions()
-      bar.height = BAR_MIN_HEIGHT
+      bar.scale_y = BAR_MIN_SCALE
     })
   }
 
@@ -318,12 +322,12 @@ export class ShellOverlayView {
 
     this._barActors.forEach((bar, index) => {
       // Power shaping lifts quiet speech visually above the noise floor. The
-      // bars animate real height so their pill-shaped corners stay crisp; the
-      // fixed-height container keeps the overall overlay geometry stable.
+      // bars keep fixed geometry and animate only their paint transform so the
+      // denser waveform stays lightweight without flattening the signal history.
       const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
-      const height = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
+      const visualHeight = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
       bar.ease({
-        height,
+        scale_y: visualHeight / BAR_MAX_HEIGHT,
         duration: WAVEFORM_EASE_MS,
         mode: Clutter.AnimationMode.LINEAR
       })
