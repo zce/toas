@@ -102,10 +102,7 @@ const BAR_COUNT = 9
 const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
-const BAR_MIN_SCALE = BAR_MIN_HEIGHT / BAR_MAX_HEIGHT
-const WAVEFORM_ATTACK = 0.65
-const WAVEFORM_RELEASE = 0.35
-const WAVEFORM_EASE_MS = 180
+const WAVEFORM_EASE_MS = 150
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_ENTER_MS = 220
 const OVERLAY_EXIT_MS = 160
@@ -115,7 +112,6 @@ const OVERLAY_EXIT_MS = 160
 export class ShellOverlayView {
   constructor() {
     this._levels = Array(BAR_COUNT).fill(0)
-    this._smoothedLevel = 0
     this._compositingHeld = false
     this._monitorIndex = null
     this._mode = 'hidden'
@@ -141,11 +137,8 @@ export class ShellOverlayView {
     for (let i = 0; i < BAR_COUNT; i++) {
       const bar = new St.Widget({
         style_class: 'toas-bar',
-        height: BAR_MAX_HEIGHT,
-        scale_y: BAR_MIN_SCALE,
         y_align: Clutter.ActorAlign.CENTER
       })
-      bar.set_pivot_point(0.5, 0.5)
       this._barActors.push(bar)
       this._bars.add_child(bar)
     }
@@ -260,10 +253,9 @@ export class ShellOverlayView {
 
   resetLevels() {
     this._levels.fill(0)
-    this._smoothedLevel = 0
     this._barActors.forEach(bar => {
       bar.remove_all_transitions()
-      bar.scale_y = BAR_MIN_SCALE
+      bar.height = BAR_MIN_HEIGHT
     })
   }
 
@@ -321,20 +313,17 @@ export class ShellOverlayView {
 
   setLevel(level) {
     const safeLevel = Math.max(0, Math.min(1, level || 0))
-    const smoothing = safeLevel > this._smoothedLevel ? WAVEFORM_ATTACK : WAVEFORM_RELEASE
-    this._smoothedLevel += (safeLevel - this._smoothedLevel) * smoothing
-
-    this._levels.unshift(this._smoothedLevel)
+    this._levels.unshift(safeLevel)
     this._levels.length = BAR_COUNT
 
     this._barActors.forEach((bar, index) => {
-      // Power shaping lifts quiet speech visually above the noise floor. Keep
-      // layout fixed and animate only the paint transform to avoid per-frame
-      // relayout while audio samples arrive.
+      // Power shaping lifts quiet speech visually above the noise floor. The
+      // bars animate real height so their pill-shaped corners stay crisp; the
+      // fixed-height container keeps the overall overlay geometry stable.
       const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
-      const visualHeight = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
+      const height = BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
       bar.ease({
-        scale_y: visualHeight / BAR_MAX_HEIGHT,
+        height,
         duration: WAVEFORM_EASE_MS,
         mode: Clutter.AnimationMode.LINEAR
       })
