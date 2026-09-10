@@ -52,7 +52,7 @@
 
 /* Keep in sync with BAR_MAX_HEIGHT in ui/overlay.js. */
 .toas-bars {
-  spacing: 2px;
+  spacing: 1px;
   height: 20px;
 }
 

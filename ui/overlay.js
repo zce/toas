@@ -98,7 +98,7 @@ function visualModeFor(state) {
   return 'hidden'
 }
 
-const BAR_COUNT = 13
+const BAR_COUNT = 11
 const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 20
