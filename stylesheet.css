@@ -10,7 +10,7 @@
   padding: 8px;
 
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 99px;
 
   /* Match GNOME's dark toast treatment in every system appearance. The
    * restrained shadow is functional rather than decorative: it keeps this
@@ -60,7 +60,7 @@
   width: 4px;
   height: 5px;
 
-  border-radius: 999px;
+  border-radius: 99px;
   background-color: -st-accent-color;
 }
 
@@ -75,10 +75,10 @@
   padding: 0;
 
   border: none;
-  border-radius: 999px;
+  border-radius: 99px;
 
   color: rgba(255, 255, 255, 0.58);
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 .toas-close-button:hover,
@@ -105,7 +105,7 @@
  * color so the state remains immediately recognizable.
  */
 .toas-recording {
-  border-radius: 999px;
+  border-radius: 99px;
 
   color: white;
   background-color: #e01b24;
