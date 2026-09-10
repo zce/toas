@@ -99,6 +99,7 @@ function visualModeFor(state) {
 }
 
 const BAR_COUNT = 8
+const WAVEFORM_GAIN = 5
 const WAVEFORM_NOISE_FLOOR = 0.04
 const WAVEFORM_EASE_MS = 120
 const OVERLAY_BOTTOM_MARGIN = 112
@@ -313,7 +314,7 @@ export class ShellOverlayView {
   }
 
   setLevel(level) {
-    const safeLevel = Math.max(0, Math.min(1, level || 0))
+    const safeLevel = Math.max(0, Math.min(1, (level || 0) * WAVEFORM_GAIN))
     const activeLevel = safeLevel <= WAVEFORM_NOISE_FLOOR ? 0 : (safeLevel - WAVEFORM_NOISE_FLOOR) / (1 - WAVEFORM_NOISE_FLOOR)
     this._levels.unshift(activeLevel)
     this._levels.length = BAR_COUNT
