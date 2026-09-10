@@ -1,4 +1,5 @@
 import Clutter from 'gi://Clutter'
+import Gio from 'gi://Gio'
 import Pango from 'gi://Pango'
 import St from 'gi://St'
 import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
@@ -116,10 +117,19 @@ export class ShellOverlayView {
     this._monitorIndex = null
     this._mode = 'hidden'
 
+    this._interfaceSettings = new Gio.Settings({
+      schema_id: 'org.gnome.desktop.interface'
+    })
+
     this._overlay = new St.BoxLayout({
       style_class: 'toas-overlay',
       reactive: false,
       visible: false
+    })
+
+    this._syncColorScheme()
+    this._colorSchemeChangedId = this._interfaceSettings.connect('changed::color-scheme', () => {
+      this._syncColorScheme()
     })
 
     this._icon = new St.Icon({
@@ -330,6 +340,19 @@ export class ShellOverlayView {
     this._releaseCompositing()
   }
 
+  _syncColorScheme() {
+    const scheme = this._interfaceSettings.get_string('color-scheme')
+
+    this._overlay.remove_style_class_name('toas-light')
+    this._overlay.remove_style_class_name('toas-dark')
+
+    if (scheme === 'prefer-dark') {
+      this._overlay.add_style_class_name('toas-dark')
+    } else {
+      this._overlay.add_style_class_name('toas-light')
+    }
+  }
+
   _reposition() {
     const monitor = selectMonitor(Main.layoutManager.monitors, Main.layoutManager.primaryMonitor, this._monitorIndex)
     if (!monitor || !this._overlay) {
@@ -371,6 +394,10 @@ export class ShellOverlayView {
       Main.layoutManager.disconnect(this._monitorsChangedId)
     }
 
+    if (this._colorSchemeChangedId) {
+      this._interfaceSettings.disconnect(this._colorSchemeChangedId)
+    }
+
     if (this._overlay) {
       Main.layoutManager.removeChrome(this._overlay)
       this._overlay.destroy()
@@ -382,6 +409,7 @@ export class ShellOverlayView {
     this._status = null
     this._closeButton = null
     this._privateIcon = null
+    this._interfaceSettings = null
     this._barActors = []
   }
 }
