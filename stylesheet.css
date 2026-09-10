@@ -9,12 +9,25 @@
   spacing: 8px;
   padding: 8px;
 
-  border: 1px solid st-transparentize(st-darken(-st-accent-color, 0.4), 0.05);
+  border: 1px solid transparent;
   border-radius: 999px;
+}
 
-  background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.1);
+/* GNOME Shell exposes accent colors, but not generic neutral surface tokens.
+ * Follow the system color scheme for the capsule surface and keep semantic
+ * accent/icon colors delegated to the Shell theme below. */
+.toas-overlay.toas-light {
+  border-color: rgba(0, 0, 0, 0.12);
+  background-color: rgba(250, 250, 252, 0.92);
   box-shadow: 0 5px 22px rgba(0, 0, 0, 0.16);
-  color: -st-accent-fg-color;
+  color: rgba(20, 20, 24, 0.92);
+}
+
+.toas-overlay.toas-dark {
+  border-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(20, 20, 24, 0.82);
+  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.32);
+  color: rgba(255, 255, 255, 0.96);
 }
 
 /* Error feedback has no side controls, so give the text more breathing room. */
@@ -60,7 +73,8 @@
   background-color: -st-accent-color;
 }
 
-/* Compact secondary action aligned with the capsule end. */
+/* Let GNOME Shell's icon-button theme own foreground, hover, focus, and
+ * light/dark adaptation; only preserve Toas's compact geometry. */
 .toas-close-button {
   width: 20px;
   height: 20px;
@@ -68,18 +82,7 @@
   min-height: 20px;
 
   padding: 0;
-
-  border: none;
   border-radius: 999px;
-
-  color: rgba(255, 255, 255, 0.58);
-  background-color: rgba(255, 255, 255, 0.06);
-}
-
-.toas-close-button:hover,
-.toas-close-button:focus {
-  color: white;
-  background-color: rgba(255, 255, 255, 0.12);
 }
 
 .toas-close-icon {
@@ -153,12 +156,16 @@
 }
 
 .toas-overlay.toas-private {
-  background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.2);
+  border-color: st-transparentize(-st-accent-color, 0.35);
 }
 
 /* Terminal error feedback should not carry the Private run decoration. */
-.toas-overlay.toas-private.toas-error {
-  background-color: st-transparentize(st-darken(-st-accent-color, 0.4), 0.1);
+.toas-overlay.toas-private.toas-error.toas-light {
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.toas-overlay.toas-private.toas-error.toas-dark {
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 /*
