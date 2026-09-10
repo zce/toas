@@ -98,15 +98,11 @@ function visualModeFor(state) {
   return 'hidden'
 }
 
-const BAR_COUNT = 5
-const BAR_MIN_HEIGHT = 4
+const BAR_COUNT = 8
+const BAR_MIN_HEIGHT = 2
 // Keep the .toas-bars height in stylesheet.css in sync with this value.
 const BAR_MAX_HEIGHT = 16
-const BAR_WEIGHTS = [0.58, 0.82, 1, 0.82, 0.58]
-const WAVEFORM_ATTACK = 0.65
-const WAVEFORM_RELEASE = 0.35
-const WAVEFORM_DEADBAND = 0.45
-const WAVEFORM_EASE_MS = 140
+const WAVEFORM_EASE_MS = 100
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_ENTER_MS = 220
 const OVERLAY_EXIT_MS = 160
@@ -116,7 +112,7 @@ const OVERLAY_EXIT_MS = 160
 export class ShellOverlayView {
   constructor() {
     this._levels = Array(BAR_COUNT).fill(0)
-    this._barHeights = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
+    this._barTargets = Array(BAR_COUNT).fill(BAR_MIN_HEIGHT)
     this._compositingHeld = false
     this._monitorIndex = null
     this._mode = 'hidden'
@@ -259,7 +255,7 @@ export class ShellOverlayView {
 
   resetLevels() {
     this._levels.fill(0)
-    this._barHeights.fill(BAR_MIN_HEIGHT)
+    this._barTargets.fill(BAR_MIN_HEIGHT)
     this._barActors.forEach(bar => {
       bar.remove_all_transitions()
       bar.height = BAR_MIN_HEIGHT
@@ -324,22 +320,18 @@ export class ShellOverlayView {
     this._levels.length = BAR_COUNT
 
     this._barActors.forEach((bar, index) => {
-      // Keep the raw short history for shape, but smooth each visual lane
-      // independently so small RMS fluctuations do not constantly retarget it.
+      // Keep the signal direct and expressive. Quantizing the target to whole
+      // CSS pixels avoids tiny retargets without damping or delaying the audio.
       const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
-      const targetHeight = BAR_MIN_HEIGHT + shaped * BAR_WEIGHTS[index] * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT)
-      const currentHeight = this._barHeights[index]
+      const height = Math.round(BAR_MIN_HEIGHT + shaped * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT))
 
-      if (Math.abs(targetHeight - currentHeight) < WAVEFORM_DEADBAND) {
+      if (height === this._barTargets[index]) {
         return
       }
-
-      const response = targetHeight > currentHeight ? WAVEFORM_ATTACK : WAVEFORM_RELEASE
-      const nextHeight = currentHeight + (targetHeight - currentHeight) * response
-      this._barHeights[index] = nextHeight
+      this._barTargets[index] = height
 
       bar.ease({
-        height: nextHeight,
+        height,
         duration: WAVEFORM_EASE_MS,
         mode: Clutter.AnimationMode.LINEAR
       })
@@ -407,7 +399,7 @@ export class ShellOverlayView {
     this._closeButton = null
     this._privateIcon = null
     this._barActors = []
-    this._barHeights = []
+    this._barTargets = []
   }
 }
 
