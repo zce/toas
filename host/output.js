@@ -1,7 +1,15 @@
 import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
+import IBus from 'gi://IBus'
 import St from 'gi://St'
+import * as IBusManager from 'resource:///org/gnome/shell/misc/ibusManager.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+
+// EVDEV hardware keycodes from <linux/input-event-codes.h>.
+const KEY_LEFTCTRL = 29
+const KEY_LEFTSHIFT = 42
+const KEY_V = 47
+const KEY_INSERT = 110
 
 // Window classes of standalone terminals, matched as substrings against the
 // usual WM identifiers. IDE-embedded terminals do not honor these hints.
@@ -32,27 +40,31 @@ export function isTerminalWindow(window) {
   return identifiers.some(identifier => TERMINAL_HINTS.some(hint => identifier.includes(hint)))
 }
 
-// Direct input commits exactly what was captured, so it only handles
-// single-line text; anything multiline goes through the clipboard.
-export function selectOutputMethod({ text, autoPaste, directInputAvailable }) {
-  if (autoPaste && directInputAvailable && !text.includes('\n') && !text.includes('\r')) {
-    return 'direct'
-  }
-
-  return 'clipboard'
+// Multiline terminal output stays on the paste path to preserve terminal paste semantics.
+export function selectOutputMethod({ text, autoPaste, directInputAvailable, terminal = false }) {
+  const multilineTerminal = terminal && (text.includes('\n') || text.includes('\r'))
+  return autoPaste && directInputAvailable && !multilineTerminal ? 'direct' : 'clipboard'
 }
 
-// Delivers final text to the focused application: direct input-method commit
-// when possible, otherwise clipboard write plus a synthesized paste shortcut
-// through a virtual keyboard. `_targetWindow` pins the captured target so a
-// focus change during processing redirects to a clipboard-only delivery.
+// Delivers final text to the focused application: direct input-method/IBus
+// commit when possible, otherwise clipboard write plus a synthesized paste
+// shortcut. `_targetWindow` pins the captured target so a focus change during
+// processing redirects to a clipboard-only delivery.
 export class TextPaster {
   constructor(settings) {
     this._settings = settings
     this._clipboard = St.Clipboard.get_default()
     this._keyboard = Clutter.get_default_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE)
+    this._ibusManager = IBusManager.getIBusManager()
+    this._ibusFocused = false
     this._cancelled = false
     this._targetWindow = null
+
+    this._ibusManager.connectObject(
+      'focus-in', () => { this._ibusFocused = true },
+      'focus-out', () => { this._ibusFocused = false },
+      this
+    )
   }
 
   getFocusedMonitorIndex() {
@@ -76,29 +88,28 @@ export class TextPaster {
 
     this._cancelled = false
     const autoPaste = this._settings.get_boolean('auto-paste')
+    const directInputAvailable = Boolean(
+      Main.inputMethod?.currentFocus ||
+      (this._ibusFocused && this._ibusManager._panelService)
+    )
     const outputMethod = selectOutputMethod({
       text,
       autoPaste,
-      directInputAvailable: Boolean(Main.inputMethod?.currentFocus)
+      directInputAvailable,
+      terminal: isTerminalWindow(this._targetWindow ?? global.display.focus_window)
     })
 
-    if (outputMethod === 'direct' && this._targetWindowMatches()) {
-      Main.inputMethod.commit(text)
+    if (outputMethod === 'direct' && this._targetWindowMatches() && this._commitDirect(text)) {
       this._targetWindow = null
       return { mode: 'inserted' }
     }
 
-    // The original value is restored after pasting when configured.
     const originalText = await this._getClipboardText()
     if (this._cancelled || !this._clipboard || !this._keyboard) {
       return { mode: 'cancelled' }
     }
 
     this._clipboard.set_text(St.ClipboardType.CLIPBOARD, text)
-    // Give the target application a beat to observe the clipboard change
-    // before the synthesized paste fires.
-    await delay(70)
-
     if (this._cancelled || !this._clipboard || !this._keyboard) {
       return { mode: 'cancelled' }
     }
@@ -113,18 +124,45 @@ export class TextPaster {
       return { mode: 'copied', reason: 'focus-mismatch' }
     }
 
+    if (await this._getClipboardText() !== text) {
+      this._targetWindow = null
+      throw new Error('Clipboard update could not be confirmed')
+    }
+
     this._pasteShortcut()
     this._targetWindow = null
 
     if (this._settings.get_boolean('restore-clipboard') && originalText !== null && originalText !== text) {
-      await delay(450)
-      if (this._cancelled) {
+      await delay(1000)
+      if (this._cancelled || !this._clipboard) {
         return { mode: 'cancelled' }
       }
-      this._clipboard?.set_text(St.ClipboardType.CLIPBOARD, originalText)
+
+      if (await this._getClipboardText() === text) {
+        this._clipboard.set_text(St.ClipboardType.CLIPBOARD, originalText)
+      }
     }
 
     return { mode: 'inserted' }
+  }
+
+  _commitDirect(text) {
+    if (Main.inputMethod?.currentFocus) {
+      Main.inputMethod.commit(text)
+      return true
+    }
+
+    if (!this._ibusFocused || !this._ibusManager._panelService) {
+      return false
+    }
+
+    try {
+      this._ibusManager._panelService.commit_text(IBus.Text.new_from_string(text))
+      return true
+    } catch (error) {
+      console.warn(`[toas] IBus direct commit failed, using clipboard fallback: ${error.message}`)
+      return false
+    }
   }
 
   // No captured target means nothing to compare against; delivery proceeds.
@@ -140,24 +178,21 @@ export class TextPaster {
     this._cancelled = true
   }
 
-  // Presses modifiers, taps the main key, then releases in reverse order.
   _pasteShortcut() {
     const keys = isTerminalWindow(global.display.focus_window)
-      ? [Clutter.KEY_Control_L, Clutter.KEY_Shift_L, Clutter.KEY_v]
-      : [Clutter.KEY_Shift_L, Clutter.KEY_Insert]
-
-    const now = GLib.get_monotonic_time()
+      ? [KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_V]
+      : [KEY_LEFTSHIFT, KEY_INSERT]
 
     for (let i = 0; i < keys.length - 1; i++) {
-      this._keyboard.notify_keyval(now, keys[i], Clutter.KeyState.PRESSED)
+      this._keyboard.notify_key(GLib.get_monotonic_time(), keys[i], Clutter.KeyState.PRESSED)
     }
 
     const mainKey = keys[keys.length - 1]
-    this._keyboard.notify_keyval(now, mainKey, Clutter.KeyState.PRESSED)
-    this._keyboard.notify_keyval(now, mainKey, Clutter.KeyState.RELEASED)
+    this._keyboard.notify_key(GLib.get_monotonic_time(), mainKey, Clutter.KeyState.PRESSED)
+    this._keyboard.notify_key(GLib.get_monotonic_time(), mainKey, Clutter.KeyState.RELEASED)
 
     for (let i = keys.length - 2; i >= 0; i--) {
-      this._keyboard.notify_keyval(now, keys[i], Clutter.KeyState.RELEASED)
+      this._keyboard.notify_key(GLib.get_monotonic_time(), keys[i], Clutter.KeyState.RELEASED)
     }
   }
 
@@ -168,6 +203,8 @@ export class TextPaster {
   }
 
   destroy() {
+    this._ibusManager.disconnectObject(this)
+    this._ibusManager = null
     this._keyboard?.run_dispose()
     this._keyboard = null
     this._clipboard = null
