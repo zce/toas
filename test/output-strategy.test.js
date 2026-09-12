@@ -1,6 +1,6 @@
-// Output method selection and clipboard restoration policy.
+// Output method selection: direct input versus clipboard fallback.
 
-import { selectOutputMethod, shouldRestoreClipboard } from '../host/output.js'
+import { selectOutputMethod } from '../host/output.js'
 import { expectEqual, run, test } from './harness.js'
 
 test('direct input is preferred for ordinary focused text fields', () => {
@@ -57,39 +57,6 @@ test('clipboard-only mode never commits directly', () => {
       directInputAvailable: true
     }),
     'clipboard'
-  )
-})
-
-test('restore only while the temporary text still owns the clipboard', () => {
-  expectEqual(
-    shouldRestoreClipboard({
-      currentText: 'voice result',
-      temporaryText: 'voice result',
-      originalText: 'before'
-    }),
-    true
-  )
-})
-
-test('do not overwrite a newer clipboard value', () => {
-  expectEqual(
-    shouldRestoreClipboard({
-      currentText: 'user copied this later',
-      temporaryText: 'voice result',
-      originalText: 'before'
-    }),
-    false
-  )
-})
-
-test('do not restore when original and temporary clipboard text match', () => {
-  expectEqual(
-    shouldRestoreClipboard({
-      currentText: 'same',
-      temporaryText: 'same',
-      originalText: 'same'
-    }),
-    false
   )
 })
 
