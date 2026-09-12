@@ -5,8 +5,6 @@ import St from 'gi://St'
 import * as IBusManager from 'resource:///org/gnome/shell/misc/ibusManager.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
-const CLIPBOARD_RESTORE_DELAY_MS = 1000
-
 // EVDEV hardware keycodes from <linux/input-event-codes.h>.
 const KEY_LEFTCTRL = 29
 const KEY_LEFTSHIFT = 42
@@ -135,7 +133,7 @@ export class TextPaster {
     this._targetWindow = null
 
     if (this._settings.get_boolean('restore-clipboard') && originalText !== null && originalText !== text) {
-      await delay(CLIPBOARD_RESTORE_DELAY_MS)
+      await delay(1000)
       if (this._cancelled || !this._clipboard) {
         return { mode: 'cancelled' }
       }
