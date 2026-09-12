@@ -19,8 +19,7 @@ test('multiline text can use direct input outside terminals', () => {
     selectOutputMethod({
       text: 'first\nsecond',
       autoPaste: true,
-      directInputAvailable: true,
-      terminal: false
+      directInputAvailable: true
     }),
     'direct'
   )
