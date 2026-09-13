@@ -5,6 +5,7 @@ import GLib from 'gi://GLib'
 import Gtk from 'gi://Gtk'
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
 
+import { listMicrophones } from './host/audio.js'
 import {
   providerIdsFor,
   readProcessingConfig,
@@ -415,6 +416,21 @@ function buildLocalGroup(settings) {
     description: 'Recording quality and local retention.'
   })
 
+  const selectedMicrophone = settings.get_string('microphone')
+  const microphones = listMicrophones()
+  if (selectedMicrophone && !microphones.some(microphone => microphone.name === selectedMicrophone)) {
+    microphones.push({ name: selectedMicrophone, label: `${selectedMicrophone} · Unavailable` })
+  }
+  const microphoneValues = ['', ...microphones.map(microphone => microphone.name)]
+  const microphoneRow = new Adw.ComboRow({
+    title: 'Microphone',
+    model: Gtk.StringList.new(['System default', ...microphones.map(microphone => microphone.label)]),
+    selected: Math.max(0, microphoneValues.indexOf(selectedMicrophone))
+  })
+  microphoneRow.connect('notify::selected', () => {
+    settings.set_string('microphone', microphoneValues[microphoneRow.selected] ?? '')
+  })
+
   const qualityValues = ['minimum', 'low', 'standard', 'high', 'maximum']
   const qualityRow = new Adw.ComboRow({
     title: 'Audio quality',
@@ -448,6 +464,7 @@ function buildLocalGroup(settings) {
     settings.set_uint('minimum-recording-duration', Math.round(minimumRecordingRow.value))
   })
 
+  group.add(microphoneRow)
   group.add(qualityRow)
   group.add(minimumRecordingRow)
   group.add(spinRow(settings, 'history-limit', 'History entries', 1, 1000))

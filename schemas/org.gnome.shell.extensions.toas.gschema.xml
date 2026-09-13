@@ -51,6 +51,12 @@
       </description>
     </key>
 
+    <key name="microphone" type="s">
+      <default>''</default>
+      <summary>Recording microphone</summary>
+      <description>PipeWire node name used for recording; empty follows the system default input</description>
+    </key>
+
     <key name="audio-quality" enum="org.gnome.shell.extensions.toas.AudioQuality">
       <default>'standard'</default>
       <summary>Recording quality preset</summary>
