@@ -22,6 +22,45 @@ export function resolveMinimumRecordingDuration(settings) {
   return Number.isFinite(durationMs) && durationMs > 0 ? durationMs : DEFAULT_MINIMUM_RECORDING_DURATION_MS
 }
 
+export function listMicrophones() {
+  const pwDump = GLib.find_program_in_path('pw-dump')
+  if (!pwDump) {
+    return []
+  }
+
+  try {
+    const process = Gio.Subprocess.new([pwDump], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE)
+    const [, stdout] = process.communicate_utf8(null, null)
+    if (!process.get_successful() || !stdout) {
+      return []
+    }
+
+    const microphones = []
+    const seen = new Set()
+    for (const object of JSON.parse(stdout)) {
+      if (object.type !== 'PipeWire:Interface:Node') {
+        continue
+      }
+      const props = object.info?.props ?? {}
+      if (!String(props['media.class'] ?? '').startsWith('Audio/Source') || props['device.class'] === 'monitor') {
+        continue
+      }
+      const name = props['node.name']
+      if (typeof name !== 'string' || !name || seen.has(name)) {
+        continue
+      }
+      seen.add(name)
+      microphones.push({
+        name,
+        label: props['node.description'] || props['node.nick'] || name
+      })
+    }
+    return microphones.sort((a, b) => a.label.localeCompare(b.label))
+  } catch {
+    return []
+  }
+}
+
 // Terminal recorder states, so callers never inspect raw process state.
 export const RecorderOutcomeKind = {
   OK: 'ok',
@@ -74,10 +113,18 @@ export function recordingIdForNow() {
 // sizes once capture ends. `stop()` classifies the capture into a
 // RecorderOutcomeKind instead of throwing.
 export class AudioRecorder {
-  constructor({ recordingsDirectory, onLevel, onError, sampleRate = DEFAULT_SAMPLE_RATE, minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS }) {
+  constructor({
+    recordingsDirectory,
+    onLevel,
+    onError,
+    target = '',
+    sampleRate = DEFAULT_SAMPLE_RATE,
+    minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS
+  }) {
     this._recordingsDirectory = recordingsDirectory
     this._onLevel = onLevel
     this._onError = onError
+    this._target = target
     this._sampleRate = sampleRate || DEFAULT_SAMPLE_RATE
     this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0 ? minimumDurationMs : DEFAULT_MINIMUM_RECORDING_DURATION_MS
     this._bytesPerMs = (this._sampleRate * BYTES_PER_SAMPLE) / 1000
@@ -98,10 +145,13 @@ export class AudioRecorder {
       throw new Error('pw-record was not found. Install Fedora pipewire-utils.')
     }
 
-    this._process = Gio.Subprocess.new(
-      [pwRecord, '--raw', `--rate=${this._sampleRate}`, '--channels=1', '--format=s16', '-'],
-      Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE
-    )
+    const args = [pwRecord]
+    if (this._target) {
+      args.push(`--target=${this._target}`)
+    }
+    args.push('--raw', `--rate=${this._sampleRate}`, '--channels=1', '--format=s16', '-')
+
+    this._process = Gio.Subprocess.new(args, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE)
 
     const id = recordingIdForNow()
     this._path = GLib.build_filenamev([this._recordingsDirectory, `${id}.wav`])
@@ -259,6 +309,7 @@ export class AudioRecorder {
     this._levelBufferSize = 0
     this._outcome = null
     this._recordingsDirectory = null
+    this._target = null
     this._onLevel = null
     this._onError = null
   }

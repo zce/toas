@@ -9,11 +9,16 @@ function recorder(options = {}) {
 
 test('recorder defaults to standard capture and 600 ms cutoff', () => {
   const value = recorder()
+  expectEqual(value._target, '')
   expectEqual(value._sampleRate, 16000)
   expectEqual(value._chunkBytes, 3200)
   expectEqual(value._bytesPerMs, 32)
   expectEqual(value._minimumDurationMs, 600)
   expectEqual(value._minimumBytes, 19200)
+})
+
+test('recorder accepts an explicit PipeWire target', () => {
+  expectEqual(recorder({ target: 'alsa_input.test' })._target, 'alsa_input.test')
 })
 
 test('48 kHz capture keeps the cutoff expressed as time', () => {

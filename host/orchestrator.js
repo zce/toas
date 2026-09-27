@@ -68,6 +68,7 @@ export class ToasOrchestrator {
         }
       },
       onError: error => this._failLive(run, 'recording', error),
+      target: this._settings?.get_string?.('microphone') ?? '',
       sampleRate: resolveSampleRate(this._settings ?? {}),
       minimumDurationMs: resolveMinimumRecordingDuration(this._settings ?? {})
     })
