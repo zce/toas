@@ -6,7 +6,9 @@ test('silence and sub-threshold input remain flat', () => {
   for (let i = 0; i < 30; i++) {
     expectEqual(meter.push(0), 0)
     expectEqual(meter.push(0.00005), 0)
+    expectEqual(meter.push(0.0008), 0)
   }
+  expectEqual(meter._reference, null)
   expectEqual(meter.push(NaN), 0)
   expectEqual(meter.push(Infinity), 0)
 })
@@ -14,13 +16,14 @@ test('silence and sub-threshold input remain flat', () => {
 test('quiet microphones produce visible bars immediately', () => {
   const meter = new WaveformNormalizer()
   const initial = meter.push(0.002)
-  expectTruthy(initial > 0.5 && initial < 0.7)
+  expectTruthy(initial > 0.3 && initial < 0.4)
   for (let i = 0; i < 20; i++) expectEqual(meter.push(0.002), initial)
 })
 
-test('very quiet speech previously below the noise floor remains visible', () => {
+test('quiet ambient input is suppressed and near-threshold noise is subdued', () => {
   const meter = new WaveformNormalizer()
-  expectTruthy(meter.push(0.0004) > 0.25)
+  expectEqual(meter.push(0.0004), 0)
+  expectTruthy(meter.push(0.0011) < 0.06)
 })
 
 test('successively louder peaks remain distinct', () => {
