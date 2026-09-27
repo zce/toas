@@ -16,7 +16,7 @@ test('silence and sub-threshold input remain flat', () => {
 test('quiet microphones produce visible bars immediately', () => {
   const meter = new WaveformNormalizer()
   const initial = meter.push(0.002)
-  expectTruthy(initial > 0.3 && initial < 0.4)
+  expectTruthy(initial > 0.12 && initial < 0.25)
   for (let i = 0; i < 20; i++) expectEqual(meter.push(0.002), initial)
 })
 
@@ -58,8 +58,8 @@ test('sensitivity recovers when microphone gain drops', () => {
   const initial = meter.push(0.002)
   for (let i = 0; i < 9; i++) meter.push(0.002)
   const recovered = meter.push(0.002)
-  expectTruthy(recovered > initial + 0.15)
-  expectTruthy(recovered > 0.2)
+  expectTruthy(recovered > initial + 0.1)
+  expectTruthy(recovered > 0.12)
 })
 
 test('brief quiet windows do not trigger fast recovery', () => {
@@ -103,6 +103,32 @@ test('reset starts a fresh recording without previous gain', () => {
   for (let i = 0; i < 40; i++) meter.push(0.12)
   meter.reset()
   expectEqual(meter.push(0.002), initial)
+})
+
+test('quiet surroundings make very low microphone levels visible', () => {
+  const meter = new WaveformNormalizer()
+  for (let i = 0; i < 10; i++) expectEqual(meter.push(0.0002), 0)
+  expectTruthy(meter._noise < 0.0003)
+  expectTruthy(meter.push(0.002) > 0.25)
+})
+
+test('low ambient energy stays flat without hiding louder speech', () => {
+  const meter = new WaveformNormalizer()
+  const ambient = [0.0006, 0.001, 0.0006, 0.0004, 0.0003, 0.001, 0.0016, 0.0015]
+  const ambientHeights = ambient.map(level => meter.push(level))
+  expectTruthy(ambientHeights.every(height => height < 0.1))
+  const speechLike = [0.01, 0.0074, 0.0074, 0.0137, 0.0091]
+  expectTruthy(speechLike.map(level => meter.push(level)).every(height => height > 0.4))
+})
+
+test('an isolated loud spike does not permanently raise the background estimate', () => {
+  const meter = new WaveformNormalizer()
+  for (let i = 0; i < 10; i++) meter.push(0.0004)
+  const before = meter._noise
+  meter.push(0.2)
+  expectEqual(meter._noise, before)
+  meter.push(0.0005)
+  expectTruthy(meter._noise < 0.0005)
 })
 
 await run()

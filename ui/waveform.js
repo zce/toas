@@ -1,11 +1,13 @@
-// Normalize display levels only; keep capture and ASR unchanged.
-// Suppress low-level microphone/ambient noise before adaptive normalization.
-const NOISE_FLOOR = 0.001
+// Display-only normalization; never change the recording or ASR input.
+const MIN_NOISE_FLOOR = 0.0006
+const INITIAL_NOISE = 0.0005
+const MAX_NOISE = 0.001
+const NOISE_MARGIN = 3.3
 const MIN_REFERENCE = 0.004
 const REFERENCE_ATTACK = 0.25
 const REFERENCE_RELEASE = 0.14
-const REFERENCE_FAST_RELEASE = 0.55
-const FAST_RELEASE_RATIO = 0.45
+const REFERENCE_FAST_RELEASE = 0.65
+const FAST_RELEASE_RATIO = 0.70
 const FAST_RELEASE_WINDOWS = 3
 const SOFT_KNEE = 0.7
 
@@ -15,6 +17,7 @@ export class WaveformNormalizer {
   }
 
   reset() {
+    this._noise = INITIAL_NOISE
     this._reference = null
     this._lowFrames = 0
   }
@@ -22,9 +25,14 @@ export class WaveformNormalizer {
   push(level) {
     const rms = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0
 
-    // Sub-threshold input must never train the gain envelope; otherwise
-    // steady ambient noise could be amplified into an active waveform.
-    if (rms <= NOISE_FLOOR) {
+    // Follow quieter background samples, not loud speech or brief noise peaks.
+    // Digital silence is not evidence of the ambient noise floor.
+    if (rms >= MIN_NOISE_FLOOR / 4 && rms < this._noise * 2.5) {
+      const rate = rms < this._noise ? 0.25 : 0.04
+      this._noise = Math.min(MAX_NOISE, this._noise + (rms - this._noise) * rate)
+    }
+    const floor = Math.max(MIN_NOISE_FLOOR, this._noise * NOISE_MARGIN)
+    if (rms <= floor) {
       this._lowFrames = 0
       return 0
     }
@@ -33,8 +41,8 @@ export class WaveformNormalizer {
     if (this._reference === null) {
       this._reference = target
     } else {
-      // Adapt only to sustained, large gain drops. Preserve momentary
-      // speech valleys instead of normalizing each frame to the same height.
+      // Recover quickly only from sustained, large gain drops. Preserve
+      // short speech valleys rather than renormalizing each new peak.
       this._lowFrames = target < this._reference * FAST_RELEASE_RATIO ? this._lowFrames + 1 : 0
       const speed = target > this._reference
         ? REFERENCE_ATTACK
@@ -42,7 +50,8 @@ export class WaveformNormalizer {
       this._reference += (target - this._reference) * speed
     }
 
-    const ratio = (rms - NOISE_FLOOR) / (this._reference - NOISE_FLOOR)
+    // MIN_REFERENCE > maximum floor (0.0033), keeping the ratio well-defined.
+    const ratio = (rms - floor) / (this._reference - floor)
     return ratio / (ratio + SOFT_KNEE)
   }
 }
