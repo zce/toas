@@ -11,39 +11,65 @@ test('silence and levels beneath the noise floor remain flat', () => {
   expectEqual(meter.push(Infinity), 0)
 })
 
-test('quiet speech remains visible and gains sensitivity over time', () => {
+test('quiet microphones produce visible bars from the first signal', () => {
   const meter = new WaveformNormalizer()
   const initial = meter.push(0.002)
-  for (let i = 0; i < 24; i++) meter.push(0.002)
-  const adapted = meter.push(0.002)
-  expectTruthy(initial > 0.05)
-  expectTruthy(adapted > 0.4)
-  expectTruthy(adapted > initial)
+  expectTruthy(initial > 0.3 && initial < 0.5)
+  for (let i = 0; i < 20; i++) {
+    expectEqual(meter.push(0.002), initial)
+  }
 })
 
-test('loud speech has headroom instead of pinning every bar', () => {
+test('successively louder peaks remain distinct instead of flattening', () => {
   const meter = new WaveformNormalizer()
-  for (let i = 0; i < 24; i++) meter.push(0.002)
-  const first = meter.push(0.12)
-  const steady = meter.push(0.12)
-  expectTruthy(first > 0.6 && first < 1)
-  expectTruthy(steady > 0.6 && steady < 1)
+  const a = meter.push(0.05)
+  const b = meter.push(0.1)
+  const c = meter.push(0.2)
+  expectTruthy(a + 0.06 < b)
+  expectTruthy(b + 0.03 < c)
+  expectTruthy(c < 0.9)
 })
 
-test('sensitivity recovers after microphone volume drops', () => {
+test('steady loud speech retains headroom', () => {
   const meter = new WaveformNormalizer()
-  for (let i = 0; i < 10; i++) meter.push(0.12)
+  for (let i = 0; i < 30; i++) {
+    const level = meter.push(0.2)
+    expectTruthy(level > 0.4 && level < 0.7)
+  }
+})
+
+test('loud and quiet speech retain visible contrast', () => {
+  const meter = new WaveformNormalizer()
+  for (let i = 0; i < 15; i++) meter.push(0.12)
+  const quiet = meter.push(0.05)
+  const loud = meter.push(0.2)
+  expectTruthy(loud - quiet > 0.2)
+})
+
+test('sensitivity recovers when microphone gain drops', () => {
+  const meter = new WaveformNormalizer()
+  for (let i = 0; i < 15; i++) meter.push(0.12)
   const initial = meter.push(0.002)
-  for (let i = 0; i < 35; i++) meter.push(0.002)
-  expectTruthy(meter.push(0.002) > initial)
+  for (let i = 0; i < 32; i++) meter.push(0.002)
+  const recovered = meter.push(0.002)
+  expectTruthy(recovered > initial + 0.15)
+  expectTruthy(recovered > 0.3)
 })
 
-test('reset starts a fresh recording without carrying the previous gain', () => {
+test('one very loud peak does not permanently fill the waveform', () => {
   const meter = new WaveformNormalizer()
-  const first = meter.push(0.002)
+  meter.push(0.002)
+  expectTruthy(meter.push(1) < 0.9)
+  for (let i = 0; i < 40; i++) meter.push(0.12)
+  expectTruthy(meter.push(0.12) < 0.7)
+})
+
+test('reset starts a fresh recording without the previous gain', () => {
+  const meter = new WaveformNormalizer()
+  const initial = meter.push(0.002)
   for (let i = 0; i < 40; i++) meter.push(0.12)
   meter.reset()
-  expectEqual(meter.push(0.002), first)
+  expectEqual(meter.push(0.002), initial)
 })
 
 await run()

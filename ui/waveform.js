@@ -1,11 +1,10 @@
-// Normalizes the recorder's raw RMS for display only. Never modify captured
-// PCM or feed these levels back into speech processing.
+// Display-only audio level normalization: preserve amplitude contrast while
+// allowing low-gain microphones to produce a visible waveform.
 const NOISE_FLOOR = 0.0006
 const MIN_REFERENCE = 0.004
-const INITIAL_REFERENCE = 0.025
-const REFERENCE_RELEASE = 0.9
-const HEADROOM = 1.35
-const CURVE = 0.8
+const REFERENCE_ATTACK = 0.25
+const REFERENCE_RELEASE = 0.14
+const SOFT_KNEE = 0.7
 
 export class WaveformNormalizer {
   constructor() {
@@ -13,17 +12,29 @@ export class WaveformNormalizer {
   }
 
   reset() {
-    this._reference = INITIAL_REFERENCE
+    this._reference = null
   }
 
   push(level) {
     const rms = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0
+    const target = Math.max(MIN_REFERENCE, rms)
 
-    // Follow louder input immediately; recover sensitivity smoothly when the
-    // microphone level falls. Headroom keeps sustained speech off the ceiling.
-    this._reference = Math.max(MIN_REFERENCE, this._reference * REFERENCE_RELEASE, rms * HEADROOM)
+    // Establish a sensible level from the first actual signal rather than
+    // starting loud recordings with a fixed, much smaller reference.
+    if (this._reference === null) {
+      if (rms <= NOISE_FLOOR) return 0
+      this._reference = target
+    } else {
+      // The reference tracks an envelope instead of following each new peak.
+      // Immediate peak normalization made different loud samples all the same
+      // height; a gradual attack preserves those differences.
+      const speed = target > this._reference ? REFERENCE_ATTACK : REFERENCE_RELEASE
+      this._reference += (target - this._reference) * speed
+    }
 
     if (rms <= NOISE_FLOOR) return 0
-    return Math.min(1, Math.pow((rms - NOISE_FLOOR) / (this._reference - NOISE_FLOOR), CURVE))
+
+    const ratio = (rms - NOISE_FLOOR) / (this._reference - NOISE_FLOOR)
+    return ratio / (ratio + SOFT_KNEE)
   }
 }
