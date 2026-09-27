@@ -158,7 +158,7 @@ export class ToasOrchestrator {
     this._finishRun(run)
 
     if (delivery?.reason === 'focus-mismatch') {
-      this._notifier.notify('Copied to clipboard', 'The target window changed, so your text was copied to the clipboard.')
+      this._notifier.notify('Copied to clipboard', 'The original target window is unavailable, so your text was copied to the clipboard.')
     }
 
     if (result.warning?.type === 'refine-failed') {
