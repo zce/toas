@@ -5,7 +5,7 @@ import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
-import { VoiceLevelMeter } from './waveform.js'
+import { AudioLevelMeter } from './level-meter.js'
 
 // The overlay presenter owns the state machine and delegates all St/Clutter
 // work to an injected view. ShellOverlayView below owns the Shell wiring.
@@ -110,7 +110,7 @@ const OVERLAY_EXIT_MS = 160
 export class ShellOverlayView {
   constructor() {
     this._levels = Array(BAR_COUNT).fill(0)
-    this._voiceMeter = new VoiceLevelMeter()
+    this._levelMeter = new AudioLevelMeter()
     this._barTargets = Array(BAR_COUNT).fill(null)
     this._compositingHeld = false
     this._monitorIndex = null
@@ -252,7 +252,7 @@ export class ShellOverlayView {
   }
 
   resetLevels() {
-    this._voiceMeter.reset()
+    this._levelMeter.reset()
     this._levels.fill(0)
     this._barTargets.fill(null)
     this._barActors.forEach(bar => {
@@ -315,10 +315,9 @@ export class ShellOverlayView {
   }
 
   setLevel(level) {
-    const displayLevel = this._voiceMeter.push(level)
+    const displayLevel = this._levelMeter.push(level)
 
-    // The meter owns input activity; the view only draws its levels.
-    if (this._voiceMeter.active) {
+    if (this._levelMeter.active) {
       this._levels.unshift(displayLevel)
       this._levels.length = BAR_COUNT
     } else {
