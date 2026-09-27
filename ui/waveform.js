@@ -21,6 +21,12 @@ export class WaveformNormalizer {
 
   reset() {
     this._noise = INITIAL_NOISE
+    this.resetGain()
+  }
+
+  // Discard an unconfirmed peak so the next (possibly quiet) voice onset
+  // is not normalized against a stray startup sound. Keep learned room noise.
+  resetGain() {
     this._reference = null
     this._lowFrames = 0
   }
@@ -59,5 +65,51 @@ export class WaveformNormalizer {
     return normalized <= DISPLAY_KNEE
       ? normalized
       : DISPLAY_KNEE + (normalized - DISPLAY_KNEE) * HIGH_LEVEL_SLOPE
+  }
+}
+
+// Prevent isolated startup sounds from traveling through the 8-bar history.
+// At 100ms/level, show an onset after 2 convincing windows and return to
+// idle after 3 quiet windows. This is an energy gate, not voice recognition.
+const ACTIVATE_THRESHOLD = 0.14
+const DEACTIVATE_THRESHOLD = 0.08
+const ACTIVATE_WINDOWS = 2
+const DEACTIVATE_WINDOWS = 3
+
+export class WaveformActivityGate {
+  constructor() {
+    this.reset()
+  }
+
+  reset() {
+    this.active = false
+    this._startFrames = 0
+    this._quietFrames = 0
+  }
+
+  get pending() {
+    return this._startFrames > 0
+  }
+
+  push(level) {
+    const value = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0
+
+    if (!this.active) {
+      this._startFrames = value >= ACTIVATE_THRESHOLD ? this._startFrames + 1 : 0
+      if (this._startFrames < ACTIVATE_WINDOWS) return 0
+
+      this.active = true
+      this._startFrames = 0
+      this._quietFrames = 0
+      return value
+    }
+
+    this._quietFrames = value <= DEACTIVATE_THRESHOLD ? this._quietFrames + 1 : 0
+    if (this._quietFrames < DEACTIVATE_WINDOWS) return value
+
+    this.active = false
+    this._startFrames = 0
+    this._quietFrames = 0
+    return 0
   }
 }

@@ -1,4 +1,4 @@
-import { WaveformNormalizer } from '../ui/waveform.js'
+import { WaveformActivityGate, WaveformNormalizer } from '../ui/waveform.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 test('silence and sub-threshold input remain flat', () => {
@@ -147,6 +147,75 @@ test('sustained, dense speech keeps visual headroom without flattening its varia
   const levels = frames.map(frame => meter.push(frame))
   expectTruthy(Math.max(...levels) < 0.60)
   expectTruthy(Math.max(...levels) - Math.min(...levels) > 0.1)
+})
+
+// The activity gate is intentionally separate from the normalizer: the
+// normalizer's pure amplitude behavior must not depend on visual activity.
+function visualFrames(values) {
+  const normalizer = new WaveformNormalizer()
+  const gate = new WaveformActivityGate()
+  const bars = Array(8).fill(0)
+  return values.map(rms => {
+    const next = gate.push(normalizer.push(rms))
+    if (!gate.active && !gate.pending) normalizer.resetGain()
+    if (gate.active) {
+      bars.unshift(next)
+      bars.length = 8
+    } else {
+      bars.fill(0)
+    }
+    return { active: gate.active, bars: [...bars], level: next }
+  })
+}
+
+test('one isolated startup peak leaves every bar resting', () => {
+  const frames = visualFrames([0.0036, 0, 0, 0, 0])
+  expectTruthy(frames.every(frame => frame.bars.every(bar => bar === 0)))
+})
+
+test('normal speech onset starts after two consecutive valid windows', () => {
+  const frames = visualFrames([0, 0, 0.01, 0.012, 0.014])
+  expectEqual(frames[2].active, false)
+  expectEqual(frames[3].active, true)
+  expectTruthy(frames[3].level > 0.3)
+})
+
+test('an unconfirmed peak does not hide the following quiet voice', () => {
+  const frames = visualFrames([0.0036, 0, 0, 0.002, 0.002, 0.002])
+  expectEqual(frames[0].active, false)
+  expectEqual(frames[4].active, true)
+  expectTruthy(frames[4].level > 0.14)
+})
+
+test('ordinary quiet room noise never starts the visual history', () => {
+  const frames = visualFrames(Array.from({ length: 12 }, (_, i) => [0.0004, 0.0006, 0.0008, 0.0005][i % 4]))
+  expectTruthy(frames.every(frame => !frame.active && frame.bars.every(bar => bar === 0)))
+})
+
+test('three quiet windows end an active waveform and clear all history', () => {
+  const frames = visualFrames([0.01, 0.01, 0.01, 0, 0, 0])
+  expectEqual(frames[2].active, true)
+  expectEqual(frames[5].active, false)
+  expectTruthy(frames[5].bars.every(bar => bar === 0))
+})
+
+test('brief natural speech valleys do not toggle recording activity', () => {
+  const frames = visualFrames([0.01, 0.01, 0, 0.01])
+  expectEqual(frames[3].active, true)
+})
+
+test('the gate reset clears an unfinished onset and activity state', () => {
+  const gate = new WaveformActivityGate()
+  expectEqual(gate.push(0.18), 0)
+  expectEqual(gate.pending, true)
+  gate.reset()
+  expectEqual(gate.active, false)
+  expectEqual(gate.pending, false)
+  expectEqual(gate.push(0.2), 0)
+  expectTruthy(gate.push(0.2) > 0.14)
+  expectEqual(gate.active, true)
+  gate.reset()
+  expectEqual(gate.active, false)
 })
 
 await run()
