@@ -238,7 +238,7 @@ test('target-window mismatch reports the actual clipboard fallback', async () =>
   expectEqual(notifier.notifications, [
     {
       title: 'Copied to clipboard',
-      body: 'The target window changed, so your text was copied to the clipboard.'
+      body: 'The original target window is unavailable, so your text was copied to the clipboard.'
     }
   ])
   orchestrator.destroy()

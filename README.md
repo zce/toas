@@ -50,7 +50,7 @@ history, and output.
 There are no model weights to download, no local inference runtime to maintain, and no
 always-on model service consuming your machine's resources.
 
-The default path makes requests only when you speak: one transcription request, plus one
+Processing begins after you finish a recording: one transcription request, plus one
 optional Refine request when enabled. Choose from the providers and models supported by
 `toas` based on the speed, quality, policy, and cost that fit your workflow.
 
@@ -100,12 +100,12 @@ transcription result or fails the voice input.
 
 ### Output that respects your target
 
-Single-line text is committed directly when the focused Wayland application exposes a
-text-input focus. Multiline text uses the clipboard path, preserving whitespace,
-Markdown, lists, and code indentation.
+Text is committed directly when the target application supports it, including multiline
+text outside standalone terminals. Otherwise, `toas` uses the clipboard to preserve
+whitespace and formatting, with terminal-aware paste shortcuts.
 
-Standalone terminals get terminal-aware paste. If the target window changes while
-processing runs, the result stays on the clipboard instead of landing in the wrong window.
+If the original target window is unavailable or focus changes during processing,
+the result stays on the clipboard instead of being inserted into another window.
 
 ## Compatibility
 
@@ -115,7 +115,7 @@ processing runs, the result stays on the clipboard instead of landing in the wro
 | Desktop shell   | GNOME Shell 49 / 50                |
 | Display server  | Wayland                            |
 | Audio capture   | `pw-record` from PipeWire          |
-| Transcription   | Qwen (recommended), or MiMo        |
+| Transcription   | Qwen (recommended), Doubao, MiMo  |
 | Optional Refine | MiMo, OpenAI, or OpenAI-compatible |
 
 ## Install
@@ -182,7 +182,8 @@ model    = fun-asr-flash-2026-06-15
 Qwen routes supported models through their verified protocol automatically. An endpoint
 override is available for advanced configurations.
 
-MiMo with `mimo-v2.5-asr` is the alternative transcription provider.
+Doubao with `volc.bigasr.auc_turbo` (BigASR Flash) and MiMo with
+`mimo-v2.5-asr` are also supported for transcription.
 
 Looking for a starting point? See [Recipes](docs/recipes.md) for practical Context and
 Refine Instructions you can copy, combine, and adapt.
@@ -244,8 +245,8 @@ If Refine fails, behavior follows the configured **On refine failure** policy.
 
 The overlay close action cancels a live voice input.
 
-If the focused window changes while processing runs, the result stays on the clipboard
-with a notice.
+If the original target window is unavailable or focus changes during processing,
+the result stays on the clipboard with a notice.
 
 Failed processing retains its recording when possible so it can be retried from history
 without recording again. Private mode and `Saved recordings = 0` make retry-from-audio
@@ -378,6 +379,12 @@ endpoint with Context as a system message.
 The legacy `qwen3-asr-flash` alias is retained for configurations saved before the
 versioned model ID was introduced.
 
+### Doubao transcription
+
+Doubao uses BigASR Flash through the Speech API with the
+`volc.bigasr.auc_turbo` resource ID. It supports Context via the provider's
+native corpus field and is available for transcription only.
+
 ### MiMo transcription and Refine
 
 MiMo uses one provider family with separate verified model selections for each role:
@@ -429,8 +436,10 @@ terminals, use `Shift+Insert`.
 The extension never synthesizes Enter. Embedded line breaks remain part of
 clipboard-pasted text.
 
-When **Restore clipboard** is enabled, the previous text clipboard value is restored after
-pasting. Rich or image clipboard content cannot be restored through `St.Clipboard`.
+When **Restore clipboard** is enabled, the previous text clipboard value is restored
+after an automatic clipboard-based paste. Direct insertion and copy-only delivery do
+not restore it. Rich or image clipboard content cannot be restored through
+`St.Clipboard`.
 
 When **Insert automatically** is disabled, the result stays on the clipboard as the
 deliverable.

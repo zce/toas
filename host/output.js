@@ -54,7 +54,7 @@ export class TextPaster {
   constructor(settings) {
     this._settings = settings
     this._clipboard = St.Clipboard.get_default()
-    this._keyboard = Clutter.get_default_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE)
+    this._keyboard = null
     this._ibusManager = IBusManager.getIBusManager()
     this._ibusFocused = false
     this._cancelled = false
@@ -88,37 +88,48 @@ export class TextPaster {
 
     this._cancelled = false
     const autoPaste = this._settings.get_boolean('auto-paste')
-    const directInputAvailable = Boolean(
-      Main.inputMethod?.currentFocus ||
-      (this._ibusFocused && this._ibusManager._panelService)
-    )
-    const outputMethod = selectOutputMethod({
-      text,
-      autoPaste,
-      directInputAvailable,
-      terminal: isTerminalWindow(this._targetWindow ?? global.display.focus_window)
-    })
-
-    if (outputMethod === 'direct' && this._targetWindowMatches() && this._commitDirect(text)) {
-      this._targetWindow = null
-      return { mode: 'inserted' }
+    if (autoPaste && this._targetWindowMatches()) {
+      const directInputAvailable = Boolean(
+        Main.inputMethod?.currentFocus ||
+        (this._ibusFocused && this._ibusManager._panelService)
+      )
+      const outputMethod = selectOutputMethod({
+        text,
+        autoPaste,
+        directInputAvailable,
+        terminal: isTerminalWindow(this._targetWindow)
+      })
+      if (outputMethod === 'direct' && this._commitDirect(text)) {
+        this._targetWindow = null
+        return { mode: 'inserted' }
+      }
     }
 
-    const originalText = await this._getClipboardText()
-    if (this._cancelled || !this._clipboard || !this._keyboard) {
+    if (this._cancelled || !this._clipboard) {
+      return { mode: 'cancelled' }
+    }
+
+    // Copy-only delivery must not depend on reading the old clipboard or
+    // creating a virtual keyboard. An absent original target also copies.
+    if (!autoPaste || !this._targetWindowMatches()) {
+      this._clipboard.set_text(St.ClipboardType.CLIPBOARD, text)
+      this._targetWindow = null
+      return autoPaste ? { mode: 'copied', reason: 'focus-mismatch' } : { mode: 'copied' }
+    }
+
+    const restoreClipboard = this._settings.get_boolean('restore-clipboard')
+    const originalText = restoreClipboard ? await this._getClipboardText() : null
+    if (this._cancelled || !this._clipboard) {
       return { mode: 'cancelled' }
     }
 
     this._clipboard.set_text(St.ClipboardType.CLIPBOARD, text)
-    if (this._cancelled || !this._clipboard || !this._keyboard) {
+    if (this._cancelled || !this._clipboard) {
       return { mode: 'cancelled' }
     }
 
-    if (!autoPaste) {
-      this._targetWindow = null
-      return { mode: 'copied' }
-    }
-
+    // Focus can change across either asynchronous clipboard read. Never
+    // synthesize a paste shortcut into a window other than the captured one.
     if (!this._targetWindowMatches()) {
       this._targetWindow = null
       return { mode: 'copied', reason: 'focus-mismatch' }
@@ -128,11 +139,18 @@ export class TextPaster {
       this._targetWindow = null
       throw new Error('Clipboard update could not be confirmed')
     }
+    if (this._cancelled || !this._clipboard) {
+      return { mode: 'cancelled' }
+    }
+    if (!this._targetWindowMatches()) {
+      this._targetWindow = null
+      return { mode: 'copied', reason: 'focus-mismatch' }
+    }
 
     this._pasteShortcut()
     this._targetWindow = null
 
-    if (this._settings.get_boolean('restore-clipboard') && originalText !== null && originalText !== text) {
+    if (restoreClipboard && originalText !== null && originalText !== text) {
       await delay(1000)
       if (this._cancelled || !this._clipboard) {
         return { mode: 'cancelled' }
@@ -165,13 +183,8 @@ export class TextPaster {
     }
   }
 
-  // No captured target means nothing to compare against; delivery proceeds.
   _targetWindowMatches() {
-    if (!this._targetWindow) {
-      return true
-    }
-    const focused = global.display.focus_window
-    return Boolean(focused) && focused === this._targetWindow
+    return Boolean(this._targetWindow) && global.display.focus_window === this._targetWindow
   }
 
   cancel() {
@@ -179,7 +192,8 @@ export class TextPaster {
   }
 
   _pasteShortcut() {
-    const keys = isTerminalWindow(global.display.focus_window)
+    this._keyboard ??= Clutter.get_default_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE)
+    const keys = isTerminalWindow(this._targetWindow)
       ? [KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_V]
       : [KEY_LEFTSHIFT, KEY_INSERT]
 
