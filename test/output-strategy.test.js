@@ -90,6 +90,17 @@ function delivery({ autoPaste = false, restoreClipboard = false, matches = false
   return { paster, calls, setMatching: value => { focused = value } }
 }
 
+test('direct insertion never touches the clipboard even with restore enabled', async () => {
+  const { paster, calls } = delivery({ autoPaste: true, restoreClipboard: true, matches: true })
+  paster._ibusFocused = true
+  paster._ibusManager._panelService = {}
+  expectEqual(await paster.write('direct text'), { mode: 'inserted' })
+  expectEqual(calls.commits, 1)
+  expectEqual(calls.writes, [])
+  expectEqual(calls.reads, 0)
+  expectEqual(calls.pastes, 0)
+})
+
 test('clipboard-only delivery needs neither keyboard nor clipboard read', async () => {
   const { paster, calls } = delivery({ autoPaste: false, restoreClipboard: true })
   expectEqual(await paster.write('copied text'), { mode: 'copied' })

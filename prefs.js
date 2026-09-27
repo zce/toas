@@ -168,7 +168,7 @@ function buildInputGroup(settings) {
 
   const restoreClipboard = new Adw.SwitchRow({
     title: 'Restore clipboard',
-    subtitle: 'Restore the previous clipboard text after insertion.'
+    subtitle: 'Restore previous clipboard text after fallback paste. Direct insertion and copying are unaffected.'
   })
   settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
   // Restoring only makes sense when results are inserted automatically.

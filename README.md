@@ -436,8 +436,10 @@ terminals, use `Shift+Insert`.
 The extension never synthesizes Enter. Embedded line breaks remain part of
 clipboard-pasted text.
 
-When **Restore clipboard** is enabled, the previous text clipboard value is restored after
-pasting. Rich or image clipboard content cannot be restored through `St.Clipboard`.
+When **Restore clipboard** is enabled, the previous text clipboard value is restored
+after an automatic clipboard-based paste. Direct insertion and copy-only delivery do
+not restore it. Rich or image clipboard content cannot be restored through
+`St.Clipboard`.
 
 When **Insert automatically** is disabled, the result stays on the clipboard as the
 deliverable.
