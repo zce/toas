@@ -1,26 +1,29 @@
 import { WaveformNormalizer } from '../ui/waveform.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
-test('silence and levels beneath the noise floor remain flat', () => {
+test('silence and sub-threshold input remain flat', () => {
   const meter = new WaveformNormalizer()
   for (let i = 0; i < 30; i++) {
     expectEqual(meter.push(0), 0)
-    expectEqual(meter.push(0.0005), 0)
+    expectEqual(meter.push(0.00005), 0)
   }
   expectEqual(meter.push(NaN), 0)
   expectEqual(meter.push(Infinity), 0)
 })
 
-test('quiet microphones produce visible bars from the first signal', () => {
+test('quiet microphones produce visible bars immediately', () => {
   const meter = new WaveformNormalizer()
   const initial = meter.push(0.002)
-  expectTruthy(initial > 0.3 && initial < 0.5)
-  for (let i = 0; i < 20; i++) {
-    expectEqual(meter.push(0.002), initial)
-  }
+  expectTruthy(initial > 0.5 && initial < 0.7)
+  for (let i = 0; i < 20; i++) expectEqual(meter.push(0.002), initial)
 })
 
-test('successively louder peaks remain distinct instead of flattening', () => {
+test('very quiet speech previously below the noise floor remains visible', () => {
+  const meter = new WaveformNormalizer()
+  expectTruthy(meter.push(0.0004) > 0.25)
+})
+
+test('successively louder peaks remain distinct', () => {
   const meter = new WaveformNormalizer()
   const a = meter.push(0.05)
   const b = meter.push(0.1)
@@ -50,10 +53,28 @@ test('sensitivity recovers when microphone gain drops', () => {
   const meter = new WaveformNormalizer()
   for (let i = 0; i < 15; i++) meter.push(0.12)
   const initial = meter.push(0.002)
-  for (let i = 0; i < 32; i++) meter.push(0.002)
+  for (let i = 0; i < 9; i++) meter.push(0.002)
   const recovered = meter.push(0.002)
   expectTruthy(recovered > initial + 0.15)
-  expectTruthy(recovered > 0.3)
+  expectTruthy(recovered > 0.2)
+})
+
+test('brief quiet windows do not trigger fast recovery', () => {
+  const meter = new WaveformNormalizer()
+  for (let i = 0; i < 10; i++) meter.push(0.2)
+  meter.push(0.002)
+  meter.push(0.002)
+  expectEqual(meter._lowFrames, 2)
+  meter.push(0.2)
+  expectEqual(meter._lowFrames, 0)
+  expectTruthy(meter._reference > 0.14)
+})
+
+test('digital silence does not change the adapted reference', () => {
+  const meter = new WaveformNormalizer()
+  meter.push(0.2)
+  for (let i = 0; i < 30; i++) expectEqual(meter.push(0), 0)
+  expectTruthy(meter._reference >= 0.2)
 })
 
 test('one very loud peak does not permanently fill the waveform', () => {
@@ -64,7 +85,16 @@ test('one very loud peak does not permanently fill the waveform', () => {
   expectTruthy(meter.push(0.12) < 0.7)
 })
 
-test('reset starts a fresh recording without the previous gain', () => {
+test('finite levels remain within display bounds', () => {
+  const meter = new WaveformNormalizer()
+  for (let i = 0; i <= 10000; i++) {
+    const amplitude = i % 3 ? (i % 97) / 97 : 0
+    const level = meter.push(amplitude)
+    expectTruthy(level >= 0 && level < 1)
+  }
+})
+
+test('reset starts a fresh recording without previous gain', () => {
   const meter = new WaveformNormalizer()
   const initial = meter.push(0.002)
   for (let i = 0; i < 40; i++) meter.push(0.12)
