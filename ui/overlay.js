@@ -5,6 +5,7 @@ import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
+import { AudioLevelMeter } from './level-meter.js'
 
 // The overlay presenter owns the state machine and delegates all St/Clutter
 // work to an injected view. ShellOverlayView below owns the Shell wiring.
@@ -99,8 +100,6 @@ function visualModeFor(state) {
 }
 
 const BAR_COUNT = 8
-const WAVEFORM_GAIN = 5
-const WAVEFORM_NOISE_FLOOR = 0.04
 const WAVEFORM_EASE_MS = 120
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_ENTER_MS = 220
@@ -111,6 +110,7 @@ const OVERLAY_EXIT_MS = 160
 export class ShellOverlayView {
   constructor() {
     this._levels = Array(BAR_COUNT).fill(0)
+    this._levelMeter = new AudioLevelMeter()
     this._barTargets = Array(BAR_COUNT).fill(null)
     this._compositingHeld = false
     this._monitorIndex = null
@@ -252,6 +252,7 @@ export class ShellOverlayView {
   }
 
   resetLevels() {
+    this._levelMeter.reset()
     this._levels.fill(0)
     this._barTargets.fill(null)
     this._barActors.forEach(bar => {
@@ -314,10 +315,14 @@ export class ShellOverlayView {
   }
 
   setLevel(level) {
-    const safeLevel = Math.max(0, Math.min(1, (level || 0) * WAVEFORM_GAIN))
-    const activeLevel = safeLevel <= WAVEFORM_NOISE_FLOOR ? 0 : (safeLevel - WAVEFORM_NOISE_FLOOR) / (1 - WAVEFORM_NOISE_FLOOR)
-    this._levels.unshift(activeLevel)
-    this._levels.length = BAR_COUNT
+    const displayLevel = this._levelMeter.push(level)
+
+    if (this._levelMeter.active) {
+      this._levels.unshift(displayLevel)
+      this._levels.length = BAR_COUNT
+    } else {
+      this._levels.fill(0)
+    }
 
     const range = this._waveformRange()
     if (!range) {
@@ -325,7 +330,7 @@ export class ShellOverlayView {
     }
 
     this._barActors.forEach((bar, index) => {
-      const shaped = Math.pow(this._levels[index] ?? 0, 0.45)
+      const shaped = this._levels[index] ?? 0
       const height = Math.round(range.restingHeight + shaped * (range.maxHeight - range.restingHeight))
 
       if (this._barTargets[index] === null) {
