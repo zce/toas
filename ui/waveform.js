@@ -10,6 +10,9 @@ const REFERENCE_FAST_RELEASE = 0.65
 const FAST_RELEASE_RATIO = 0.70
 const FAST_RELEASE_WINDOWS = 3
 const SOFT_KNEE = 0.7
+// Leave quiet-input feedback intact; reduce only sustained, medium/high bars.
+const DISPLAY_KNEE = 0.4
+const HIGH_LEVEL_SLOPE = 0.68
 
 export class WaveformNormalizer {
   constructor() {
@@ -52,6 +55,9 @@ export class WaveformNormalizer {
 
     // MIN_REFERENCE > maximum floor (0.0033), keeping the ratio well-defined.
     const ratio = (rms - floor) / (this._reference - floor)
-    return ratio / (ratio + SOFT_KNEE)
+    const normalized = ratio / (ratio + SOFT_KNEE)
+    return normalized <= DISPLAY_KNEE
+      ? normalized
+      : DISPLAY_KNEE + (normalized - DISPLAY_KNEE) * HIGH_LEVEL_SLOPE
   }
 }

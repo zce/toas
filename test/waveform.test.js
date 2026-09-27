@@ -131,4 +131,22 @@ test('an isolated loud spike does not permanently raise the background estimate'
   expectTruthy(meter._noise < 0.0005)
 })
 
+test('quiet microphone sensitivity is unchanged by high-level compression', () => {
+  const meter = new WaveformNormalizer()
+  const quiet = meter.push(0.002)
+  expectTruthy(quiet > 0.12 && quiet < 0.25)
+  expectEqual(meter.push(0), 0)
+  expectEqual(meter.push(0.002), quiet)
+})
+
+test('sustained, dense speech keeps visual headroom without flattening its variation', () => {
+  const meter = new WaveformNormalizer()
+  // Representative 100 ms RMS windows from a long, dense spoken phrase.
+  const frames = [0.0129, 0.0133, 0.0059, 0.0098, 0.007, 0.0083, 0.0093, 0.012]
+  for (let i = 0; i < 20; i++) meter.push(0.01)
+  const levels = frames.map(frame => meter.push(frame))
+  expectTruthy(Math.max(...levels) < 0.60)
+  expectTruthy(Math.max(...levels) - Math.min(...levels) > 0.1)
+})
+
 await run()
