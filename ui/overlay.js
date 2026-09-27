@@ -5,7 +5,7 @@ import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
-import { WaveformActivityGate, WaveformNormalizer } from './waveform.js'
+import { VoiceLevelMeter } from './waveform.js'
 
 // The overlay presenter owns the state machine and delegates all St/Clutter
 // work to an injected view. ShellOverlayView below owns the Shell wiring.
@@ -110,8 +110,7 @@ const OVERLAY_EXIT_MS = 160
 export class ShellOverlayView {
   constructor() {
     this._levels = Array(BAR_COUNT).fill(0)
-    this._waveformNormalizer = new WaveformNormalizer()
-    this._waveformActivity = new WaveformActivityGate()
+    this._voiceMeter = new VoiceLevelMeter()
     this._barTargets = Array(BAR_COUNT).fill(null)
     this._compositingHeld = false
     this._monitorIndex = null
@@ -253,8 +252,7 @@ export class ShellOverlayView {
   }
 
   resetLevels() {
-    this._waveformNormalizer.reset()
-    this._waveformActivity.reset()
+    this._voiceMeter.reset()
     this._levels.fill(0)
     this._barTargets.fill(null)
     this._barActors.forEach(bar => {
@@ -317,18 +315,11 @@ export class ShellOverlayView {
   }
 
   setLevel(level) {
-    const normalized = this._waveformNormalizer.push(level)
-    const activeLevel = this._waveformActivity.push(normalized)
+    const displayLevel = this._voiceMeter.push(level)
 
-    // An unconfirmed spike must not train the gain for the next quiet word.
-    if (!this._waveformActivity.active && !this._waveformActivity.pending) {
-      this._waveformNormalizer.resetGain()
-    }
-
-    // Do not scroll isolated startup peaks through the bar history. Once
-    // inactive again, bring the whole waveform back to its resting height.
-    if (this._waveformActivity.active) {
-      this._levels.unshift(activeLevel)
+    // The meter owns input activity; the view only draws its levels.
+    if (this._voiceMeter.active) {
+      this._levels.unshift(displayLevel)
       this._levels.length = BAR_COUNT
     } else {
       this._levels.fill(0)
