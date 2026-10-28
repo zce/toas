@@ -340,6 +340,9 @@ export class ShellOverlayView {
       const next = Math.abs(difference) <= 2
         ? height
         : Math.round(previous + difference * (difference > 0 ? 0.7 : 0.5))
+      if (this._barTargets[index] === null) {
+        this._barTargets[index] = range.restingHeight
+      }
       if (next === this._barTargets[index]) {
         return
       }
