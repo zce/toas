@@ -37,6 +37,11 @@
   opacity: 0.8;
 }
 
+/* Give the 16px Shell spinner the same effective 20px side slot. */
+.toas-spinner {
+  margin: 2px;
+}
+
 .toas-status {
   max-width: 320px;
 
@@ -45,18 +50,10 @@
   opacity: 0.8;
 }
 
-/* CSS owns waveform geometry so Shell scale-factor handling stays consistent. */
+/* One fixed-size drawing surface preserves uniform bar strokes and spacing. */
 .toas-bars {
-  spacing: 3px;
-  height: 28px;
-}
-
-.toas-bar {
-  width: 2px;
-  height: 3px;
-
-  border-radius: 99px;
-  background-color: rgba(255, 255, 255, 0.94);
+  width: 50px;
+  height: 20px;
 }
 
 /* The capsule is always dark, so its compact action needs a stable light

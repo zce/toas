@@ -1,11 +1,13 @@
+import Cairo from 'cairo'
 import Clutter from 'gi://Clutter'
-import GLib from 'gi://GLib'
 import Pango from 'gi://Pango'
 import St from 'gi://St'
+import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
 import { AudioLevelMeter } from './level-meter.js'
+import { waveformBars, WAVEFORM_WIDTH, WAVEFORM_HEIGHT } from './waveform-geometry.js'
 import { SPECTRUM_BAR_COUNT } from '../host/audio-spectrum.js'
 
 // The overlay presenter owns the state machine and delegates all St/Clutter
@@ -101,8 +103,6 @@ function visualModeFor(state) {
 }
 
 const BAR_COUNT = SPECTRUM_BAR_COUNT
-const WAVEFORM_EASE_MS = 65
-const PROCESSING_FRAME_MS = 50
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_ENTER_MS = 220
 const OVERLAY_EXIT_MS = 160
@@ -111,10 +111,8 @@ const OVERLAY_EXIT_MS = 160
 // holds compositor unredirect while visible so the waveform stays smooth.
 export class ShellOverlayView {
   constructor() {
+    this._waveLevels = new Float32Array(BAR_COUNT)
     this._levelMeter = new AudioLevelMeter()
-    this._barTargets = Array(BAR_COUNT).fill(null)
-    this._processingTimer = 0
-    this._processingFrame = 0
     this._compositingHeld = false
     this._monitorIndex = null
     this._mode = 'hidden'
@@ -131,20 +129,16 @@ export class ShellOverlayView {
       y_align: Clutter.ActorAlign.CENTER
     })
 
-    this._bars = new St.BoxLayout({
+    // Draw every stroke into one surface to avoid fractional-pixel variations
+    // caused by laying out each waveform bar as an independent widget.
+    this._bars = new St.DrawingArea({
       style_class: 'toas-bars',
+      width: WAVEFORM_WIDTH,
+      height: WAVEFORM_HEIGHT,
+      x_expand: false,
       y_align: Clutter.ActorAlign.CENTER
     })
-
-    this._barActors = []
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const bar = new St.Widget({
-        style_class: 'toas-bar',
-        y_align: Clutter.ActorAlign.CENTER
-      })
-      this._barActors.push(bar)
-      this._bars.add_child(bar)
-    }
+    this._bars.connect('repaint', area => this._paintWaveform(area))
 
     this._status = new St.Label({
       style_class: 'toas-status',
@@ -154,6 +148,9 @@ export class ShellOverlayView {
     })
     this._status.get_clutter_text().set_ellipsize(Pango.EllipsizeMode.END)
     this._status.get_clutter_text().set_single_line_mode(true)
+
+    this._spinner = new Spinner(16, { hideOnStop: true })
+    this._spinner.add_style_class_name('toas-spinner')
 
     this._closeButton = new St.Button({
       style_class: 'toas-close-button icon-button',
@@ -177,6 +174,7 @@ export class ShellOverlayView {
     this._overlay.add_child(this._icon)
     this._overlay.add_child(this._bars)
     this._overlay.add_child(this._privateIcon)
+    this._overlay.add_child(this._spinner)
     this._overlay.add_child(this._status)
     this._overlay.add_child(this._closeButton)
 
@@ -212,14 +210,13 @@ export class ShellOverlayView {
     const error = mode === 'error'
 
     if (mode !== this._mode) {
-      this._stopProcessingAnimation()
+      if (this._mode === 'busy') this._spinner.stop()
+      if (busy) this._spinner.play()
       this._mode = mode
-      this._barTargets.fill(null)
-      if (busy) this._startProcessingAnimation()
     }
 
     this._icon.visible = recording
-    this._bars.visible = recording || busy
+    this._bars.visible = recording
     this._status.visible = busy || error
     this._privateIcon.visible = recording && this._private
     this._closeButton.visible = recording || busy
@@ -253,12 +250,8 @@ export class ShellOverlayView {
 
   resetLevels() {
     this._levelMeter.reset()
-    this._barTargets.fill(null)
-    this._barActors.forEach(bar => {
-      bar.remove_all_transitions()
-      // Drop the explicit animated size and return to the CSS resting height.
-      bar.height = -1
-    })
+    this._waveLevels.fill(0)
+    this._bars.queue_repaint()
   }
 
   show() {
@@ -315,89 +308,40 @@ export class ShellOverlayView {
 
   setLevel(frame) {
     if (this._mode !== 'recording') return
-    const volume = this._levelMeter.push(frame?.rms ?? 0)
-    const range = this._waveformRange()
-    if (!range) return
 
-    this._barActors.forEach((bar, i) => {
-      const edge = Math.min(1, Math.min(i, BAR_COUNT - 1 - i) / 4)
+    const volume = this._levelMeter.push(frame?.rms ?? 0)
+    for (let index = 0; index < BAR_COUNT; index++) {
+      const edge = Math.min(1, Math.min(index, BAR_COUNT - 1 - index) / 3)
       const taper = edge * edge * (3 - 2 * edge)
-      const band = Math.max(0, Math.min(1, frame?.bands?.[i] ?? 0))
-      const shape = this._levelMeter.active
+      const band = Math.max(0, Math.min(1, frame?.bands?.[index] ?? 0))
+      this._waveLevels[index] = this._levelMeter.active
         ? Math.min(1, volume * 1.5) * (0.12 + 0.88 * band) * (0.2 + 0.8 * taper)
         : 0
-
-      bar.opacity = Math.round(140 + 115 * (0.2 + 0.8 * taper))
-      this._setBarHeight(i, Math.round(range.restingHeight + shape * (range.maxHeight - range.restingHeight)), WAVEFORM_EASE_MS)
-    })
-  }
-
-  _setBarHeight(index, height, duration) {
-    if (height === this._barTargets[index]) return
-    this._barTargets[index] = height
-    const bar = this._barActors[index]
-    if (duration === 0) {
-      bar.remove_all_transitions()
-      bar.height = height
-    } else {
-      bar.ease({ height, duration, mode: Clutter.AnimationMode.EASE_OUT_QUAD })
     }
+    this._bars.queue_repaint()
   }
 
-  _startProcessingAnimation() {
-    this._processingFrame = 0
-    this._drawProcessingWave()
-    if (!St.Settings.get().enable_animations) return
-
-    // No permanent Shell timer: the callback exists only while busy.
-    this._processingTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, PROCESSING_FRAME_MS, () => {
-      if (this._mode !== 'busy') {
-        this._processingTimer = 0
-        return GLib.SOURCE_REMOVE
+  _paintWaveform(area) {
+    const cr = area.get_context()
+    try {
+      const [width, height] = area.get_surface_size()
+      cr.set_line_cap(Cairo.LineCap.ROUND)
+      for (const bar of waveformBars(width, height, this._waveLevels)) {
+        cr.set_line_width(bar.stroke)
+        cr.set_source_rgba(1, 1, 1, bar.opacity)
+        cr.move_to(bar.x, bar.top)
+        cr.line_to(bar.x, bar.bottom)
+        cr.stroke()
       }
-      this._processingFrame++
-      this._drawProcessingWave()
-      return GLib.SOURCE_CONTINUE
-    })
-  }
-
-  _drawProcessingWave() {
-    const range = this._waveformRange()
-    if (!range) return
-    const center = !St.Settings.get().enable_animations
-      ? Math.floor(BAR_COUNT / 2)
-      : ((this._processingFrame + 4) % 25) * (BAR_COUNT + 8) / 25 - 4
-
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const glow = Math.max(0, 1 - Math.abs(i - center) / 4)
-      this._barActors[i].opacity = Math.round(105 + 150 * glow)
-      this._setBarHeight(i, Math.round(range.restingHeight + 0.48 * glow * (range.maxHeight - range.restingHeight)), 0)
+    } finally {
+      cr.$dispose()
     }
-  }
-
-  _stopProcessingAnimation() {
-    if (this._processingTimer) {
-      GLib.source_remove(this._processingTimer)
-      this._processingTimer = 0
-    }
-  }
-
-  _waveformRange() {
-    // CSS owns the visual geometry. ThemeNode resolves those lengths with the
-    // active Shell scale factor, so JS animates in the same coordinate space.
-    const restingHeight = this._barActors[0]?.get_theme_node().get_height() ?? 0
-    const maxHeight = this._bars?.get_theme_node().get_height() ?? 0
-
-    if (restingHeight <= 0 || maxHeight < restingHeight) {
-      return null
-    }
-    return { restingHeight, maxHeight }
   }
 
   _finishHide() {
     this._overlay.hide()
     this._mode = 'hidden'
-    this._stopProcessingAnimation()
+    this._spinner.stop()
     this._closeButton.visible = false
     this._releaseCompositing()
   }
@@ -433,7 +377,7 @@ export class ShellOverlayView {
   }
 
   destroy() {
-    this._stopProcessingAnimation()
+    this._spinner?.stop()
     this._onCancelRequested = null
 
     this._overlay?.remove_all_transitions()
@@ -450,11 +394,12 @@ export class ShellOverlayView {
 
     this._overlay = null
     this._icon = null
+    this._spinner = null
     this._status = null
     this._closeButton = null
     this._privateIcon = null
-    this._barActors = []
-    this._barTargets = []
+    this._bars = null
+    this._waveLevels = null
   }
 }
 

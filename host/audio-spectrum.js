@@ -1,5 +1,5 @@
 // Display-only frequency feedback: the WAV capture path is unchanged.
-export const SPECTRUM_BAR_COUNT = 21
+export const SPECTRUM_BAR_COUNT = 13
 
 const SIZE = 512
 
