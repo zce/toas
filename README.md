@@ -254,7 +254,7 @@ unavailable for affected voice inputs.
 
 ## Recording
 
-`pw-record` captures mono signed 16-bit PCM in 100 ms chunks. Those chunks drive the live
+`pw-record` captures mono signed 16-bit PCM in 50 ms chunks. Those chunks drive the live
 waveform, then the completed recording is wrapped in a standard WAV container before
 processing.
 
