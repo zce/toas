@@ -33,7 +33,7 @@ export class AudioLevelMeter {
       return 0
     }
 
-    // Ignore isolated peaks at startup; the recorder reports every 100 ms.
+    // Ignore isolated peaks at startup; the recorder reports every 50 ms.
     if (!this.active) {
       if (++this._start < START_WINDOWS) return 0
       this.active = true

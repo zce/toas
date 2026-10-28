@@ -1,11 +1,12 @@
 import Clutter from 'gi://Clutter'
+import GLib from 'gi://GLib'
 import Pango from 'gi://Pango'
 import St from 'gi://St'
-import { Spinner } from 'resource:///org/gnome/shell/ui/animation.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
 import { AudioLevelMeter } from './level-meter.js'
+import { SPECTRUM_BAR_COUNT } from '../host/audio-spectrum.js'
 
 // The overlay presenter owns the state machine and delegates all St/Clutter
 // work to an injected view. ShellOverlayView below owns the Shell wiring.
@@ -99,8 +100,9 @@ function visualModeFor(state) {
   return 'hidden'
 }
 
-const BAR_COUNT = 8
-const WAVEFORM_EASE_MS = 120
+const BAR_COUNT = SPECTRUM_BAR_COUNT
+const WAVEFORM_EASE_MS = 65
+const PROCESSING_FRAME_MS = 50
 const OVERLAY_BOTTOM_MARGIN = 112
 const OVERLAY_ENTER_MS = 220
 const OVERLAY_EXIT_MS = 160
@@ -109,9 +111,10 @@ const OVERLAY_EXIT_MS = 160
 // holds compositor unredirect while visible so the waveform stays smooth.
 export class ShellOverlayView {
   constructor() {
-    this._levels = Array(BAR_COUNT).fill(0)
     this._levelMeter = new AudioLevelMeter()
     this._barTargets = Array(BAR_COUNT).fill(null)
+    this._processingTimer = 0
+    this._processingFrame = 0
     this._compositingHeld = false
     this._monitorIndex = null
     this._mode = 'hidden'
@@ -152,9 +155,6 @@ export class ShellOverlayView {
     this._status.get_clutter_text().set_ellipsize(Pango.EllipsizeMode.END)
     this._status.get_clutter_text().set_single_line_mode(true)
 
-    this._spinner = new Spinner(16, { hideOnStop: true })
-    this._spinner.add_style_class_name('toas-spinner')
-
     this._closeButton = new St.Button({
       style_class: 'toas-close-button icon-button',
       child: new St.Icon({
@@ -177,7 +177,6 @@ export class ShellOverlayView {
     this._overlay.add_child(this._icon)
     this._overlay.add_child(this._bars)
     this._overlay.add_child(this._privateIcon)
-    this._overlay.add_child(this._spinner)
     this._overlay.add_child(this._status)
     this._overlay.add_child(this._closeButton)
 
@@ -213,13 +212,14 @@ export class ShellOverlayView {
     const error = mode === 'error'
 
     if (mode !== this._mode) {
-      if (this._mode === 'busy') this._spinner.stop()
-      if (busy) this._spinner.play()
+      this._stopProcessingAnimation()
       this._mode = mode
+      this._barTargets.fill(null)
+      if (busy) this._startProcessingAnimation()
     }
 
     this._icon.visible = recording
-    this._bars.visible = recording
+    this._bars.visible = recording || busy
     this._status.visible = busy || error
     this._privateIcon.visible = recording && this._private
     this._closeButton.visible = recording || busy
@@ -253,7 +253,6 @@ export class ShellOverlayView {
 
   resetLevels() {
     this._levelMeter.reset()
-    this._levels.fill(0)
     this._barTargets.fill(null)
     this._barActors.forEach(bar => {
       bar.remove_all_transitions()
@@ -314,39 +313,73 @@ export class ShellOverlayView {
     })
   }
 
-  setLevel(level) {
-    const displayLevel = this._levelMeter.push(level)
-
-    if (this._levelMeter.active) {
-      this._levels.unshift(displayLevel)
-      this._levels.length = BAR_COUNT
-    } else {
-      this._levels.fill(0)
-    }
-
+  setLevel(frame) {
+    if (this._mode !== 'recording') return
+    const volume = this._levelMeter.push(frame?.rms ?? 0)
     const range = this._waveformRange()
-    if (!range) {
-      return
-    }
+    if (!range) return
 
-    this._barActors.forEach((bar, index) => {
-      const shaped = this._levels[index] ?? 0
-      const height = Math.round(range.restingHeight + shaped * (range.maxHeight - range.restingHeight))
+    this._barActors.forEach((bar, i) => {
+      const edge = Math.min(1, Math.min(i, BAR_COUNT - 1 - i) / 4)
+      const taper = edge * edge * (3 - 2 * edge)
+      const band = Math.max(0, Math.min(1, frame?.bands?.[i] ?? 0))
+      const shape = this._levelMeter.active
+        ? Math.min(1, volume * 1.5) * (0.12 + 0.88 * band) * (0.2 + 0.8 * taper)
+        : 0
 
-      if (this._barTargets[index] === null) {
-        this._barTargets[index] = range.restingHeight
-      }
-      if (height === this._barTargets[index]) {
-        return
-      }
-      this._barTargets[index] = height
-
-      bar.ease({
-        height,
-        duration: WAVEFORM_EASE_MS,
-        mode: Clutter.AnimationMode.LINEAR
-      })
+      bar.opacity = Math.round(140 + 115 * (0.2 + 0.8 * taper))
+      this._setBarHeight(i, Math.round(range.restingHeight + shape * (range.maxHeight - range.restingHeight)), WAVEFORM_EASE_MS)
     })
+  }
+
+  _setBarHeight(index, height, duration) {
+    if (height === this._barTargets[index]) return
+    this._barTargets[index] = height
+    const bar = this._barActors[index]
+    if (duration === 0) {
+      bar.remove_all_transitions()
+      bar.height = height
+    } else {
+      bar.ease({ height, duration, mode: Clutter.AnimationMode.EASE_OUT_QUAD })
+    }
+  }
+
+  _startProcessingAnimation() {
+    this._processingFrame = 0
+    this._drawProcessingWave()
+    if (!St.Settings.get().enable_animations) return
+
+    // No permanent Shell timer: the callback exists only while busy.
+    this._processingTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, PROCESSING_FRAME_MS, () => {
+      if (this._mode !== 'busy') {
+        this._processingTimer = 0
+        return GLib.SOURCE_REMOVE
+      }
+      this._processingFrame++
+      this._drawProcessingWave()
+      return GLib.SOURCE_CONTINUE
+    })
+  }
+
+  _drawProcessingWave() {
+    const range = this._waveformRange()
+    if (!range) return
+    const center = !St.Settings.get().enable_animations
+      ? Math.floor(BAR_COUNT / 2)
+      : ((this._processingFrame + 4) % 25) * (BAR_COUNT + 8) / 25 - 4
+
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const glow = Math.max(0, 1 - Math.abs(i - center) / 4)
+      this._barActors[i].opacity = Math.round(105 + 150 * glow)
+      this._setBarHeight(i, Math.round(range.restingHeight + 0.48 * glow * (range.maxHeight - range.restingHeight)), 0)
+    }
+  }
+
+  _stopProcessingAnimation() {
+    if (this._processingTimer) {
+      GLib.source_remove(this._processingTimer)
+      this._processingTimer = 0
+    }
   }
 
   _waveformRange() {
@@ -364,7 +397,7 @@ export class ShellOverlayView {
   _finishHide() {
     this._overlay.hide()
     this._mode = 'hidden'
-    this._spinner.stop()
+    this._stopProcessingAnimation()
     this._closeButton.visible = false
     this._releaseCompositing()
   }
@@ -400,7 +433,7 @@ export class ShellOverlayView {
   }
 
   destroy() {
-    this._spinner?.stop()
+    this._stopProcessingAnimation()
     this._onCancelRequested = null
 
     this._overlay?.remove_all_transitions()
@@ -417,7 +450,6 @@ export class ShellOverlayView {
 
     this._overlay = null
     this._icon = null
-    this._spinner = null
     this._status = null
     this._closeButton = null
     this._privateIcon = null
