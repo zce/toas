@@ -18,6 +18,7 @@ export class AudioSpectrum {
     this._cursor = 0
     this._partialSum = 0
     this._partialCount = 0
+    this._display = new Float32Array(SPECTRUM_BAR_COUNT)
 
     for (let i = 0; i < SIZE; i++) {
       this._window[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (SIZE - 1))
@@ -89,9 +90,13 @@ export class AudioSpectrum {
       return peak
     })
     const maximum = Math.max(...peaks)
-    return {
-      rms: count ? Math.sqrt(squares / count) : 0,
-      bands: peaks.map(peak => maximum > 0 ? Math.sqrt(Math.max(0, peak / maximum - 0.025) / 0.975) : 0)
-    }
+    // Smooth independently per band: crisp onset, less jitter between speech frames.
+    const bands = peaks.map((peak, i) => {
+      const target = maximum > 0 ? Math.sqrt(Math.max(0, peak / maximum - 0.025) / 0.975) : 0
+      const previous = this._display[i]
+      const response = target > previous ? 0.55 : 0.3
+      return (this._display[i] = previous + (target - previous) * response)
+    })
+    return { rms: count ? Math.sqrt(squares / count) : 0, bands }
   }
 }
