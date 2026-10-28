@@ -1,8 +1,6 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
-import { AudioSpectrum } from './audio-spectrum.js'
-
 export const AUDIO_QUALITY_PRESETS = {
   minimum: { sampleRate: 8000 },
   low: { sampleRate: 12000 },
@@ -55,7 +53,7 @@ export function recordingOutcomeCancelled() {
 
 Gio._promisify(Gio.InputStream.prototype, 'read_bytes_async', 'read_bytes_finish')
 
-const LEVEL_WINDOW_MS = 50
+const LEVEL_WINDOW_MS = 100
 const BYTES_PER_SAMPLE = 2
 // Bounds an accidentally open recording so it cannot exhaust Shell memory
 // during upload (~4 minutes at 48 kHz mono s16).
@@ -87,7 +85,6 @@ export class AudioRecorder {
     this._chunkBytes = Math.max(BYTES_PER_SAMPLE, Math.round((this._sampleRate * LEVEL_WINDOW_MS) / 1000) * BYTES_PER_SAMPLE)
     this._levelBuffer = new Uint8Array(this._chunkBytes)
     this._levelBufferSize = 0
-    this._spectrum = new AudioSpectrum(this._sampleRate)
     this._outcome = null
   }
 
@@ -228,7 +225,7 @@ export class AudioRecorder {
       offset += length
 
       if (this._levelBufferSize === this._chunkBytes) {
-        if (this._onLevel) this._onLevel(this._spectrum.push(this._levelBuffer))
+        this._onLevel?.(calculateRms(this._levelBuffer))
         this._levelBufferSize = 0
       }
     }
@@ -260,7 +257,6 @@ export class AudioRecorder {
     this._cancelled = false
     this._levelBuffer = null
     this._levelBufferSize = 0
-    this._spectrum = null
     this._outcome = null
     this._recordingsDirectory = null
     this._onLevel = null
@@ -318,3 +314,17 @@ function wavHeader(pcmBytes, sampleRate) {
   return header
 }
 
+// Raw normalized RMS for one fixed-size level window. Presentation-specific
+// gain and shaping belong to the overlay, not the recorder.
+function calculateRms(data) {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  const sampleCount = Math.floor(data.byteLength / BYTES_PER_SAMPLE)
+  let sumSquares = 0
+
+  for (let i = 0; i < sampleCount; i++) {
+    const sample = view.getInt16(i * BYTES_PER_SAMPLE, true) / 32768
+    sumSquares += sample * sample
+  }
+
+  return sampleCount ? Math.sqrt(sumSquares / sampleCount) : 0
+}

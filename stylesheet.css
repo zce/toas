@@ -50,10 +50,18 @@
   opacity: 0.8;
 }
 
-/* One fixed-size drawing surface preserves uniform bar strokes and spacing. */
+/* CSS owns waveform geometry so Shell scale-factor handling stays consistent. */
 .toas-bars {
-  width: 50px;
+  spacing: 3px;
   height: 20px;
+}
+
+.toas-bar {
+  width: 4px;
+  height: 5px;
+
+  border-radius: 99px;
+  background-color: -st-accent-color;
 }
 
 /* The capsule is always dark, so its compact action needs a stable light
