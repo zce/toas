@@ -24,3 +24,21 @@ export function waveformBars(width, height, levels) {
     }
   })
 }
+
+/**
+ * Paint all waveform bars with GJS Cairo's camelCase API.
+ * Kept separate from the Shell actor so the real render path can be unit tested.
+ */
+export function drawWaveform(cr, width, height, levels, lineCap) {
+  const bars = waveformBars(width, height, levels)
+  if (bars.length === 0) return
+
+  cr.setLineCap(lineCap)
+  for (const bar of bars) {
+    cr.setLineWidth(bar.stroke)
+    cr.setSourceRGBA(1, 1, 1, bar.opacity)
+    cr.moveTo(bar.x, bar.top)
+    cr.lineTo(bar.x, bar.bottom)
+    cr.stroke()
+  }
+}

@@ -1,4 +1,4 @@
-import { waveformBars, WAVEFORM_WIDTH, WAVEFORM_HEIGHT } from '../ui/waveform-geometry.js'
+import { drawWaveform, waveformBars, WAVEFORM_WIDTH, WAVEFORM_HEIGHT } from '../ui/waveform-geometry.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 test('strokes and spacing stay uniform across fractional scales', () => {
@@ -22,6 +22,29 @@ test('invalid audio levels are safe and height remains responsive', () => {
   expectTruthy(bars.every(bar => Number.isFinite(bar.top) && Number.isFinite(bar.bottom)))
   expectEqual(bars[0].bottom - bars[0].top, bars[1].bottom - bars[1].top)
   expectTruthy(bars[4].bottom > bars[3].bottom)
+})
+
+test('GJS Cairo drawing path actually strokes every bar', () => {
+  const calls = []
+  const cr = {
+    setLineCap: value => calls.push(['cap', value]),
+    setLineWidth: value => calls.push(['width', value]),
+    setSourceRGBA: (...values) => calls.push(['color', ...values]),
+    moveTo: (x, y) => calls.push(['move', x, y]),
+    lineTo: (x, y) => calls.push(['line', x, y]),
+    stroke: () => calls.push(['stroke'])
+  }
+
+  // Deliberately expose only real GJS Cairo methods. Snake-case calls would throw.
+  drawWaveform(cr, 50, 20, Array.from({ length: 13 }, (_, index) => index / 12), 'round')
+  expectEqual(calls.filter(call => call[0] === 'stroke').length, 13)
+  expectEqual(calls.filter(call => call[0] === 'width').length, 13)
+  expectTruthy(calls.filter(call => call[0] === 'width').every(call => call[1] === 2))
+  expectEqual(calls[0][1], 'round')
+})
+
+test('zero-sized surface never attempts Cairo drawing', () => {
+  drawWaveform({}, 0, 0, [0, 1], 'round')
 })
 
 await run()

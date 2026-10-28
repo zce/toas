@@ -7,7 +7,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
 import { AudioLevelMeter } from './level-meter.js'
-import { waveformBars, WAVEFORM_WIDTH, WAVEFORM_HEIGHT } from './waveform-geometry.js'
+import { drawWaveform, WAVEFORM_WIDTH, WAVEFORM_HEIGHT } from './waveform-geometry.js'
 import { SPECTRUM_BAR_COUNT } from '../host/audio-spectrum.js'
 
 // The overlay presenter owns the state machine and delegates all St/Clutter
@@ -325,14 +325,7 @@ export class ShellOverlayView {
     const cr = area.get_context()
     try {
       const [width, height] = area.get_surface_size()
-      cr.set_line_cap(Cairo.LineCap.ROUND)
-      for (const bar of waveformBars(width, height, this._waveLevels)) {
-        cr.set_line_width(bar.stroke)
-        cr.set_source_rgba(1, 1, 1, bar.opacity)
-        cr.move_to(bar.x, bar.top)
-        cr.line_to(bar.x, bar.bottom)
-        cr.stroke()
-      }
+      drawWaveform(cr, width, height, this._waveLevels, Cairo.LineCap.ROUND)
     } finally {
       cr.$dispose()
     }
