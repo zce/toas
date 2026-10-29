@@ -1,6 +1,6 @@
 // Headless fake-Cairo checks for the actual dot renderer. A typo like
 // set_line_width() fails here before it can break GNOME Shell's overlay.
-import { paintMatrix, paintMatrixSurface, recordingLevel, MatrixHoverIntent, RECORD_WIDTH, PROCESS_WIDTH, MATRIX_HEIGHT, MATRIX_FPS } from '../ui/matrix-hud.js'
+import { paintMatrix, paintMatrixSurface, recordingLevel, smoothMatrixLevel, MatrixHoverIntent, RECORD_WIDTH, PROCESS_WIDTH, MATRIX_HEIGHT, MATRIX_FPS } from '../ui/matrix-hud.js'
 import { expectTruthy, expectEqual, run, test } from './harness.js'
 
 function paint(mode, level = .3, hover = 0, width = RECORD_WIDTH) {
@@ -129,6 +129,61 @@ test('2x display scale does not create four times as many dots', () => {
   expectEqual(a.stats()[1], 1)
   expectEqual(b.stats()[1], 2)
   expectEqual(paintMatrixSurface({}, 0, 0, 0, 'busy', 0, 0, 0), 0)
+})
+
+test('braided recording signal occupies multiple dot rows and is not a flat band', () => {
+  const rows = new Set()
+  const peaks = new Map()
+  let intensity = 0
+  const cr = {
+    setSourceRGBA: (_r, _g, _b, a) => { intensity = a },
+    arc: (x, y) => {
+      if (intensity < .18) return
+      rows.add(Math.round(y))
+      const column = Math.round(x)
+      if (!peaks.has(column) || peaks.get(column).intensity < intensity) {
+        peaks.set(column, { intensity, y: Math.round(y) })
+      }
+    },
+    fill: () => {}
+  }
+  paintMatrix(cr, RECORD_WIDTH, MATRIX_HEIGHT, 'recording', 1.5, .40, 0)
+  expectTruthy(rows.size >= 4, 'waveform must reach at least four dot rows')
+  expectTruthy(new Set([...peaks.values()].map(value => value.y)).size >= 3,
+    'peak row should change across the capsule')
+})
+
+test('louder recording expands visible strands without increasing dot count', () => {
+  const brightRows = gain => {
+    const rows = new Set()
+    let alpha = 0
+    let dots = 0
+    const cr = {
+      setSourceRGBA: (_r, _g, _b, a) => { alpha = a },
+      arc: (_x, y) => { if (alpha > .18) rows.add(Math.round(y)) },
+      fill: () => { dots++ }
+    }
+    paintMatrix(cr, RECORD_WIDTH, MATRIX_HEIGHT, 'recording', 1.5, gain, 0)
+    return { rows: rows.size, dots }
+  }
+  const mid = brightRows(.40)
+  const loud = brightRows(.75)
+  expectTruthy(loud.rows > mid.rows)
+  expectTruthy(loud.dots <= 240 && mid.dots <= 240, 'keep existing dot budget')
+})
+
+test('voiced onset and decay transition gradually across existing frames', () => {
+  let level = 0
+  const target = recordingLevel(.016)
+  const first = smoothMatrixLevel(level, target, 1 / MATRIX_FPS)
+  expectTruthy(first > 0 && first < target * .4, 'first voiced frame must not jump')
+  level = first
+  for (let i = 0; i < 8; i++) level = smoothMatrixLevel(level, target, 1 / MATRIX_FPS)
+  expectTruthy(level > target * .9)
+  const startFade = level
+  const fading = smoothMatrixLevel(level, 0, 1 / MATRIX_FPS)
+  expectTruthy(fading < startFade && fading > startFade * .65)
+  expectEqual(smoothMatrixLevel(fading, 0, 0), fading)
 })
 
 await run()

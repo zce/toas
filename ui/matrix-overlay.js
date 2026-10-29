@@ -7,7 +7,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { AudioLevelMeter } from './level-meter.js'
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
-import { MATRIX_FPS, MATRIX_HEIGHT, PROCESS_WIDTH, RECORD_WIDTH, MatrixHoverIntent, paintMatrixSurface, recordingLevel } from './matrix-hud.js'
+import { MATRIX_FPS, MATRIX_HEIGHT, PROCESS_WIDTH, RECORD_WIDTH, MatrixHoverIntent, paintMatrixSurface, recordingLevel, smoothMatrixLevel } from './matrix-hud.js'
 
 const BOTTOM_MARGIN = 112
 const ENTER_MS = 200
@@ -266,8 +266,9 @@ export class MatrixOverlayView {
       const dt = Math.min(0.1, (now - previous)/1000000)
       previous = now
       this._clock += dt
-      // Small per-frame target interpolation for smooth RMS response.
-      this._level += (this._targetLevel - this._level) * Math.min(1, dt*9)
+      // Slower attack/decay prevents the first voiced RMS window from
+      // lighting multiple dot rows in one sharp step.
+      this._level = smoothMatrixLevel(this._level, this._targetLevel, dt)
       const targetHover = this._hoverIntent.active ? 1 : 0
       this._hover += (targetHover - this._hover) * Math.min(1, dt*13)
       this._matrix.queue_repaint()

@@ -6,6 +6,13 @@ export const MATRIX_HEIGHT = 38
 export const MATRIX_FPS = 15
 const STEP = 4.7, RADIUS = 1.25
 
+// Smooth the display signal only, using the existing 15 FPS animation.
+export function smoothMatrixLevel(current, target, seconds) {
+ const dt=clamp(seconds,0,.1)
+ const response=target > current ? 0.17 : 0.26
+ return current+(target-current)*dt/(response+dt)
+}
+
 // Preserve mic loudness differences instead of normalizing every spoken
 // phrase into the same waveform size. A fixed quiet floor and gently
 // compressed upper range are easier to tune and cost almost nothing.
@@ -70,17 +77,21 @@ export function paintMatrix(cr,w,h,mode,time,level,hover) {
  const center=h/2,straight=Math.max(0,(w-h)/2)
  const recording=mode==='recording',busy=mode==='busy'
  const gain=clamp(level),regular=1-hover*.93
+ // The same luminance for every dot; calculate the root just once per frame.
+ const waveLight=.94*Math.sqrt(gain)
  const focus=w/2+w*.27*Math.sin(time*1.9)
  const tail=focus-12*Math.cos(time*1.9)
  let count=0
  for(let col=0;col<cols;col++){
   const x=x0+col*STEP,u=x/w
   const phase=u*15.5-time*2.15+.18*Math.sin(u*9+time*.6)
-  const amp=(1.3+7.4*gain)*(.90+.07*Math.sin(time*.6+u*5))
-  const rise=.7*Math.sin(time*.9)+.35*Math.sin(time*.38+1)
+  // Shape has a modest minimum radius when active. Loudness still controls
+  // the spread; the three phases weave instead of collapsing to a center row.
+  const amp=(4.2+7.3*gain)*(.92+.06*Math.sin(time*.6+u*5))
+  const rise=.55*Math.sin(time*.9)+.24*Math.sin(time*.38+1)
   const a=center+rise+amp*Math.sin(phase)
-  const b=center+rise-amp*Math.sin(phase+.22)
-  const c=center+rise*.55+amp*.5*Math.sin(phase*.83+2+time*.27)
+  const b=center+rise+amp*Math.sin(phase+2.18)
+  const c=center+rise*.7+amp*.78*Math.sin(phase+4.12+time*.16)
   const dx=(x-focus)/17,tx=(x-tail)/27
   const primary=1/(1+dx*dx*1.9),trail=1/(1+tx*tx*2.4)
   for(let row=0;row<rows;row++){
@@ -90,8 +101,9 @@ export function paintMatrix(cr,w,h,mode,time,level,hover) {
    const edge=fade((inside-1.4)/7)*(.48+.52*fade(Math.min(x,w-x)/13))
    let signal=0
    if(recording){
-    const da=(y-a)/4.1,db=(y-b)/4.1,dc=(y-c)/4.1
-    signal=Math.max(1/(1+da*da*3),.87/(1+db*db*3),.53/(1+dc*dc*3))*(.10+.92*gain)
+    // Tighter per-strand light keeps adjacent rows from merging into a bar.
+    const da=(y-a)/2.8,db=(y-b)/2.8,dc=(y-c)/2.8
+    signal=Math.max(1/(1+da*da*2.1),.86/(1+db*db*2.1),.43/(1+dc*dc*2.1))*waveLight
    }else if(busy){
     const dy=(y-center)/9,cy=1/(1+dy*dy*2.1),vx=(x-focus)/9
     signal=(.65*primary+.17*trail+.22/(1+vx*vx*2.5))*cy+.10/(1+dy*dy*3)

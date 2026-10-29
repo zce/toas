@@ -18,6 +18,9 @@ There is no runtime selection or setting to maintain.
 - Recording: compact **174×38** matrix with three braided dot-only strands
   driven by the existing 100 ms RMS readings. A fixed-range level curve keeps
   soft and loud speech visually distinct (no FFT or extra samples).
+  Separated strand phases and a narrow light falloff keep the curves visible
+  instead of merging into a flat center row. The existing 15 FPS animation
+  smoothly fades the recording signal in and out.
 - Processing (transcribing/refining/outputting/copying): narrower **116×38**
   capsule and moving light packet, without internal status labels or lines.
 - Hover: centered, smaller amber dot-matrix CANCEL. It appears only after
