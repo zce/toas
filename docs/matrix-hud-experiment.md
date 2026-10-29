@@ -1,72 +1,50 @@
 # Matrix HUD experiment (GNOME 49/50)
 
-This is a **draft visual experiment**, not a replacement for the original Toas HUD.
-The existing audio recording, transcription, refine, insertion, and error state
-logic are unchanged. The normal HUD remains the **default**.
+This branch uses the new matrix HUD **directly**, without a feature flag or
+alternate view implementation. Recording, processing, history, cancellation,
+output and error handling remain unchanged.
 
-## Try it on Fedora
+## Install, test, and rollback
 
-Install this branch via the repository's existing `./install.sh`.
-Only test from an idle Toas session; the installer disables the extension while
-it copies the branch and compiles its schema.
+Check out `feat/matrix-hud-preview`, then run `./install.sh`. The installer
+disables the extension, installs the branch, compiles the schema and re-enables
+it. The dot-matrix HUD is active immediately: **no gsettings commands**.
 
-Then enable the preview and reload the extension:
+To return to the original UI, check out `main` and run `./install.sh`.
+There is no runtime selection or setting to maintain.
 
-```sh
-GSETTINGS_SCHEMA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/toas@zce.me/schemas" \
-  gsettings set org.gnome.shell.extensions.toas matrix-hud true
-gnome-extensions disable toas@zce.me
-gnome-extensions enable toas@zce.me
-```
+## Interaction
 
-For an immediate, dependency-free rollback to the original view (without
-reinstalling Toas), set `matrix-hud false` using the same
-`GSETTINGS_SCHEMA_DIR` command, then disable/enable the extension again.
-The choice is read at extension startup; it does not hot-swap the overlay.
+- Recording: full-capsule matrix and three braided, dot-only strands driven
+  by Toas's **existing 100 ms RMS readings** (no FFT).
+- Processing (transcribing/refining/outputting/copying): narrower capsule and
+  moving light packet; no internal status labels or extra line primitives.
+- Hover: subdued amber dot-matrix CANCEL; click anywhere on the capsule
+  invokes the original orchestrator cancellation.
+- Completion: native shrink/fade transition and resource cleanup.
+- Error: readable error text remains available for troubleshooting, and the
+  top-bar indicator preserves the real stage and private-mode indication.
 
-## Behavior
+## Resource budget
 
-- Recording: full-capsule dot matrix, three braided amplitude-responsive strands.
-  Uses the **existing** 100 ms normalized RMS feed and AudioLevelMeter. No FFT.
-- Busy (transcribing, refining, outputting, copying): shorter matrix capsule,
-  a moving dot packet, no stage words or extra line primitives.
-- Hover: reduced signal brightness and a subdued amber dot-matrix **CANCEL**.
-  Clicking anywhere on the capsule invokes the same orchestrator cancellation
-  callback as the original close button.
-- Completion / cancellation: short fade-out; no ongoing animation after hide.
-- Error: a readable, short failure message instead of a decorative-only animation.
-  The top-bar indicator retains the actual stage and Private Mode indication.
+One `St.DrawingArea` with a GJS Cairo painter. At most one GLib timer,
+capped at **15 FPS** and only active while recording or processing. Default
+capsules render roughly 200–400 circular dots per frame. No additional audio
+capture, sampling, FFT, third-party dependency, model or background process.
+Cairo contexts are disposed on repaint; the timer stops on hide/error/
+extension teardown. Disabling GNOME animations disables the periodic timer.
 
-## Resource and compatibility budget
+Pure-renderer tests verify a strict fake Cairo API, geometry and behavior.
+**Actual GNOME Shell rendering, fractional scaling, click hit testing and
+CPU/GPU consumption still require on-device testing before merge.**
 
-- The regular HUD path allocates no drawing canvas or timer.
-- Matrix path: one `St.DrawingArea` (Cairo), one user-session GLib timer
-  at **15 FPS maximum** while recording or processing, and about
-  **200–400 circular dots per frame** at the default capsule sizes.
-- The Cairo context is always explicitly disposed. No new service, audio
-  capture, inference, FFT, plugin, or library dependency.
-- Timer stops on hide, error, and extension disable. System Reduce Motion /
-  disabled animations uses only the native 100 ms audio-level callbacks in
-  recording, with a static processing matrix and no animation timer.
-- The hover interaction uses the same input region as the capsule; it does
-  not add a separate invisible close widget.
+## Fedora manual checks
 
-**Important:** The automated renderer tests run with a strict fake Cairo
-context and verify dot counts, volume response, and the warning glyph. Actual
-GNOME 49/50 visual fidelity, texture/upload costs, Shell CPU utilization, and
-fractional-scaling behavior have **not** been measured. Reject this experiment
-if it causes any noticeable Shell jank or idle regression; opt-out immediately.
-
-## Manual smoke-test checklist
-
-1. Idle with toggle off: confirm the original HUD is pixel-identical and no
-   matrix timer is running.
-2. Toggle on, record for 30+ seconds at 48 kHz: observe GNOME Shell CPU,
-   responsiveness, wave dynamics, and mouse hover.
-3. Hover and click the full capsule; confirm cancellation and zero output.
-4. Record and release: confirm recording → narrower processing dot packet →
-   fade-out, with no leftover overlay or timer.
-5. Retry a stored recording; trigger a provider error and confirm readable
-   error feedback.
-6. Turn off GNOME animations; confirm no periodic idle/busy repainting.
-7. Disable the extension during an active HUD and verify resource cleanup.
+1. Install the branch and start recording; no extra configuration needed.
+2. Record for 30 seconds at 48 kHz; examine GNOME Shell CPU and responsiveness.
+3. Hover/click the capsule and confirm cancellation.
+4. Release recording, watch Processing narrow, then disappear.
+5. Retry a stored recording and trigger an error; confirm readable feedback.
+6. Disable GNOME animations and check the absence of ongoing refresh.
+7. Disable the extension mid-recording; verify complete actor/timer cleanup.
+8. Reinstall `main` to restore the original HUD.
