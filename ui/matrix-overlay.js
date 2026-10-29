@@ -5,25 +5,25 @@ import Pango from 'gi://Pango'
 import St from 'gi://St'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
-import { AudioLevelMeter } from './level-meter.js'
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
-import { MATRIX_FPS, MATRIX_HEIGHT, PROCESS_WIDTH, RECORD_WIDTH, MatrixHoverIntent, paintMatrixSurface, recordingLevel, smoothMatrixLevel } from './matrix-hud.js'
+import { MATRIX_FPS, MATRIX_HEIGHT, PROCESS_WIDTH, RECORD_WIDTH, MatrixHoverIntent, MatrixRenderer, MatrixSignal } from './matrix-hud.js'
 
 const BOTTOM_MARGIN = 112
-const ENTER_MS = 200
-const EXIT_MS = 180
+const ENTER_MS = 310
+const COMPLETE_MS = 570
+const CANCEL_MS = 320
+const ERROR_EXIT_MS = 180
 
 // The matrix *view* for ToasOverlayPresenter. No change to
 // capture, refinement, notifications or output state. No permanent work.
 export class MatrixOverlayView {
   constructor() {
-    this._levelMeter = new AudioLevelMeter()
-    this._level = 0
-    this._targetLevel = 0
+    this._signal = new MatrixSignal()
+    this._renderer = new MatrixRenderer()
     this._hover = 0
     this._hoverIntent = new MatrixHoverIntent()
-    this._clock = 0
     this._timer = 0
+    this._cancelRequested = false
     this._mode = 'hidden'
     this._monitorIndex = null
     this._compositingHeld = false
@@ -59,6 +59,7 @@ export class MatrixOverlayView {
     })
     this._overlay.connect('clicked', () => {
       if (!this._hiding && (this._mode === 'recording' || this._mode === 'busy')) {
+        this._cancelRequested = true
         this._onCancelRequested?.()
       }
     })
@@ -106,7 +107,15 @@ export class MatrixOverlayView {
 
   setMode(mode) {
     const was = this._mode
+    if (mode === 'recording' && was !== 'recording') {
+      this._signal.reset()
+      this._cancelRequested = false
+      this._hover = 0
+      this._hoverIntent.reset()
+    }
     this._mode = mode
+    if (!St.Settings.get().enable_animations)
+      this._signal.processMix = mode === 'busy' ? 1 : 0
     const matrixVisible = mode === 'recording' || mode === 'busy'
     this._matrix.visible = matrixVisible
     this._error.visible = mode === 'error'
@@ -147,10 +156,8 @@ export class MatrixOverlayView {
   }
 
   resetLevels() {
-    this._levelMeter.reset()
-    this._targetLevel = 0
-    this._level = 0
-    this._clock = 0
+    this._signal.reset()
+    this._cancelRequested = false
     this._hover = 0
     this._hoverIntent.reset()
     this._matrix.queue_repaint()
@@ -158,12 +165,11 @@ export class MatrixOverlayView {
 
   setLevel(rms) {
     if (this._mode !== 'recording') return
-    this._levelMeter.push(rms)
-    this._targetLevel = this._levelMeter.active ? recordingLevel(rms) : 0
+    this._signal.pushRms(rms)
     // In GNOME's reduced-motion mode there is no interpolation timer. Levels
     // still update only on the existing 100 ms capture window.
     if (!St.Settings.get().enable_animations) {
-      this._level = this._targetLevel
+      this._signal.signal = this._signal.target
       this._matrix.queue_repaint()
     }
   }
@@ -173,7 +179,6 @@ export class MatrixOverlayView {
       const [x, y] = global.get_pointer()
       this._hoverIntent.reset(x, y)
       this._hover = 0
-      this._clock = 0
     }
     this._hiding = false
     this._overlay.remove_all_transitions()
@@ -186,7 +191,7 @@ export class MatrixOverlayView {
       if (enteringMatrix && St.Settings.get().enable_animations) {
         // The dots expand with the capsule, rather than appearing in an
         // already-full-width box. Only the normal compositor is animated.
-        this._matrix.width = 90
+        this._matrix.width = 76
       }
       this._overlay.show()
       if (St.Settings.get().enable_animations) {
@@ -198,11 +203,10 @@ export class MatrixOverlayView {
           })
         }
         this._overlay.opacity = 0
-        this._overlay.translation_y = 8
+        this._overlay.translation_y = 0
         this._overlay.ease({
           opacity: 255,
-          translation_y: 0,
-          duration: ENTER_MS,
+          duration: 240,
           mode: Clutter.AnimationMode.EASE_OUT_CUBIC
         })
       } else {
@@ -220,35 +224,30 @@ export class MatrixOverlayView {
     if (this._hiding || !this._overlay?.visible) return
     this._hiding = true
     this._overlay.reactive = false
-    this._stopAnimation()
+    this._hoverIntent.reset()
     this._overlay.remove_all_transitions()
     this._matrix.remove_all_transitions()
-    if (!St.Settings.get().enable_animations) {
-      this._finishHide()
-      return
+    if (!St.Settings.get().enable_animations) { this._finishHide(); return }
+    const completed = this._mode === 'busy' && !this._cancelRequested
+    const duration = completed ? COMPLETE_MS : this._cancelRequested ? CANCEL_MS : ERROR_EXIT_MS
+    if (completed && this._matrix.visible) {
+      // Continue painting the breathing diamond as it contracts.
+      this._matrix.ease({ width: Math.round(PROCESS_WIDTH * .65),
+        duration, mode: Clutter.AnimationMode.EASE_IN_OUT_SINE })
     }
-    if (this._matrix.visible) {
-      this._matrix.ease({
-        width: 90,
-        duration: EXIT_MS,
-        mode: Clutter.AnimationMode.EASE_IN_OUT_SINE
-      })
-    }
-    this._overlay.ease({
-      opacity: 0,
-      duration: EXIT_MS,
+    this._overlay.ease({ opacity: 0, duration,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-      onStopped: () => {
-        if (this._hiding && !this._destroyed) this._finishHide()
-      }
+      onStopped: () => { if (this._hiding && !this._destroyed) this._finishHide() }
     })
   }
 
   _finishHide() {
+    this._stopAnimation()
     this._overlay.hide()
     this._mode = 'hidden'
     this._hover = 0
     this._hoverIntent.reset()
+    this._cancelRequested = false
     this._hiding = false
     this._releaseCompositing()
   }
@@ -257,7 +256,7 @@ export class MatrixOverlayView {
     if (this._timer || !St.Settings.get().enable_animations) return
     let previous = GLib.get_monotonic_time()
     this._timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, Math.round(1000/MATRIX_FPS), () => {
-      if (this._destroyed || this._hiding || !this._overlay.visible ||
+      if (this._destroyed || !this._overlay.visible ||
           (this._mode !== 'recording' && this._mode !== 'busy')) {
         this._timer = 0
         return GLib.SOURCE_REMOVE
@@ -265,12 +264,9 @@ export class MatrixOverlayView {
       const now = GLib.get_monotonic_time()
       const dt = Math.min(0.1, (now - previous)/1000000)
       previous = now
-      this._clock += dt
-      // Slower attack/decay prevents the first voiced RMS window from
-      // lighting multiple dot rows in one sharp step.
-      this._level = smoothMatrixLevel(this._level, this._targetLevel, dt)
-      const targetHover = this._hoverIntent.active ? 1 : 0
-      this._hover += (targetHover - this._hover) * Math.min(1, dt*13)
+      this._signal.advance(dt, this._mode)
+      const targetHover = !this._hiding && this._hoverIntent.active ? 1 : 0
+      this._hover += (targetHover - this._hover)*(1-Math.exp(-dt/.105))
       this._matrix.queue_repaint()
       return GLib.SOURCE_CONTINUE
     })
@@ -288,8 +284,7 @@ export class MatrixOverlayView {
     const cr = area.get_context()
     try {
       const [w,h] = area.get_surface_size()
-      paintMatrixSurface(cr,w,h,area.get_width(),
-        this._mode,this._clock,this._level,this._hover)
+      this._renderer.paintSurface(cr,w,h,area.get_width(),this._signal,this._hover)
     } finally {
       // St.DrawingArea's Cairo context must be explicitly disposed in GJS.
       cr.$dispose()
@@ -322,6 +317,7 @@ export class MatrixOverlayView {
   destroy() {
     this._destroyed = true
     this._stopAnimation()
+    this._renderer?.clear()
     this._matrix?.remove_all_transitions()
     this._overlay?.remove_all_transitions()
     this._releaseCompositing()
@@ -333,6 +329,8 @@ export class MatrixOverlayView {
     this._overlay = null
     this._matrix = null
     this._error = null
+    this._signal = null
+    this._renderer = null
     this._onCancelRequested = null
     this._hoverIntent.reset()
     this._hoverIntent = null

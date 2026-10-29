@@ -1,58 +1,79 @@
-# Matrix HUD experiment (GNOME 49/50)
+# Matrix HUD · v7.3 GNOME Shell port
 
-This branch uses the new matrix HUD **directly**, without a feature flag or
-alternate view implementation. Recording, processing, history, cancellation,
-output and error handling remain unchanged.
+This branch runs the **Matrix HUD directly**. There is no feature flag and no
+alternate Shell HUD to maintain. Its visual reference is the user-approved
+`toas-matrix-v7.3.html` prototype, specifically its 1× rendering.
 
-## Install, test, and rollback
+## Fidelity contract
 
-Check out `feat/matrix-hud-preview`, then run `./install.sh`. The installer
-disables the extension, installs the branch, compiles the schema and re-enables
-it. The dot-matrix HUD is active immediately: **no gsettings commands**.
+| Motion / geometry | GNOME implementation |
+| --- | --- |
+| Recording | 174 × 42 px, 3.7px pitch, exactly 47 columns × 11 rows |
+| Voice feedback | Existing 100ms raw RMS; fixed-range sqrt mapping; 48-sample history |
+| Wave motion | Time-interpolated, left→right history and shared band-limited phase |
+| Anchors | Raised-sine window, all three curve endpoints on vertical midpoint |
+| Edge shadow | Rounded-capsule signed distance with softened top/bottom rows |
+| Processing | 116 × 42px; two stretched hollow diamonds with opposing breath |
+| Hover | Soft amber dot-matrix CANCEL only after fresh pointer movement |
+| Entry | Expand from 76px with native 310ms easing |
+| Completion | Continue diamond breathing during 570ms contraction/fade |
+| Cancel | 320ms fade and immediate input disable |
+| Errors | Readable error message, unchanged presenter error handling |
 
-To return to the original UI, check out `main` and run `./install.sh`.
-There is no runtime selection or setting to maintain.
+No separate lines or icons are drawn; all visible waves, diamonds, and
+the CANCEL label are individual Cairo dots. The top-bar status and privacy
+indicator are unchanged. The completion animation is the **successful
+busy→idle** exit; failure does not misleadingly show a success animation.
 
-## Interaction
+## Installation and rollback
 
-- Recording: compact **174×38** matrix with three braided dot-only strands
-  driven by the existing 100 ms RMS readings. A fixed-range level curve keeps
-  soft and loud speech visually distinct (no FFT or extra samples).
-  Separated strand phases and a narrow light falloff keep the curves visible
-  instead of merging into a flat center row. The existing 15 FPS animation
-  smoothly fades the recording signal in and out.
-- Processing (transcribing/refining/outputting/copying): narrower **116×38**
-  capsule and moving light packet, without internal status labels or lines.
-- Hover: centered, smaller amber dot-matrix CANCEL. It appears only after
-  actual pointer movement in the current HUD session, not simply because
-  a new overlay opens beneath the cursor. Clicking anywhere cancels.
-- Completion: native shrink/fade transition and resource cleanup.
-- Error: readable error text remains available for troubleshooting, and the
-  top-bar indicator preserves the real stage and private-mode indication.
+```sh
+git switch feat/matrix-hud-preview
+./install.sh
+```
 
-## Resource budget
+The new HUD is enabled immediately. To restore the original, reinstall
+`main` using the same script.
 
-One `St.DrawingArea` with a GJS Cairo painter. At most one GLib timer,
-capped at **15 FPS** and only active while recording or processing. Default
-capsules render roughly 160–210 background/signal dots per frame, independent
-of backing surface scale (apart from centered CANCEL glyph dots). No additional audio
-capture, sampling, FFT, third-party dependency, model or background process.
-Cairo contexts are disposed on repaint; the timer stops on hide/error/
-extension teardown. Disabling GNOME animations disables the periodic timer.
+## Performance design
 
-Pure-renderer tests verify a strict fake Cairo API, geometry and behavior.
-**Actual GNOME Shell rendering, fractional scaling, click hit testing and
-CPU/GPU consumption still require on-device testing before merge.**
+- A single `St.DrawingArea` and one GLib timeout during active recording,
+  processing, or a finishing transition: **maximum 30 FPS**. No idle loop.
+- Default recording geometry contains 517 dot positions; about 490 lie
+  within the softly masked capsule. Processing draws fewer.
+- Static dot coordinates, edge alpha, and typed curve work buffers are
+  cached for the two stable widths. Only one temporary transition geometry
+  is kept. Cache is released on extension teardown.
+- Curve positions and diamond distance profiles are calculated **once per
+  column/row**, not independently for each dot.
+- Reuse the recorder's existing 100ms RMS events. No FFT, audio changes,
+  shader, additional service or external library.
+- The Cairo context is explicitly disposed after each paint; backing-surface
+  scaling does not multiply the logical grid point count.
+- If GNOME animations are disabled, the periodic timer is not started;
+  recording refreshes only on RMS events, and Processing is static.
 
-## Fedora manual checks
+A pure-JavaScript fake-Cairo benchmark may help catch regressions, but is
+**not** a measurement of GNOME Shell's compositor, texture upload, or real
+user-session CPU usage. Keep this PR as Draft until Fedora validation.
 
-1. Install the branch and start recording; no extra configuration needed.
-2. Record for 30 seconds at 48 kHz; examine GNOME Shell CPU and responsiveness.
-3. Hover/click the capsule and confirm cancellation. Start recording again
-   without moving the pointer: CANCEL must stay hidden until a fresh movement.
-   Repeat after normal completion as well.
-4. Release recording, watch Processing narrow, then disappear.
-5. Retry a stored recording and trigger an error; confirm readable feedback.
-6. Disable GNOME animations and check the absence of ongoing refresh.
-7. Disable the extension mid-recording; verify complete actor/timer cleanup.
-8. Reinstall `main` to restore the original HUD.
+## Fedora acceptance
+
+1. Compare the HUD beside v7.3 HTML at **1× actual size**, especially the
+   anchored ends, three smooth strands, faint top/bottom dot rows, Processing
+   diamonds and the final contraction/fade.
+2. Record for 30+ seconds, vary microphone distance and volume, and check
+   that syllables change the *vertical* profile, not only luminance.
+3. Finish a run and record again with the mouse unmoved. CANCEL must stay
+   hidden until new mouse movement. Clicking the whole HUD must cancel.
+4. Check the Processing state for long and short transcriptions; ensure the
+   animation runs until the overlay completely disappears.
+5. Trigger an error, disable the extension mid-recording, and turn off Shell
+   animations; ensure no stuck timer, actor, or inaccessible error.
+6. Test fractional monitor scaling and multiple monitors. There should be
+   the same logical number of dots at 1× and 2×.
+7. Compare `gnome-shell` CPU against `main` during a 30-second recording
+   and a long Processing phase; look for skipped frames and memory growth.
+   **Target**: negligible idle overhead and preferably < 5 percentage points
+   of one CPU core incremental load. These are review gates, not measured
+   results.

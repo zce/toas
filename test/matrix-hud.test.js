@@ -1,189 +1,148 @@
-// Headless fake-Cairo checks for the actual dot renderer. A typo like
-// set_line_width() fails here before it can break GNOME Shell's overlay.
-import { paintMatrix, paintMatrixSurface, recordingLevel, smoothMatrixLevel, MatrixHoverIntent, RECORD_WIDTH, PROCESS_WIDTH, MATRIX_HEIGHT, MATRIX_FPS } from '../ui/matrix-hud.js'
-import { expectTruthy, expectEqual, run, test } from './harness.js'
+// Headless tests for the production Cairo painter and 100 ms RMS history.
+import { MatrixSignal, MatrixRenderer, MatrixHoverIntent, recordingLevel,
+  RECORD_WIDTH, PROCESS_WIDTH, MATRIX_HEIGHT, MATRIX_STEP, MATRIX_FPS } from '../ui/matrix-hud.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
-function paint(mode, level = .3, hover = 0, width = RECORD_WIDTH) {
-  const colors = []
-  let count = 0
-  const cr = {
-    setSourceRGBA: (...v) => colors.push(v),
-    arc: () => {},
-    fill: () => { count++ }
+function context() {
+  const dots=[]
+  let color=[]
+  let scale=1
+  return {
+    dots,
+    setSourceRGBA: (...values) => { color=values },
+    arc: (x,y,r) => { dots.push({x,y,r,color:[...color]}) },
+    fill: () => {},
+    scale: v => { scale=v },
+    get scaleValue() { return scale }
   }
-  const actual = paintMatrix(cr, width, MATRIX_HEIGHT, mode, 1.5, level, hover)
-  return { colors, count, actual }
 }
 
-test('matrix paints with GJS Cairo and covers recording capsule', () => {
-  const a = paint('recording')
-  expectTruthy(a.count > 200)
-  expectEqual(a.count, a.actual)
-  expectTruthy(a.colors.every(c => c.length === 4 && c[3] > 0 && c[3] <= 1))
+function signal(rms=.02, mode='recording') {
+  const s=new MatrixSignal()
+  for(let i=0;i<18;i++){s.pushRms(rms);s.advance(.1,'recording')}
+  if(mode==='busy')for(let i=0;i<8;i++)s.advance(1/30,'busy')
+  return s
+}
+
+test('v7.3 geometry: 174x42 has exactly 47 columns and 11 rows', () => {
+  expectEqual(RECORD_WIDTH,174)
+  expectEqual(PROCESS_WIDTH,116)
+  expectEqual(MATRIX_HEIGHT,42)
+  expectEqual(MATRIX_STEP,3.7)
+  expectEqual(MATRIX_FPS,30)
+  const r=new MatrixRenderer(),cr=context()
+  r.paint(cr,RECORD_WIDTH,MATRIX_HEIGHT,signal(),0)
+  const g=r._grid(RECORD_WIDTH,MATRIX_HEIGHT)
+  expectEqual(g.cols,47)
+  expectEqual(g.rows,11)
+  expectTruthy(cr.dots.length>=400)
+  expectTruthy(cr.dots.every(d => Number.isFinite(d.x)&&Number.isFinite(d.y)&&d.r===1.06))
 })
 
-test('processing is narrower and retains a full dot field', () => {
-  const a = paint('recording')
-  const b = paint('busy', .3, 0, PROCESS_WIDTH)
-  expectTruthy(b.count > 100)
-  expectTruthy(a.count > b.count)
-})
-
-test('recording responds to volume without extra sample analysis', () => {
-  const a = paint('recording', 0)
-  const b = paint('recording', 1)
-  const energy = x => x.colors.reduce((s,c) => s + c[3], 0)
-  expectTruthy(energy(b) > energy(a))
-})
-
-test('CANCEL is an amber dot glyph only while hovered', () => {
-  const ordinary = paint('recording', .3, 0)
-  const hovered = paint('recording', .3, 1)
-  expectEqual(ordinary.colors.filter(c => c[0] === .86).length, 0)
-  expectTruthy(hovered.colors.filter(c => c[0] === .86).length > 30)
-})
-
-test('safe when allocated zero area; rendering cap remains 15 fps', () => {
-  expectEqual(paintMatrix({},0,0,'recording',0,0,0),0)
-  expectEqual(MATRIX_FPS,15)
-})
-
-test('HUD fits the compact dimensions, with a centered CANCEL word', () => {
-  expectEqual(RECORD_WIDTH, 174)
-  expectEqual(PROCESS_WIDTH, 116)
-  expectEqual(MATRIX_HEIGHT, 38)
-  const amber = []
-  let color = 0
-  const cr = {
-    setSourceRGBA: (red) => { color = red },
-    arc: (x, y) => { if (color === .86) amber.push([x, y]) },
-    fill: () => {}
+test('all three strands anchor to the baseline at both endpoints', () => {
+  const r=new MatrixRenderer(),s=signal(.025),cr=context()
+  r.paint(cr,RECORD_WIDTH,MATRIX_HEIGHT,s,0)
+  const g=r._grid(RECORD_WIDTH,MATRIX_HEIGHT),last=g.cols-1,base=MATRIX_HEIGHT/2
+  for(const strand of [g.a,g.b,g.c]) {
+    expectTruthy(Math.abs(strand[0]-base)<.00001)
+    expectTruthy(Math.abs(strand[last]-base)<.00001)
+    expectTruthy(strand.some((v,i)=>i>1&&i<last-1&&Math.abs(v-base)>1))
   }
-  paintMatrix(cr, RECORD_WIDTH, MATRIX_HEIGHT, 'recording', 1, .4, 1)
-  expectTruthy(amber.length > 30)
-  expectTruthy(amber.every(([x, y]) =>
-    x > RECORD_WIDTH / 2 - 40 && x < RECORD_WIDTH / 2 + 40 &&
-    y > MATRIX_HEIGHT / 2 - 9 && y < MATRIX_HEIGHT / 2 + 9))
-
-  const processingAmber = []
-  const crBusy = {
-    setSourceRGBA: (red) => { color = red },
-    arc: (x, y) => { if (color === .86) processingAmber.push([x, y]) },
-    fill: () => {}
-  }
-  paintMatrix(crBusy, PROCESS_WIDTH, MATRIX_HEIGHT, 'busy', 1, .4, 1)
-  expectTruthy(processingAmber.length > 30)
-  expectTruthy(processingAmber.every(([x]) => Math.abs(x - PROCESS_WIDTH/2) < PROCESS_WIDTH*.28))
 })
 
-test('fixed RMS mapping retains loudness differences without automatic saturation', () => {
-  const values = [.0025, .004, .008, .016, .032, .064].map(recordingLevel)
-  expectTruthy(values.every((v, i) => v > 0 && v < 1 && (i === 0 || v > values[i - 1])))
-  expectEqual(recordingLevel(0), 0)
-  expectEqual(recordingLevel(NaN), 0)
-  expectEqual(recordingLevel(Infinity), 0)
-  expectEqual(recordingLevel(.5), 1)
+test('fixed RMS mapping is monotonic without self-normalizing steady speech', () => {
+  const values=[.0025,.004,.008,.016,.032,.064].map(recordingLevel)
+  expectTruthy(values.every((v,i)=>v>0&&v<1&&(i===0||v>values[i-1])))
+  expectEqual(recordingLevel(0),0)
+  expectEqual(recordingLevel(NaN),0)
+  expectEqual(recordingLevel(Infinity),0)
+  expectEqual(recordingLevel(.5),1)
 })
 
-test('CANCEL needs a fresh pointer movement after every run', () => {
-  const intent = new MatrixHoverIntent()
-  intent.reset(100, 200)
-  expectEqual(intent.active, false)
-  intent.move(100, 200) // Shell may emit motion on actor appearance
-  intent.move(101, 201)
-  expectEqual(intent.active, false)
-  intent.move(105, 201)
-  expectEqual(intent.active, true)
-  intent.reset(105, 201) // hide then reopen under unchanged pointer
-  expectEqual(intent.active, false)
-  intent.move(105, 201)
-  expectEqual(intent.active, false)
-  intent.move(110, 201)
-  expectEqual(intent.active, true)
-  intent.reset()
-  intent.move(220, 250) // first event after leaving only sets anchor
-  expectEqual(intent.active, false)
-  intent.move(224, 250)
-  expectEqual(intent.active, true)
+test('left to right history of 100 ms audio inputs is smoothed and bounded', () => {
+  const s=new MatrixSignal()
+  for(let i=0;i<18;i++){s.pushRms(i%4===0?.065:.003);s.advance(.1,'recording')}
+  const slices=[0,.2,.5,.8,1].map(u=>s.audioHistory(u))
+  expectTruthy(slices.every(v=>v>=0&&v<=1))
+  expectTruthy(new Set(slices.map(v=>v.toFixed(4))).size>2)
+  const historyBefore=s.history[s.history.length-1]
+  s.pushRms(.03)
+  expectEqual(s.history[s.history.length-2],historyBefore)
+  expectTruthy(s.audioHistory(0)!==s.audioHistory(1))
 })
 
-test('2x display scale does not create four times as many dots', () => {
-  const makeCr = () => {
-    let count = 0
-    let scale = 0
-    return {
-      setSourceRGBA: () => {},
-      arc: () => {},
-      fill: () => { count++ },
-      scale: value => { scale = value },
-      stats: () => [count, scale]
-    }
-  }
-  const a = makeCr()
-  const b = makeCr()
-  paintMatrixSurface(a, RECORD_WIDTH, MATRIX_HEIGHT, RECORD_WIDTH,
-    'recording', 1, .5, 0)
-  paintMatrixSurface(b, RECORD_WIDTH * 2, MATRIX_HEIGHT * 2, RECORD_WIDTH,
-    'recording', 1, .5, 0)
-  expectEqual(b.stats()[0], a.stats()[0])
-  expectEqual(a.stats()[1], 1)
-  expectEqual(b.stats()[1], 2)
-  expectEqual(paintMatrixSurface({}, 0, 0, 0, 'busy', 0, 0, 0), 0)
+test('two nested processing diamonds have different breath phases', () => {
+  const r=new MatrixRenderer(),s=signal(.015,'busy'),cr=context()
+  r.paint(cr,PROCESS_WIDTH,MATRIX_HEIGHT,s,0)
+  const g=r._grid(PROCESS_WIDTH,MATRIX_HEIGHT)
+  expectTruthy(s.processMix>.65)
+  expectTruthy(g.outerX.some(v=>v>.1))
+  expectTruthy(g.innerX.some(v=>v>.1))
+  const old=g.outerX[Math.floor(g.cols*.25)],oldInner=g.innerX[Math.floor(g.cols*.25)]
+  s.advance(.5,'busy');r.paint(context(),PROCESS_WIDTH,MATRIX_HEIGHT,s,0)
+  expectTruthy(Math.abs(g.outerX[Math.floor(g.cols*.25)]-old)>.0001)
+  expectTruthy(Math.abs(g.innerX[Math.floor(g.cols*.25)]-oldInner)>.0001)
 })
 
-test('braided recording signal occupies multiple dot rows and is not a flat band', () => {
-  const rows = new Set()
-  const peaks = new Map()
-  let intensity = 0
-  const cr = {
-    setSourceRGBA: (_r, _g, _b, a) => { intensity = a },
-    arc: (x, y) => {
-      if (intensity < .18) return
-      rows.add(Math.round(y))
-      const column = Math.round(x)
-      if (!peaks.has(column) || peaks.get(column).intensity < intensity) {
-        peaks.set(column, { intensity, y: Math.round(y) })
-      }
-    },
-    fill: () => {}
-  }
-  paintMatrix(cr, RECORD_WIDTH, MATRIX_HEIGHT, 'recording', 1.5, .40, 0)
-  expectTruthy(rows.size >= 4, 'waveform must reach at least four dot rows')
-  expectTruthy(new Set([...peaks.values()].map(value => value.y)).size >= 3,
-    'peak row should change across the capsule')
+test('inner shadow keeps top and bottom dot rows dim but not empty', () => {
+  const r=new MatrixRenderer(),g=r._grid(RECORD_WIDTH,MATRIX_HEIGHT)
+  const centerCol=Math.floor(g.cols/2),first=centerCol*g.rows
+  const top=g.edges[first],middle=g.edges[first+Math.floor(g.rows/2)]
+  const bottom=g.edges[first+g.rows-1]
+  expectTruthy(top>0 && top<middle)
+  expectTruthy(bottom>0 && bottom<middle)
 })
 
-test('louder recording expands visible strands without increasing dot count', () => {
-  const brightRows = gain => {
-    const rows = new Set()
-    let alpha = 0
-    let dots = 0
-    const cr = {
-      setSourceRGBA: (_r, _g, _b, a) => { alpha = a },
-      arc: (_x, y) => { if (alpha > .18) rows.add(Math.round(y)) },
-      fill: () => { dots++ }
-    }
-    paintMatrix(cr, RECORD_WIDTH, MATRIX_HEIGHT, 'recording', 1.5, gain, 0)
-    return { rows: rows.size, dots }
-  }
-  const mid = brightRows(.40)
-  const loud = brightRows(.75)
-  expectTruthy(loud.rows > mid.rows)
-  expectTruthy(loud.dots <= 240 && mid.dots <= 240, 'keep existing dot budget')
+test('CANCEL is centered amber dot typography with no extra line primitive', () => {
+  const r=new MatrixRenderer(),s=signal(),a=context(),b=context()
+  r.paint(a,RECORD_WIDTH,MATRIX_HEIGHT,s,0)
+  r.paint(b,RECORD_WIDTH,MATRIX_HEIGHT,s,1)
+  const isAmber=d=>d.color[0]===216/255
+  expectEqual(a.dots.filter(isAmber).length,0)
+  const glyph=b.dots.filter(isAmber)
+  expectTruthy(glyph.length>30)
+  expectTruthy(glyph.every(d=>Math.abs(d.x-RECORD_WIDTH/2)<40))
+  expectTruthy(glyph.every(d=>Math.abs(d.y-MATRIX_HEIGHT/2)<9))
 })
 
-test('voiced onset and decay transition gradually across existing frames', () => {
-  let level = 0
-  const target = recordingLevel(.016)
-  const first = smoothMatrixLevel(level, target, 1 / MATRIX_FPS)
-  expectTruthy(first > 0 && first < target * .4, 'first voiced frame must not jump')
-  level = first
-  for (let i = 0; i < 8; i++) level = smoothMatrixLevel(level, target, 1 / MATRIX_FPS)
-  expectTruthy(level > target * .9)
-  const startFade = level
-  const fading = smoothMatrixLevel(level, 0, 1 / MATRIX_FPS)
-  expectTruthy(fading < startFade && fading > startFade * .65)
-  expectEqual(smoothMatrixLevel(fading, 0, 0), fading)
+test('fresh motion is required for CANCEL on each new run', () => {
+  const m=new MatrixHoverIntent()
+  m.reset(100,200);m.move(100,200);m.move(101,201)
+  expectEqual(m.active,false)
+  m.move(105,203);expectEqual(m.active,true)
+  m.reset(105,203);m.move(105,203)
+  expectEqual(m.active,false)
+  m.move(110,203);expectEqual(m.active,true)
+})
+
+test('1x and 2x Cairo canvases paint identical dot counts', () => {
+  const r=new MatrixRenderer(),s=signal(),a=context(),b=context()
+  r.paintSurface(a,174,42,174,s,0)
+  r.paintSurface(b,348,84,174,s,0)
+  expectEqual(a.dots.length,b.dots.length)
+  expectEqual(a.scaleValue,1)
+  expectEqual(b.scaleValue,2)
+  expectEqual(r.getCacheSize(),1)
+  r.paint(context(),PROCESS_WIDTH,MATRIX_HEIGHT,s,0)
+  expectEqual(r.getCacheSize(),2)
+  r.clear()
+  expectEqual(r.getCacheSize(),0)
+})
+
+test('processing approaches one and then resets for the next recording', () => {
+  const s=signal()
+  for(let i=0;i<14;i++)s.advance(1/30,'busy')
+  expectTruthy(s.processMix>.85)
+  s.reset()
+  expectEqual(s.processMix,0)
+  expectEqual(s.time,0)
+  expectEqual(s.audioHistory(.5),0)
+  expectEqual(s.target,.06)
+})
+
+test('zero-size surface skips Cairo calls', () => {
+  const r=new MatrixRenderer()
+  expectEqual(r.paintSurface({},0,0,0,new MatrixSignal(),0),0)
 })
 
 await run()
