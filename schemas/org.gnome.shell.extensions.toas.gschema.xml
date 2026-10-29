@@ -14,6 +14,12 @@
       <summary>Push-to-talk shortcut</summary>
     </key>
 
+    <key name="matrix-hud" type="b">
+      <default>false</default>
+      <summary>Experiment: dot-matrix recording and processing HUD</summary>
+      <description>Use a limited-frame-rate dot matrix instead of the native waveform and spinner. Requires extension restart.</description>
+    </key>
+
     <key name="private-mode" type="b">
       <default>false</default>
       <summary>Disable local retention for new voice inputs</summary>

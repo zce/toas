@@ -15,6 +15,7 @@ import { ConfirmDialog } from './ui/dialog.js'
 import { ToasIndicator } from './ui/indicator.js'
 import { ShellNotifier } from './ui/notifier.js'
 import { ShellOverlayView, ToasOverlayPresenter } from './ui/overlay.js'
+import { MatrixOverlayView } from './ui/matrix-overlay.js'
 
 // Composition root: builds the collaborator graph on enable and tears it
 // down completely on disable.
@@ -45,7 +46,12 @@ export default class ToasExtension extends Extension {
       )
       this._indicator.setPrivateMode(this._settings.get_boolean('private-mode'))
 
-      this._overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
+      // Opt-in visual experiment. The baseline view remains the default and
+      // has no additional timer, canvas, or changed behavior.
+      const matrixHud = this._settings.get_boolean('matrix-hud')
+      this._overlay = new ToasOverlayPresenter({
+        view: matrixHud ? new MatrixOverlayView() : new ShellOverlayView()
+      })
       this._kernelRunner = new KernelRunner({ settings: this._settings })
       this._output = new TextPaster(this._settings)
 

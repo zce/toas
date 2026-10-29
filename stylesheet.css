@@ -174,3 +174,26 @@
   icon-size: 14px;
   color: st-transparentize(-st-accent-color, 0.25);
 }
+
+/* --- Optional matrix HUD (ui/matrix-overlay.js) -----------------------------
+ * Only instantiated when the experimental matrix-hud setting is enabled.
+ * This CSS performs no animation or blur; Cairo owns the dots.
+ */
+.toas-matrix-overlay {
+  padding: 0;
+  border: 1px solid rgba(184, 189, 198, 0.18);
+  border-radius: 99px;
+  background-color: rgba(23, 24, 28, 0.97);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.38);
+}
+
+.toas-matrix-overlay:hover {
+  border-color: rgba(196, 175, 153, 0.28);
+}
+
+.toas-matrix-error-label {
+  max-width: 320px;
+  padding: 10px 15px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.92);
+}
