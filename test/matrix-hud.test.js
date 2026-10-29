@@ -64,6 +64,16 @@ test('HUD fits the compact dimensions, with a centered CANCEL word', () => {
   expectTruthy(amber.every(([x, y]) =>
     x > RECORD_WIDTH / 2 - 40 && x < RECORD_WIDTH / 2 + 40 &&
     y > MATRIX_HEIGHT / 2 - 9 && y < MATRIX_HEIGHT / 2 + 9))
+
+  const processingAmber = []
+  const crBusy = {
+    setSourceRGBA: (red) => { color = red },
+    arc: (x, y) => { if (color === .86) processingAmber.push([x, y]) },
+    fill: () => {}
+  }
+  paintMatrix(crBusy, PROCESS_WIDTH, MATRIX_HEIGHT, 'busy', 1, .4, 1)
+  expectTruthy(processingAmber.length > 30)
+  expectTruthy(processingAmber.every(([x]) => Math.abs(x - PROCESS_WIDTH/2) < PROCESS_WIDTH*.28))
 })
 
 test('fixed RMS mapping retains loudness differences without automatic saturation', () => {
