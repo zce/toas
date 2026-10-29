@@ -235,7 +235,11 @@ export class MatrixOverlayView {
       this._matrix.ease({ width: Math.round(PROCESS_WIDTH * .65),
         duration, mode: Clutter.AnimationMode.EASE_IN_OUT_SINE })
     }
-    this._overlay.ease({ opacity: 0, duration,
+    this._overlay.ease({
+      opacity: 0,
+      // v7.3 holds the completed diamond briefly before fading it away.
+      delay: completed ? 100 : 0,
+      duration: completed ? duration - 100 : duration,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => { if (this._hiding && !this._destroyed) this._finishHide() }
     })
