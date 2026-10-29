@@ -51,7 +51,7 @@ function dot(cr,x,y,r,a,warn=false) {
 }
 function drawCancel(cr,w,h,hover) {
  if(hover<.025)return
- const pitch=Math.min(2.2,(w-26)/35)
+ const pitch=Math.min(2.05,w*.51/35)
  const x0=w/2-35*pitch/2+pitch/2,y0=h/2-3*pitch
  for(let i=0;i<6;i++){
   const glyph=GLYPHS['CANCEL'[i]]
