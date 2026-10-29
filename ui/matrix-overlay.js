@@ -7,13 +7,13 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { AudioLevelMeter } from './level-meter.js'
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
-import { MATRIX_FPS, MATRIX_HEIGHT, PROCESS_WIDTH, RECORD_WIDTH, paintMatrix } from './matrix-hud.js'
+import { MATRIX_FPS, MATRIX_HEIGHT, PROCESS_WIDTH, RECORD_WIDTH, MatrixHoverIntent, paintMatrixSurface, recordingLevel } from './matrix-hud.js'
 
 const BOTTOM_MARGIN = 112
 const ENTER_MS = 200
 const EXIT_MS = 180
 
-// Opt-in alternate *view* for the existing ToasOverlayPresenter. No change to
+// The matrix *view* for ToasOverlayPresenter. No change to
 // capture, refinement, notifications or output state. No permanent work.
 export class MatrixOverlayView {
   constructor() {
@@ -21,6 +21,7 @@ export class MatrixOverlayView {
     this._level = 0
     this._targetLevel = 0
     this._hover = 0
+    this._hoverIntent = new MatrixHoverIntent()
     this._clock = 0
     this._timer = 0
     this._mode = 'hidden'
@@ -61,11 +62,29 @@ export class MatrixOverlayView {
         this._onCancelRequested?.()
       }
     })
-    this._overlay.connect('notify::hover', () => {
-      if (!St.Settings.get().enable_animations) {
-        this._hover = this._overlay.hover ? 1 : 0
+    // An existing pointer may already be over the new overlay when it
+    // appears. Only an actual motion event in this run enables CANCEL.
+    this._overlay.connect('motion-event', (_actor, event) => {
+      if (!this._hiding && (this._mode === 'recording' || this._mode === 'busy')) {
+        const [x, y] = event.get_coords()
+        const wasHovering = this._hoverIntent.active
+        this._hoverIntent.move(x, y)
+        if (!St.Settings.get().enable_animations &&
+            this._hoverIntent.active !== wasHovering) {
+          this._hover = this._hoverIntent.active ? 1 : 0
+          this._matrix.queue_repaint()
+        }
+      }
+      return Clutter.EVENT_PROPAGATE
+    })
+    this._overlay.connect('leave-event', () => {
+      const wasHovering = this._hoverIntent.active
+      this._hoverIntent.reset()
+      if (!St.Settings.get().enable_animations && wasHovering) {
+        this._hover = 0
         this._matrix.queue_repaint()
       }
+      return Clutter.EVENT_PROPAGATE
     })
 
     Main.layoutManager.addTopChrome(this._overlay)
@@ -132,12 +151,15 @@ export class MatrixOverlayView {
     this._targetLevel = 0
     this._level = 0
     this._clock = 0
+    this._hover = 0
+    this._hoverIntent.reset()
     this._matrix.queue_repaint()
   }
 
   setLevel(rms) {
     if (this._mode !== 'recording') return
-    this._targetLevel = this._levelMeter.push(rms)
+    this._levelMeter.push(rms)
+    this._targetLevel = this._levelMeter.active ? recordingLevel(rms) : 0
     // In GNOME's reduced-motion mode there is no interpolation timer. Levels
     // still update only on the existing 100 ms capture window.
     if (!St.Settings.get().enable_animations) {
@@ -147,6 +169,12 @@ export class MatrixOverlayView {
   }
 
   show() {
+    if (!this._overlay.visible || this._hiding) {
+      const [x, y] = global.get_pointer()
+      this._hoverIntent.reset(x, y)
+      this._hover = 0
+      this._clock = 0
+    }
     this._hiding = false
     this._overlay.remove_all_transitions()
     this._acquireCompositing()
@@ -220,6 +248,7 @@ export class MatrixOverlayView {
     this._overlay.hide()
     this._mode = 'hidden'
     this._hover = 0
+    this._hoverIntent.reset()
     this._hiding = false
     this._releaseCompositing()
   }
@@ -239,7 +268,7 @@ export class MatrixOverlayView {
       this._clock += dt
       // Small per-frame target interpolation for smooth RMS response.
       this._level += (this._targetLevel - this._level) * Math.min(1, dt*9)
-      const targetHover = this._overlay.hover ? 1 : 0
+      const targetHover = this._hoverIntent.active ? 1 : 0
       this._hover += (targetHover - this._hover) * Math.min(1, dt*13)
       this._matrix.queue_repaint()
       return GLib.SOURCE_CONTINUE
@@ -258,7 +287,8 @@ export class MatrixOverlayView {
     const cr = area.get_context()
     try {
       const [w,h] = area.get_surface_size()
-      paintMatrix(cr,w,h,this._mode,this._clock,this._level,this._hover)
+      paintMatrixSurface(cr,w,h,area.get_width(),
+        this._mode,this._clock,this._level,this._hover)
     } finally {
       // St.DrawingArea's Cairo context must be explicitly disposed in GJS.
       cr.$dispose()
@@ -303,5 +333,7 @@ export class MatrixOverlayView {
     this._matrix = null
     this._error = null
     this._onCancelRequested = null
+    this._hoverIntent.reset()
+    this._hoverIntent = null
   }
 }

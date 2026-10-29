@@ -15,12 +15,14 @@ There is no runtime selection or setting to maintain.
 
 ## Interaction
 
-- Recording: full-capsule matrix and three braided, dot-only strands driven
-  by Toas's **existing 100 ms RMS readings** (no FFT).
-- Processing (transcribing/refining/outputting/copying): narrower capsule and
-  moving light packet; no internal status labels or extra line primitives.
-- Hover: subdued amber dot-matrix CANCEL; click anywhere on the capsule
-  invokes the original orchestrator cancellation.
+- Recording: compact **174×38** matrix with three braided dot-only strands
+  driven by the existing 100 ms RMS readings. A fixed-range level curve keeps
+  soft and loud speech visually distinct (no FFT or extra samples).
+- Processing (transcribing/refining/outputting/copying): narrower **116×38**
+  capsule and moving light packet, without internal status labels or lines.
+- Hover: centered, smaller amber dot-matrix CANCEL. It appears only after
+  actual pointer movement in the current HUD session, not simply because
+  a new overlay opens beneath the cursor. Clicking anywhere cancels.
 - Completion: native shrink/fade transition and resource cleanup.
 - Error: readable error text remains available for troubleshooting, and the
   top-bar indicator preserves the real stage and private-mode indication.
@@ -29,7 +31,8 @@ There is no runtime selection or setting to maintain.
 
 One `St.DrawingArea` with a GJS Cairo painter. At most one GLib timer,
 capped at **15 FPS** and only active while recording or processing. Default
-capsules render roughly 200–400 circular dots per frame. No additional audio
+capsules render roughly 160–210 background/signal dots per frame, independent
+of backing surface scale (apart from centered CANCEL glyph dots). No additional audio
 capture, sampling, FFT, third-party dependency, model or background process.
 Cairo contexts are disposed on repaint; the timer stops on hide/error/
 extension teardown. Disabling GNOME animations disables the periodic timer.
@@ -42,7 +45,9 @@ CPU/GPU consumption still require on-device testing before merge.**
 
 1. Install the branch and start recording; no extra configuration needed.
 2. Record for 30 seconds at 48 kHz; examine GNOME Shell CPU and responsiveness.
-3. Hover/click the capsule and confirm cancellation.
+3. Hover/click the capsule and confirm cancellation. Start recording again
+   without moving the pointer: CANCEL must stay hidden until a fresh movement.
+   Repeat after normal completion as well.
 4. Release recording, watch Processing narrow, then disappear.
 5. Retry a stored recording and trigger an error; confirm readable feedback.
 6. Disable GNOME animations and check the absence of ongoing refresh.
