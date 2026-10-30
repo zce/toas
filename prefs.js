@@ -135,6 +135,7 @@ export default class ToasPreferences extends ExtensionPreferences {
       title: 'toas',
       icon_name: 'audio-input-microphone-symbolic'
     })
+    page.add_css_class('toas-preferences')
     const configurationBanner = new Adw.Banner({ title: '', revealed: false, use_markup: false })
     configurationBanner.add_css_class('toas-config-banner')
     page.banner = configurationBanner
@@ -196,7 +197,7 @@ function buildInputGroup(settings) {
 
   const matrixHud = new Adw.SwitchRow({
     title: 'Experimental matrix HUD',
-    subtitle: 'Use the dot-matrix overlay after reloading the extension.'
+    subtitle: 'Switch between the standard and dot-matrix overlay.'
   })
   settings.bind('experimental-matrix-hud', matrixHud, 'active', Gio.SettingsBindFlags.DEFAULT)
   group.add(matrixHud)
