@@ -77,7 +77,7 @@ export class ToasOrchestrator {
       ownsRecording: false,
       result: null,
       gateId: 0,
-      captureStarted: false
+      captureEnabled: false
     }
 
     this._overlay.setMonitor(this._output.getFocusedMonitorIndex())
@@ -115,13 +115,13 @@ export class ToasOrchestrator {
       run.gateId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, gateMs, () => {
         run.gateId = 0
         if (this._run === run && this._state === 'recording') {
-          run.captureStarted = true
+          run.captureEnabled = true
           run.recorder.unmute()
         }
         return GLib.SOURCE_REMOVE
       })
     } else {
-      run.captureStarted = true
+      run.captureEnabled = true
     }
   }
 
@@ -133,14 +133,14 @@ export class ToasOrchestrator {
     const run = this._run
     this._state = 'transcribing'
     this._clearCaptureGate(run)
-    if (!run.captureStarted) {
+    if (!run.captureEnabled) {
       this._cues?.cancel()
     }
 
     // Show Processing immediately. The recorder still needs to drain
     // already captured PCM, so do not play the end cue until it has
     // completely stopped; otherwise the cue can enter the tail of the WAV.
-    if (run.captureStarted) {
+    if (run.captureEnabled) {
       this._transition('transcribing')
     }
 
@@ -169,7 +169,7 @@ export class ToasOrchestrator {
     run.recording = outcome.recording
     run.ownsRecording = true
 
-    if (!run.captureStarted) {
+    if (!run.captureEnabled) {
       this._transition('transcribing')
     }
 
