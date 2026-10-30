@@ -33,6 +33,22 @@ test('None does not play a cue or add a capture delay', () => {
   expectEqual(played.length, 0)
 })
 
+test('starting with None cancels a still-playing stop cue', () => {
+  const styles = {
+    'sound-start-style': 'none',
+    'sound-end-style': 'tap'
+  }
+  const { player, played } = fakePlayer(styles)
+
+  player.play('end')
+  expectEqual(played.length, 1)
+  expectEqual(played[0].cancellable.is_cancelled(), false)
+
+  expectEqual(player.play('start'), 0)
+  expectEqual(played[0].cancellable.is_cancelled(), true)
+  expectEqual(played.length, 1)
+})
+
 test('disabled GNOME event sounds do not block microphone capture', () => {
   const { player, played } = fakePlayer({ 'sound-start-style': 'crystal' }, false)
 
