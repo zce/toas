@@ -15,6 +15,7 @@ export class EarconPlayer {
   constructor(settings) {
     this._settings = settings
     this._player = global.display.get_sound_player()
+    this._soundSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.sound' })
     if (!this._player) {
       throw new Error('GNOME Shell sound player is unavailable')
     }
@@ -46,7 +47,7 @@ export class EarconPlayer {
 
   play(kind) {
     const requested = this._settings.get_string(`sound-${kind}-style`)
-    if (requested === 'none') {
+    if (requested === 'none' || !this._soundSettings.get_boolean('event-sounds')) {
       return 0
     }
 
