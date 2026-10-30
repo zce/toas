@@ -103,4 +103,25 @@ test('cancel while recorder is draining cannot emit a late stop cue', async () =
   orchestrator.destroy()
 })
 
+test('quick release before the start cue ends does not falsely confirm', async () => {
+  const {orchestrator,recorder,events,overlay}=create({duration:65})
+  recorder.recording = {kind:'short-tap',durationMs:0}
+  orchestrator.begin()
+  await orchestrator.end()
+  expectEqual(events,['start','cancel'])
+  expectTruthy(overlay.states.some(e=>e.state==='idle'))
+  orchestrator.destroy()
+})
+
+test('microphone launch failure interrupts the start sound', async () => {
+  const {orchestrator,recorder,events}=create({duration:80})
+  recorder.start = async () => { throw new Error('Microphone is unavailable') }
+  orchestrator.begin()
+  await Promise.resolve()
+  await Promise.resolve()
+  expectTruthy(events.includes('cancel'))
+  expectEqual(events.includes('end'),false)
+  orchestrator.destroy()
+})
+
 await run()

@@ -1,56 +1,90 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
-import { CUE_STYLES, CUE_GUARD_MS, DEFAULT_START_CUE, DEFAULT_END_CUE, cueDurationMs, synthesizeCue } from './earcon-synthesis.js'
+import {
+  CUE_STYLES, CUE_GUARD_MS, DEFAULT_START_CUE, DEFAULT_END_CUE,
+  cueDurationMs, synthesizeCue
+} from './earcon-synthesis.js'
 
-// Plays the approved original cues with Mutter's native sound player.
-// A cue is short and finite. No audio process or active GLib source at rest.
+// PipeWire is already required by Toas for pw-record. Use pw-play for
+// earcons: Mutter's alert-sound player can silently follow "No alert sound"
+// or a muted GNOME Shell stream even when the Toas setting is enabled.
+// Each cue is one short-lived process, never a resident audio service.
 export class EarconPlayer {
   constructor(settings) {
     this._settings = settings
-    this._sound = global.display.get_sound_player()
+    this._player = GLib.find_program_in_path('pw-play')
+    if (!this._player) throw new Error('pw-play is missing (pipewire-utils)')
     this._files = new Map()
-    this._current = null
-    const directory = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'toas', 'earcons-v1']))
+    this._playing = null
+
+    const directory = Gio.File.new_for_path(GLib.build_filenamev([
+      GLib.get_user_cache_dir(), 'toas', 'earcons-v2'
+    ]))
     try { directory.make_directory_with_parents(null) }
-    catch (error) { if (!error.matches?.(Gio.IOErrorEnum,Gio.IOErrorEnum.EXISTS)) throw error }
-    for(const style of CUE_STYLES)for(const kind of ['start','end']){
-      const file = directory.get_child(`${kind}-${style}.wav`)
-      if(!file.query_exists(null))
-        file.replace_contents(synthesizeCue(kind,style),null,false,Gio.FileCreateFlags.PRIVATE,null)
-      this._files.set(`${kind}-${style}`,file)
+    catch (error) {
+      if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS))
+        throw error
+    }
+    for (const style of CUE_STYLES) {
+      for (const kind of ['start', 'end']) {
+        const file = directory.get_child(`${kind}-${style}.wav`)
+        if (!file.query_exists(null)) {
+          file.replace_contents(synthesizeCue(kind, style), null, false,
+            Gio.FileCreateFlags.PRIVATE, null)
+        }
+        this._files.set(`${kind}-${style}`, file)
+      }
     }
   }
 
   play(kind) {
     if (!this._settings?.get_boolean('sound-enabled')) return 0
-    const fallback=kind==='start'?DEFAULT_START_CUE:DEFAULT_END_CUE
-    const selected=this._settings.get_string(`sound-${kind}-style`)
-    const style=CUE_STYLES.includes(selected)?selected:fallback
-    const file=this._files.get(`${kind}-${style}`)
-    if(!file)return 0
+    const fallback = kind === 'start' ? DEFAULT_START_CUE : DEFAULT_END_CUE
+    const requested = this._settings.get_string(`sound-${kind}-style`)
+    const style = CUE_STYLES.includes(requested) ? requested : fallback
+    const file = this._files.get(`${kind}-${style}`)
+    if (!file) return 0
+
     this.cancel()
     try {
-      this._current=new Gio.Cancellable()
-      this._sound.play_from_file(file, `Toas ${kind} recording`, this._current)
-      // The guard bounds normal output buffering. An OS or hardware-specific
-      // speaker-to-mic acoustic path cannot be guaranteed in software.
-      return cueDurationMs(kind,style)+CUE_GUARD_MS
-    } catch(error) {
-      console.warn(`[toas] Could not play ${kind} cue: ${error.message}`)
-      this._current=null
+      const process = Gio.Subprocess.new(
+        [this._player, '--latency=60ms', file.get_path()],
+        Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE
+      )
+      const playback = { process, cancelled: false }
+      this._playing = playback
+      process.wait_async(null, (subprocess, result) => {
+        try {
+          subprocess.wait_finish(result)
+          if (!playback.cancelled && !subprocess.get_successful())
+            console.warn(`[toas] ${kind} sound exited (status ${subprocess.get_exit_status()})`)
+        } catch (error) {
+          if (!playback.cancelled)
+            console.warn(`[toas] ${kind} sound failed: ${error.message}`)
+        } finally {
+          if (this._playing === playback) this._playing = null
+        }
+      })
+      // Audio device buffering + a 60ms PipeWire playback latency.
+      // Physical acoustic feedback cannot be fully ruled out by any timer.
+      return cueDurationMs(kind, style) + CUE_GUARD_MS
+    } catch (error) {
+      console.warn(`[toas] Could not play ${kind} sound: ${error.message}`)
+      this._playing = null
       return 0
     }
   }
 
   cancel() {
-    this._current?.cancel()
-    this._current=null
+    if (!this._playing) return
+    this._playing.cancelled = true
+    this._playing.process.force_exit()
+    this._playing = null
   }
 
   destroy() {
     this.cancel()
-    this._settings=null
-    this._sound=null
+    this._settings = null
     this._files.clear()
   }
 }

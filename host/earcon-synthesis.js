@@ -2,7 +2,7 @@
 // Rendered to WAV once; no daemon, WebAudio or ongoing synthesizer.
 export const CUE_STYLES=['tap','crystal','pulse','halo']
 export const DEFAULT_START_CUE='crystal', DEFAULT_END_CUE='tap'
-export const CUE_GUARD_MS=70
+export const CUE_GUARD_MS=100
 const RATE=16000
 const N={
 tap:{start:[[735,690,.088,.16,'triangle',.003,.063,0],[1130,1130,.045,.042,'sine',.002,.032,0],[870,870,.135,.055,'sine',.011,.107,.028]],end:[[590,555,.110,.118,'triangle',.004,.082,0],[790,790,.058,.030,'sine',.003,.046,0],[440,440,.150,.043,'sine',.012,.117,.020]]},
@@ -29,7 +29,7 @@ export function synthesizeCue(kind,style){
    const wave=type==='triangle'?2/Math.PI*Math.asin(sin):sin
    value+=wave*volume*Math.max(0,Math.min(1,q/attack,(d-q)/release))
   }
-  v.setInt16(44+i*2,Math.round(Math.max(-1,Math.min(1,value*.45*.65))*32767),true)
+  v.setInt16(44+i*2,Math.round(Math.max(-1,Math.min(1,value*.86))*32767),true)
  }
  return out
 }

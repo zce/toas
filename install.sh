@@ -17,6 +17,11 @@ if ! command -v pw-record >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v pw-play >/dev/null 2>&1; then
+  echo "Warning: pw-play is missing; recording sounds will be disabled." >&2
+  echo "To enable them: sudo dnf install pipewire-utils" >&2
+fi
+
 gnome-extensions disable "$UUID" >/dev/null 2>&1 || true
 
 rm -rf "$TARGET_DIR"

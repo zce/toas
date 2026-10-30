@@ -14,7 +14,8 @@ test('CANCEL uses exactly the same grid cells at both widths',()=>{
  const r=new MatrixRenderer()
  for(const width of [164,136]){
   const g=r._grid(width)
-  expectEqual(g.edge.length,506)
+  expectEqual(g.cols,width===164?46:38)
+  expectEqual(g.edge.length,g.cols*11)
   expectEqual(g.glyph.reduce((a,b)=>a+b,0),63)
   const lit=[];for(let i=0;i<506;i++)if(g.glyph[i])lit.push(g.xy[2*i])
   expectTruthy(Math.max(...lit)-Math.min(...lit)>85)
@@ -28,11 +29,21 @@ test('recording and processing draw within one Cairo surface',()=>{
  expectTruthy(rec>350&&proc>280&&rec>proc)
  expectTruthy(a.dots.every(d=>d.r>0&&d.color[3]<=1))
 })
+test('transition widths never allocate invisible off-capsule columns',()=>{
+ const r=new MatrixRenderer()
+ for(const width of [34,50,80,120,136,164]){
+  const g=r._grid(width)
+  expectEqual(g.cols,Math.max(2,Math.floor(width/MATRIX_STEP)))
+  expectTruthy(g.xy.every((v,i)=>i%2===1 || (v>=0&&v<=width)))
+  expectEqual(g.glyph.reduce((a,b)=>a+b,0),width>=102?63:0)
+ }
+})
+
 test('hover changes existing dots to amber, no separate text layer',()=>{
  const s=signal(),r=new MatrixRenderer(),a=ctx(),b=ctx()
  r.paint(a,164,40,s,0);r.paint(b,164,40,s,1)
- expectTruthy(b.dots.some(d=>Math.abs(d.color[0]-216/255)<.001))
- expectTruthy(a.dots.every(d=>Math.abs(d.color[0]-216/255)>.001))
+ expectTruthy(b.dots.some(d=>d.color[0]>d.color[2]))
+ expectTruthy(a.dots.every(d=>d.color[0]<=d.color[2]))
 })
 test('quiet and loud RMS differ; silence is not amplified to full',()=>{
  const s=new MatrixSignal()
@@ -43,6 +54,23 @@ test('quiet and loud RMS differ; silence is not amplified to full',()=>{
  for(let i=0;i<60;i++)s.pushRms(0)
  expectTruthy(s.goal<.2)
 })
+test('recorded speech produces restrained bounded vertical motion',()=>{
+ const s=new MatrixSignal(),r=new MatrixRenderer(),cr=ctx()
+ const measured=[]
+ for(const rms of [.0007,.002,.004,.008,.012,.02,.031,.052]){
+  for(let i=0;i<10;i++){
+   s.pushRms(rms);s.advance(.1,'recording')
+   r.paint(cr,164,40,s)
+  }
+  const grid=r._grid(164),max=Math.max(...grid.path.flatMap(p=>Array.from(p,x=>Math.abs(x-5))))
+  measured.push(max)
+ }
+ expectTruthy(measured[0]<.7)
+ expectTruthy(measured[2]<1.25)
+ expectTruthy(measured.at(-1)>measured[2])
+ expectTruthy(Math.max(...measured)<3)
+})
+
 test('pointer cancel intent and voice history reset',()=>{
  const m=new MatrixHoverIntent();m.reset(100,200);m.move(101,200)
  expectEqual(m.active,false);m.move(105,200);expectEqual(m.active,true)

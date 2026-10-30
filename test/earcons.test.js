@@ -3,7 +3,7 @@ import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 test('four independently selectable start and stop sound styles',()=>{
  expectEqual(CUE_STYLES,['tap','crystal','pulse','halo'])
- expectEqual(CUE_GUARD_MS,70)
+ expectEqual(CUE_GUARD_MS,100)
  for(const style of CUE_STYLES)for(const kind of ['start','end']){
   const data=synthesizeCue(kind,style),view=new DataView(data.buffer)
   expectEqual(String.fromCharCode(...data.slice(0,4)),'RIFF')

@@ -201,6 +201,10 @@ export class AudioRecorder {
 
   async _readLoop() {
     while (this._stream) {
+      // A read issued before the sound gate opens may complete afterward.
+      // Never admit that pre-gate chunk: otherwise the start cue can leak
+      // into the first 100ms of an otherwise muted recording.
+      const acceptAtRead = this._captureEnabled
       const bytes = await this._stream.read_bytes_async(this._chunkBytes, GLib.PRIORITY_DEFAULT, null)
 
       if (bytes.get_size() === 0) {
@@ -217,7 +221,7 @@ export class AudioRecorder {
         break
       }
 
-      if (!this._captureEnabled) continue
+      if (!acceptAtRead || !this._captureEnabled) continue
       this._output.write_all(data, null)
       this._totalBytes += data.length
       this._appendLevelData(data)

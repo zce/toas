@@ -69,6 +69,28 @@ test('muted capture drops cue-period PCM and unmute resumes writing', async () =
   expectEqual(writes.length, 1)
 })
 
+test('a read requested before the sound gate opens is never accepted later', async () => {
+  const value = recorder({ captureInitiallyMuted: true })
+  const writes = []
+  value._output = { write_all: data => writes.push(data.length) }
+  value._totalBytes = 0
+  const data = new Uint8Array(value._chunkBytes)
+  let release
+  let calls = 0
+  value._stream = { read_bytes_async: async () => {
+    if (calls++ === 0) return new Promise(resolve => { release = () => resolve({
+      get_size: () => data.length, get_data: () => data
+    }) })
+    return { get_size: () => 0 }
+  } }
+  const reading = value._readLoop()
+  value.unmute()
+  release()
+  await reading
+  expectEqual(value._totalBytes, 0)
+  expectEqual(writes, [])
+})
+
 test('stop drains buffered PCM before closing the capture gate', async () => {
   const value = recorder()
   let captureDuringSignal = null
