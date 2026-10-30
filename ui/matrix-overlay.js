@@ -109,8 +109,7 @@ export class MatrixOverlayView {
 
   render(state, message = '') {
     if (state === 'error') {
-      const label = String(message || 'Voice input failed').trim()
-      this._error.text = label.length > 52 ? label.slice(0, 51) + '…' : label
+      this._error.text = String(message || 'Voice input failed').trim()
     }
   }
 
