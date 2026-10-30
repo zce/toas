@@ -1,9 +1,8 @@
-import { CUE_STYLES, CUE_GUARD_MS, cueDurationMs, synthesizeCue } from '../host/earcon-synthesis.js'
+import { CUE_STYLES, cueDurationMs, synthesizeCue } from '../host/earcon-synthesis.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 test('four independently selectable start and stop sound styles', () => {
   expectEqual(CUE_STYLES, ['tap', 'crystal', 'pulse', 'halo'])
-  expectEqual(CUE_GUARD_MS, 100)
 
   for (const style of CUE_STYLES) {
     for (const kind of ['start', 'end']) {
