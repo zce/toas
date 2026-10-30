@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio'
 
 import { EarconPlayer } from '../host/earcons.js'
-import { CUE_GUARD_MS, cueDurationMs } from '../host/earcon-synthesis.js'
+import { cueDurationMs } from '../host/earcon-synthesis.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 function fakePlayer(styles) {
@@ -39,7 +39,7 @@ test('native sound player uses independent styles and cancellable playback', () 
   })
 
   expectEqual(player.play('start'), 0)
-  expectEqual(player.play('end'), cueDurationMs('end', 'tap') + CUE_GUARD_MS)
+  expectEqual(player.play('end'), cueDurationMs('end', 'tap') + 100)
   expectEqual(played.length, 1)
   expectEqual(played[0].file.name, 'end-tap')
   expectTruthy(played[0].cancellable instanceof Gio.Cancellable)
