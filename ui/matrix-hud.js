@@ -276,7 +276,7 @@ export class MatrixRenderer {
       const glow = Math.max(current, grid.head[i], grid.tail[i] * .33)
       const pass = Math.exp(-Math.pow((x - beam) / 10, 2)) * 1.35
       const center = Math.exp(-Math.pow((y - MATRIX_HEIGHT / 2) / 4.7, 2))
-      const working = clamp((.10 + .12 *
+      const working = clamp((.18 + .08 *
         Math.pow(Math.sin(TAU * 1.25 * x / grid.width - carrier), 2) + pass) * center) * taper[col]
 
       let power = (glow * rec + working * work) * (1 - .58 * smooth(exit))
