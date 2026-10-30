@@ -42,9 +42,9 @@ test('Maple Mono only styles overlay surfaces', () => {
   const prefsCss = read('prefs.css')
   const prefs = read('prefs.js')
 
-  expectTruthy(css.includes(".toas-overlay {\\n  font-family: 'Maple Mono', sans-serif;"))
-  expectTruthy(css.includes(".toas-matrix-overlay {\\n  font-family: 'Maple Mono', sans-serif;"))
-  expectTruthy(!css.includes(".toas-history-menu-scroll {\\n  font-family:"))
+  expectTruthy(/\.toas-overlay\s*\{\s*font-family:\s*'Maple Mono'/.test(css))
+  expectTruthy(/\.toas-matrix-overlay\s*\{\s*font-family:\s*'Maple Mono'/.test(css))
+  expectTruthy(!/\.toas-history-menu-scroll\s*\{\s*font-family:/.test(css))
   expectTruthy(!prefsCss.includes('Maple Mono'))
   expectTruthy(!prefs.includes("add_css_class('toas-preferences')"))
 })
