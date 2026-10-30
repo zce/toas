@@ -15,6 +15,7 @@ import { ConfirmDialog } from './ui/dialog.js'
 import { ToasIndicator } from './ui/indicator.js'
 import { ShellNotifier } from './ui/notifier.js'
 import { ToasOverlayPresenter } from './ui/overlay.js'
+import { ShellOverlayView } from './ui/legacy-overlay.js'
 import { MatrixOverlayView } from './ui/matrix-overlay.js'
 import { EarconPlayer } from './host/earcons.js'
 
@@ -47,7 +48,10 @@ export default class ToasExtension extends Extension {
       )
       this._indicator.setPrivateMode(this._settings.get_boolean('private-mode'))
 
-      this._overlay = new ToasOverlayPresenter({ view: new MatrixOverlayView() })
+      const view = this._settings.get_boolean('experimental-matrix-hud')
+        ? new MatrixOverlayView()
+        : new ShellOverlayView()
+      this._overlay = new ToasOverlayPresenter({ view })
       this._kernelRunner = new KernelRunner({ settings: this._settings })
       this._output = new TextPaster(this._settings)
       try {
