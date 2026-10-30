@@ -48,10 +48,11 @@ export default class ToasExtension extends Extension {
       )
       this._indicator.setPrivateMode(this._settings.get_boolean('private-mode'))
 
-      const view = this._settings.get_boolean('experimental-matrix-hud')
-        ? new MatrixOverlayView()
-        : new ShellOverlayView()
-      this._overlay = new ToasOverlayPresenter({ view })
+      this._matrixHud = this._settings.get_boolean('experimental-matrix-hud')
+      this._voiceState = 'idle'
+      this._overlay = new ToasOverlayPresenter({
+        view: this._matrixHud ? new MatrixOverlayView() : new ShellOverlayView()
+      })
       this._kernelRunner = new KernelRunner({ settings: this._settings })
       this._output = new TextPaster(this._settings)
       try {
@@ -71,10 +72,19 @@ export default class ToasExtension extends Extension {
         overlay: this._overlay,
         notifier,
         cues: this._earcons,
-        onStateChanged: (state, message) => this._indicator?.render(state, message)
+        onStateChanged: (state, message) => {
+          this._voiceState = state
+          this._indicator?.render(state, message)
+          if (state === 'idle') {
+            this._syncOverlayView()
+          }
+        }
       })
 
       this._overlay.setOnCancelRequested?.(() => this._orchestrator?.cancel())
+      this._hudChangedId = this._settings.connect('changed::experimental-matrix-hud', () =>
+        this._syncOverlayView()
+      )
 
       this._onboarding = new OnboardingManager({
         settings: this._settings,
@@ -128,6 +138,10 @@ export default class ToasExtension extends Extension {
       this._settings.disconnect(this._privateModeChangedId)
     }
     this._privateModeChangedId = 0
+    if (this._hudChangedId && this._settings) {
+      this._settings.disconnect(this._hudChangedId)
+    }
+    this._hudChangedId = 0
 
     this._orchestrator?.destroy()
     this._orchestrator = null
@@ -155,6 +169,23 @@ export default class ToasExtension extends Extension {
     this._history?.destroy()
     this._history = null
     this._settings = null
+    this._voiceState = null
+  }
+
+  _syncOverlayView() {
+    if (!this._overlay || this._voiceState !== 'idle') {
+      return
+    }
+    const matrix = this._settings.get_boolean('experimental-matrix-hud')
+    if (matrix === this._matrixHud) {
+      return
+    }
+    try {
+      this._overlay.replaceView(() => matrix ? new MatrixOverlayView() : new ShellOverlayView())
+      this._matrixHud = matrix
+    } catch (error) {
+      console.error(`[toas] Could not switch HUD: ${error.message}`)
+    }
   }
 
   _guardReadyToRecord() {
