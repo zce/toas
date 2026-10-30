@@ -299,6 +299,10 @@ export class ToasOrchestrator {
       return
     }
 
+    // If capture itself failed, stop the start/stop cue immediately. A
+    // failure must not keep sounding like a successful recording boundary.
+    if (stage === 'recording') this._cues?.cancel()
+
     const failure = failureFrom(error, stage)
     const presentation = presentFailure(failure, stage)
     if (!presentation) {
