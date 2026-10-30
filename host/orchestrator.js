@@ -117,7 +117,12 @@ export class ToasOrchestrator {
       // stop() sends SIGINT before its first await: the microphone is closed
       // before the end cue is queued, so the cue cannot enter the WAV.
       const stopped = run.recorder.stop()
-      if (run.captureStarted) this._cues?.play('end')
+      if (run.captureStarted) {
+        this._cues?.play('end')
+        // The UI enters Processing on the same turn as the end sound.
+        // Do not wait for pw-record to finish flushing its closed stream.
+        this._transition('transcribing')
+      }
       outcome = await stopped
     } catch (error) {
       this._failLive(run, 'recording', error)
@@ -140,7 +145,7 @@ export class ToasOrchestrator {
 
     run.recording = outcome.recording
     run.ownsRecording = true
-    this._transition('transcribing')
+    if (!run.captureStarted) this._transition('transcribing')
 
     if (outcome.kind === RecorderOutcomeKind.SIZE_LIMIT) {
       this._notifier.notify('Recording limit reached', 'The recording hit its cap, so it was cut off and is being processed.')
