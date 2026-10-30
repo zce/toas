@@ -57,10 +57,10 @@ test('audio quality has a description', () => {
 test('recording retention and refine failure choices have explanations', () => {
   const prefs = read('prefs.js')
 
-  expectTruthy(prefs.includes("title: 'On refine failure',\\n      subtitle:"))
+  expectTruthy(/title: 'On refine failure',\s+subtitle:/.test(prefs))
   expectTruthy(prefs.includes("'Keep this many history entries on this device.'"))
   expectTruthy(prefs.includes("'Keep recordings for retries; 0 saves none.'"))
-  expectTruthy(prefs.includes("title: 'Shortcut',\\n    subtitle:"))
+  expectTruthy(/title: 'Shortcut',\s+subtitle:/.test(prefs))
 })
 
 test('cue cache has a stable unversioned path and refreshes generated audio', () => {
