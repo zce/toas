@@ -443,7 +443,7 @@ function buildLocalGroup(settings) {
   const qualityValues = ['minimum', 'low', 'standard', 'high', 'maximum']
   const qualityRow = new Adw.ComboRow({
     title: 'Audio quality',
-    subtitle: 'Higher quality uses more space and limits recording length.'
+    subtitle: 'Higher quality uses more space and limits recording length.',
     model: Gtk.StringList.new([
       'Minimum · 8 kHz · ~26 min',
       'Low · 12 kHz · ~17 min',
