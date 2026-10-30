@@ -163,7 +163,37 @@ test('bright trace fades before the capsule ends without clipping the dot field'
     expectTruthy(grid.strength[2] < center * .4)
     expectTruthy(grid.strength[grid.cols - 3] < center * .4)
     expectTruthy(grid.edge[5] > 0)
+    expectEqual(grid.taper[0], 0)
+    expectEqual(grid.taper[grid.cols - 1], 0)
+    expectTruthy(grid.taper[Math.floor(grid.cols / 2)] > .99)
   }
+})
+
+test('processing glow fades at both ends while CANCEL stays centered', () => {
+  const s = signal()
+  const r = new MatrixRenderer()
+
+  s.processMix = 1
+  const busy = ctx()
+  r.paint(busy, PROCESS_WIDTH, MATRIX_HEIGHT, s)
+
+  const grid = r._grid(PROCESS_WIDTH)
+  const middle = 5
+  for (const col of [0, grid.cols - 1]) {
+    const dot = busy.dots.find(d => d.x === grid.xy[(col * 11 + middle) * 2] &&
+      d.y === MATRIX_HEIGHT / 2)
+    expectTruthy(dot)
+    expectTruthy(Math.abs(dot.color[3] - .077 * grid.edge[col * 11 + middle]) < .00001)
+  }
+
+  const glyphColumns = []
+  for (let col = 0; col < grid.cols; col++) {
+    if (grid.glyph.slice(col * 11, col * 11 + 11).some(Boolean)) {
+      glyphColumns.push(col)
+    }
+  }
+  expectTruthy(glyphColumns[0] > 3)
+  expectTruthy(glyphColumns.at(-1) < grid.cols - 4)
 })
 
 test('pointer cancel intent and voice history reset', () => {
