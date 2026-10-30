@@ -13,8 +13,8 @@ test('recording sounds use independent start and end choices with None', () => {
   expectTruthy(xml.includes("<key name=\"sound-start-style\" type=\"s\">\n      <default>'crystal'</default>"))
   expectTruthy(xml.includes("<key name=\"sound-end-style\" type=\"s\">\n      <default>'tap'</default>"))
   expectTruthy(prefs.includes("const cueOptions = ['none', 'tap', 'crystal', 'pulse', 'halo']"))
-  expectTruthy(prefs.includes("group.add(soundRow('start', 'Start sound'))"))
-  expectTruthy(prefs.includes("group.add(soundRow('end', 'Stop sound'))"))
+  expectTruthy(prefs.includes("group.add(soundRow('start', 'Start sound', 'Play a cue when recording begins; choose None to disable.'))"))
+  expectTruthy(prefs.includes("group.add(soundRow('end', 'Stop sound', 'Play a cue after a valid recording; choose None to disable.'))"))
   expectTruthy(!prefs.includes("title: 'Recording sounds'"))
   expectTruthy(player.includes("if (requested === 'none' || !this._soundSettings.get_boolean('event-sounds'))"))
   expectTruthy(player.includes('global.display.get_sound_player()'))
@@ -28,11 +28,17 @@ test('legacy HUD is the default, matrix HUD is opt-in', () => {
   const extension = read('extension.js')
 
   expectTruthy(xml.includes('<key name="experimental-matrix-hud" type="b">\n      <default>false</default>'))
+  expectTruthy(prefs.includes("title: 'Experimental UI'"))
   expectTruthy(prefs.includes("settings.bind('experimental-matrix-hud', matrixHud, 'active'"))
   expectTruthy(extension.includes("this._matrixHud = this._settings.get_boolean('experimental-matrix-hud')"))
   expectTruthy(extension.includes("this._settings.connect('changed::experimental-matrix-hud'"))
   expectTruthy(extension.includes('this._overlay.replaceView('))
   expectTruthy(extension.includes("this._voiceState !== 'idle'"))
+})
+
+test('audio quality has a description', () => {
+  const prefs = read('prefs.js')
+  expectTruthy(prefs.includes("subtitle: 'Higher quality uses more space and limits recording length.'"))
 })
 
 test('cue cache has a stable unversioned path and refreshes generated audio', () => {
