@@ -27,10 +27,8 @@ else
 fi
 
 rm -rf -- "$TARGET_DIR"
-# Only Toas-owned generated cue files; do not touch any other user cache.
-rm -rf -- "${XDG_CACHE_HOME:-$HOME/.cache}/toas/earcons-v1"
-rm -rf -- "${XDG_CACHE_HOME:-$HOME/.cache}/toas/earcons-v2"
-rmdir -- "${XDG_CACHE_HOME:-$HOME/.cache}/toas" 2>/dev/null || true
+# Remove Toas-owned cache, including any obsolete cue directories.
+rm -rf -- "${XDG_CACHE_HOME:-$HOME/.cache}/toas"
 
 if "$CLEAN_DCONF"; then
   if command -v dconf >/dev/null 2>&1; then

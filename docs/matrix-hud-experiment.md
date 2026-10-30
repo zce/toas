@@ -31,12 +31,13 @@ This branch directly replaces the old HUD with the accepted interactive
 Preferences → **Voice Input → Recording sounds**: enabled by default.
 Users can select start and stop cue styles **independently** from Tap,
 Crystal, Pulse, and Halo. Defaults are **Crystal** start and **Tap** stop.
-These are the eight original short v8.7 sound designs, synthesized to
-tiny PCM WAV files in the app's cache on extension enable. Each cue is
-played with a short-lived `pw-play` subprocess, already supplied by Fedora's
+The eight approved original sounds are synthesized as short PCM WAV files
+in a stable `~/.cache/toas/sounds/` directory. They are refreshed on
+extension enable, so changes to the sounds cannot leave stale cached audio.
+Playback uses a short-lived `pw-play` subprocess, already provided by the
 required `pipewire-utils` package. No resident service or permanent mixer.
-We avoid Mutter's alert-only player: system alert mute can silence it even
-when the Toas preference is enabled.
+The exact cause of the earlier inaudible native-player cues was not
+established; the user's system Alert Sound was enabled.
 
 **Timing contract:**
 1. The HUD begins entering when recording is requested and the start
@@ -55,9 +56,10 @@ when the Toas preference is enabled.
    is cancelled. The setting is read at each playback, so disabling it
    takes effect without extension reload.
 
-The cue WAV cache (v1 and v2) is removed by `docs/uninstall.sh`. If the user cache
-or `pw-play` is unavailable, cue initialization fails open:
-recording continues with sound disabled.
+The installation script cleans up obsolete development cue directories;
+`docs/uninstall.sh` removes Toas's entire application-owned cache.
+If the user cache or `pw-play` is unavailable, cue initialization fails
+open: recording continues with sound disabled.
 
 ## Runtime cost and validation
 

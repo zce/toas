@@ -5,9 +5,9 @@ import {
   cueDurationMs, synthesizeCue
 } from './earcon-synthesis.js'
 
-// PipeWire is already required by Toas for pw-record. Use pw-play for
-// earcons: Mutter's alert-sound player can silently follow "No alert sound"
-// or a muted GNOME Shell stream even when the Toas setting is enabled.
+// PipeWire is already required by Toas for pw-record. Short cues use
+// pw-play's ordinary audio stream, independently of Shell event sounds.
+// The cause of the earlier silent playback was not confirmed.
 // Each cue is one short-lived process, never a resident audio service.
 export class EarconPlayer {
   constructor(settings) {
@@ -18,7 +18,7 @@ export class EarconPlayer {
     this._playing = null
 
     const directory = Gio.File.new_for_path(GLib.build_filenamev([
-      GLib.get_user_cache_dir(), 'toas', 'earcons-v2'
+      GLib.get_user_cache_dir(), 'toas', 'sounds'
     ]))
     try { directory.make_directory_with_parents(null) }
     catch (error) {
@@ -28,10 +28,10 @@ export class EarconPlayer {
     for (const style of CUE_STYLES) {
       for (const kind of ['start', 'end']) {
         const file = directory.get_child(`${kind}-${style}.wav`)
-        if (!file.query_exists(null)) {
-          file.replace_contents(synthesizeCue(kind, style), null, false,
-            Gio.FileCreateFlags.PRIVATE, null)
-        }
+        // Refresh the tiny generated WAV on extension enable. Keeping a
+        // stable directory must not leave outdated audio after an update.
+        file.replace_contents(synthesizeCue(kind, style), null, false,
+          Gio.FileCreateFlags.PRIVATE, null)
         this._files.set(`${kind}-${style}`, file)
       }
     }
