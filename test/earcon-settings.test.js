@@ -29,9 +29,10 @@ test('legacy HUD is the default, matrix HUD is opt-in', () => {
 
   expectTruthy(xml.includes('<key name="experimental-matrix-hud" type="b">\n      <default>false</default>'))
   expectTruthy(prefs.includes("settings.bind('experimental-matrix-hud', matrixHud, 'active'"))
-  expectTruthy(extension.includes("const view = this._settings.get_boolean('experimental-matrix-hud')"))
-  expectTruthy(extension.includes("? new MatrixOverlayView()\n        : new ShellOverlayView()"))
-  expectTruthy(!extension.includes('new MatrixOverlayView(), new ShellOverlayView()'))
+  expectTruthy(extension.includes("this._matrixHud = this._settings.get_boolean('experimental-matrix-hud')"))
+  expectTruthy(extension.includes("this._settings.connect('changed::experimental-matrix-hud'"))
+  expectTruthy(extension.includes('this._overlay.replaceView('))
+  expectTruthy(extension.includes("this._voiceState !== 'idle'"))
 })
 
 test('cue cache has a stable unversioned path and refreshes generated audio', () => {
