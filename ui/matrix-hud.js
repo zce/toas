@@ -131,11 +131,15 @@ function geometry(width) {
   const xy = new Float32Array(size * 2)
   const edge = new Float32Array(size)
   const glyph = new Uint8Array(size)
+  const taper = new Float32Array(cols)
 
   const ox = width / 2 - (cols - 1) * MATRIX_STEP / 2
   const oy = MATRIX_HEIGHT / 2 - (ROWS - 1) * MATRIX_STEP / 2
 
   for (let x = 0; x < cols; x++) {
+    const u = x / (cols - 1)
+    taper[x] = Math.min(smooth(u * 7), smooth((1 - u) * 7))
+
     for (let y = 0; y < ROWS; y++) {
       const n = x * ROWS + y
       const px = ox + x * MATRIX_STEP
@@ -171,6 +175,7 @@ function geometry(width) {
     xy,
     edge,
     glyph,
+    taper,
     head: new Float32Array(size),
     tail: new Float32Array(size),
     path: [new Float32Array(cols), new Float32Array(cols)],
@@ -210,7 +215,7 @@ export class MatrixRenderer {
     }
 
     const grid = this._grid(width)
-    const { xy, edge, glyph, path, strength } = grid
+    const { xy, edge, glyph, taper, path, strength } = grid
     const rec = 1 - model.processMix
     const work = model.processMix
     const t = model.time
@@ -224,7 +229,7 @@ export class MatrixRenderer {
 
     for (let x = 0; x < grid.cols; x++) {
       const u = x / (grid.cols - 1)
-      const ends = Math.min(smooth(u * 7), smooth((1 - u) * 7))
+      const ends = taper[x]
       const sample = model.past(1 + u * 13)
       strength[x] = rec * (.65 + .45 * Math.sqrt(model.voice)) * ends
 
@@ -272,7 +277,7 @@ export class MatrixRenderer {
       const pass = Math.exp(-Math.pow((x - beam) / 10, 2)) * 1.35
       const center = Math.exp(-Math.pow((y - MATRIX_HEIGHT / 2) / 4.7, 2))
       const working = clamp((.10 + .12 *
-        Math.pow(Math.sin(TAU * 1.25 * x / grid.width - carrier), 2) + pass) * center)
+        Math.pow(Math.sin(TAU * 1.25 * x / grid.width - carrier), 2) + pass) * center) * taper[col]
 
       let power = (glow * rec + working * work) * (1 - .58 * smooth(exit))
       power = power * (1 - morph) + (glyph[i] ? .98 : .015) * morph
