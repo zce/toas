@@ -52,15 +52,8 @@ test('native sound player uses independent styles and cancellable playback', () 
 test('playback errors leave recording available without a sound delay', () => {
   const { player } = fakePlayer({ 'sound-start-style': 'crystal' })
   player._player.play_from_file = () => { throw new Error('Audio backend unavailable') }
-  const warn = console.warn
-  console.warn = () => {}
-
-  try {
-    expectEqual(player.play('start'), 0)
-    expectEqual(player._playing, null)
-  } finally {
-    console.warn = warn
-  }
+  expectEqual(player.play('start'), 0)
+  expectEqual(player._playing, null)
 })
 
 await run()
