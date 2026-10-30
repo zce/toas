@@ -133,9 +133,8 @@ export class AudioRecorder {
       return (this._outcome = this._cancelled ? recordingOutcomeCancelled() : recordingOutcomeCaptureFailure(new Error('Audio capture is not running')))
     }
 
-    // The end cue may play immediately after this call, so stop accepting
-    // PCM before signalling pw-record (not after awaiting process exit).
-    this._captureEnabled = false
+    // Let pw-record flush its already captured audio before the end cue.
+    // Closing the capture gate here could cut off the final spoken syllable.
     process.send_signal(2)
 
     try {
@@ -148,6 +147,7 @@ export class AudioRecorder {
         return (this._outcome = recordingOutcomeCaptureFailure(error))
       }
     } finally {
+      this._captureEnabled = false
       this._process = null
       this._stream = null
       this._readPromise = null
