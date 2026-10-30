@@ -1,5 +1,9 @@
 /* GTK4/libadwaita styles for the extension Preferences process. */
 
+.toas-preferences {
+  font-family: 'Maple Mono', sans-serif;
+}
+
 /* Multiline editors use the row as their visual surface. */
 .toas-multiline-row textview,
 .toas-multiline-row textview text,
