@@ -10,7 +10,6 @@ import {
   synthesizeCue
 } from './earcon-synthesis.js'
 
-// Play recording cues with the existing PipeWire tools.
 export class EarconPlayer {
   constructor(settings) {
     this._settings = settings
@@ -58,10 +57,6 @@ export class EarconPlayer {
     const style = CUE_STYLES.includes(requested) ? requested : fallback
     const file = this._files.get(`${kind}-${style}`)
 
-    if (!file) {
-      return 0
-    }
-
     this.cancel()
 
     try {
@@ -96,7 +91,6 @@ export class EarconPlayer {
       return cueDurationMs(kind, style) + CUE_GUARD_MS
     } catch (error) {
       console.warn(`[toas] Could not play ${kind} sound: ${error.message}`)
-      this._playing = null
       return 0
     }
   }
