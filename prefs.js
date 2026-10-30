@@ -175,10 +175,11 @@ function buildInputGroup(settings) {
 
   const cueOptions = ['none', 'tap', 'crystal', 'pulse', 'halo']
   const cueLabels = ['None', 'Tap', 'Crystal', 'Pulse', 'Halo']
-  const soundRow = (kind, title) => {
+  const soundRow = (kind, title, subtitle) => {
     const key = `sound-${kind}-style`
     const row = new Adw.ComboRow({
       title,
+      subtitle,
       model: Gtk.StringList.new(cueLabels),
       selected: Math.max(0, cueOptions.indexOf(settings.get_string(key)))
     })
@@ -192,12 +193,12 @@ function buildInputGroup(settings) {
   group.add(shortcutRow)
   group.add(autoInsert)
   group.add(restoreClipboard)
-  group.add(soundRow('start', 'Start sound'))
-  group.add(soundRow('end', 'Stop sound'))
+  group.add(soundRow('start', 'Start sound', 'Play a cue when recording begins; choose None to disable.'))
+  group.add(soundRow('end', 'Stop sound', 'Play a cue after a valid recording; choose None to disable.'))
 
   const matrixHud = new Adw.SwitchRow({
-    title: 'Experimental matrix HUD',
-    subtitle: 'Switch between the standard and dot-matrix overlay.'
+    title: 'Experimental UI',
+    subtitle: 'Try an alternative voice input appearance.'
   })
   settings.bind('experimental-matrix-hud', matrixHud, 'active', Gio.SettingsBindFlags.DEFAULT)
   group.add(matrixHud)
@@ -442,6 +443,7 @@ function buildLocalGroup(settings) {
   const qualityValues = ['minimum', 'low', 'standard', 'high', 'maximum']
   const qualityRow = new Adw.ComboRow({
     title: 'Audio quality',
+    subtitle: 'Higher quality uses more space and limits recording length.'
     model: Gtk.StringList.new([
       'Minimum · 8 kHz · ~26 min',
       'Low · 12 kHz · ~17 min',
