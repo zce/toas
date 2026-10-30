@@ -148,6 +148,24 @@ test('recorded speech produces restrained bounded vertical motion', () => {
   expectTruthy(Math.max(...measured) < 3)
 })
 
+test('bright trace fades before the capsule ends without clipping the dot field', () => {
+  const s = signal()
+  const r = new MatrixRenderer()
+
+  for (const width of [RECORD_WIDTH, PROCESS_WIDTH]) {
+    r.paint(ctx(), width, MATRIX_HEIGHT, s)
+    const grid = r._grid(width)
+    const center = grid.strength[Math.floor(grid.cols / 2)]
+
+    expectTruthy(center > 0)
+    expectTruthy(grid.strength[0] < center * .02)
+    expectTruthy(grid.strength[grid.cols - 1] < center * .02)
+    expectTruthy(grid.strength[2] < center * .4)
+    expectTruthy(grid.strength[grid.cols - 3] < center * .4)
+    expectTruthy(grid.edge[5] > 0)
+  }
+})
+
 test('pointer cancel intent and voice history reset', () => {
   const m = new MatrixHoverIntent()
   m.reset(100, 200)
