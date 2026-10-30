@@ -104,7 +104,7 @@ export class ToasOrchestrator {
 
     // Start cue and visual entry share the same turn. Discard microphone PCM
     // until the cue and hardware buffer allowance have elapsed.
-    const gateMs = cueEnabled ? this._cues.play('start') : 0
+    const gateMs = this._cues?.play('start') ?? 0
     if (!gateMs && cueEnabled) {
       run.recorder.unmute()
     }
