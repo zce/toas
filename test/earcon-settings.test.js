@@ -13,8 +13,8 @@ test('recording sounds use independent start and end choices with None', () => {
   expectTruthy(xml.includes("<key name=\"sound-start-style\" type=\"s\">\n      <default>'crystal'</default>"))
   expectTruthy(xml.includes("<key name=\"sound-end-style\" type=\"s\">\n      <default>'tap'</default>"))
   expectTruthy(prefs.includes("const cueOptions = ['none', 'tap', 'crystal', 'pulse', 'halo']"))
-  expectTruthy(prefs.includes("group.add(soundRow('start', 'Start sound', 'Play a cue when recording begins; choose None to disable.'))"))
-  expectTruthy(prefs.includes("group.add(soundRow('end', 'Stop sound', 'Play a cue after a valid recording; choose None to disable.'))"))
+  expectTruthy(prefs.includes("group.add(soundRow('start', 'Start sound', 'Play a cue when recording starts; None skips it.'))"))
+  expectTruthy(prefs.includes("group.add(soundRow('end', 'Stop sound', 'Play after a valid recording; None skips the cue.'))"))
   expectTruthy(!prefs.includes("title: 'Recording sounds'"))
   expectTruthy(prefs.includes("cueOptions.includes(requested) ? requested : fallback"))
   expectTruthy(player.includes("if (requested === 'none' || !this._soundSettings.get_boolean('event-sounds'))"))
@@ -51,7 +51,16 @@ test('Maple Mono only styles overlay surfaces', () => {
 
 test('audio quality has a description', () => {
   const prefs = read('prefs.js')
-  expectTruthy(prefs.includes("subtitle: 'Higher quality uses more space and limits recording length.'"))
+  expectTruthy(prefs.includes("subtitle: 'Higher rates use more space and shorten recording time.'"))
+})
+
+test('recording retention and refine failure choices have explanations', () => {
+  const prefs = read('prefs.js')
+
+  expectTruthy(prefs.includes("title: 'On refine failure',\\n      subtitle:"))
+  expectTruthy(prefs.includes("'Keep this many history entries on this device.'"))
+  expectTruthy(prefs.includes("'Keep recordings for retries; 0 saves none.'"))
+  expectTruthy(prefs.includes("title: 'Shortcut',\\n    subtitle:"))
 })
 
 test('cue cache has a stable unversioned path and refreshes generated audio', () => {
