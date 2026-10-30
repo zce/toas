@@ -74,7 +74,7 @@
  */
 .toas-matrix-overlay {
   padding: 0;
-  border: 1px solid rgba(182, 188, 199, 0.20);
+  border: none;
   border-radius: 99px;
   background-color: rgba(26, 27, 31, 0.98);
   box-shadow: 0 3px 13px rgba(0, 0, 0, 0.39);
