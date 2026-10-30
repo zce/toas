@@ -46,6 +46,7 @@ export class EarconPlayer {
   }
 
   play(kind) {
+    this.cancel()
     const requested = this._settings.get_string(`sound-${kind}-style`)
     if (requested === 'none' || !this._soundSettings.get_boolean('event-sounds')) {
       return 0
@@ -54,8 +55,6 @@ export class EarconPlayer {
     const fallback = kind === 'start' ? DEFAULT_START_CUE : DEFAULT_END_CUE
     const style = CUE_STYLES.includes(requested) ? requested : fallback
     const file = this._files.get(`${kind}-${style}`)
-
-    this.cancel()
 
     try {
       const cancellable = new Gio.Cancellable()
