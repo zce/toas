@@ -13,9 +13,9 @@ import {
 export class EarconPlayer {
   constructor(settings) {
     this._settings = settings
-    this._player = GLib.find_program_in_path('pw-play')
+    this._player = global.display.get_sound_player()
     if (!this._player) {
-      throw new Error('pw-play is missing (pipewire-utils)')
+      throw new Error('GNOME Shell sound player is unavailable')
     }
 
     this._files = new Map()
@@ -36,58 +36,29 @@ export class EarconPlayer {
     for (const style of CUE_STYLES) {
       for (const kind of ['start', 'end']) {
         const file = directory.get_child(`${kind}-${style}.wav`)
-
-        // Refresh the tiny generated WAV on extension enable. Keeping a
-        // stable directory must not leave outdated audio after an update.
         file.replace_contents(synthesizeCue(kind, style), null, false,
           Gio.FileCreateFlags.PRIVATE, null)
-
         this._files.set(`${kind}-${style}`, file)
       }
     }
   }
 
   play(kind) {
-    if (!this._settings?.get_boolean('sound-enabled')) {
+    const requested = this._settings.get_string(`sound-${kind}-style`)
+    if (requested === 'none') {
       return 0
     }
 
     const fallback = kind === 'start' ? DEFAULT_START_CUE : DEFAULT_END_CUE
-    const requested = this._settings.get_string(`sound-${kind}-style`)
     const style = CUE_STYLES.includes(requested) ? requested : fallback
     const file = this._files.get(`${kind}-${style}`)
 
     this.cancel()
 
     try {
-      const process = Gio.Subprocess.new(
-        [this._player, '--latency=60ms', file.get_path()],
-        Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE
-      )
-
-      const playback = { process, cancelled: false }
-      this._playing = playback
-
-      process.wait_async(null, (subprocess, result) => {
-        try {
-          subprocess.wait_finish(result)
-
-          if (!playback.cancelled && !subprocess.get_successful()) {
-            console.warn(`[toas] ${kind} sound exited (status ${subprocess.get_exit_status()})`)
-          }
-        } catch (error) {
-          if (!playback.cancelled) {
-            console.warn(`[toas] ${kind} sound failed: ${error.message}`)
-          }
-        } finally {
-          if (this._playing === playback) {
-            this._playing = null
-          }
-        }
-      })
-
-      // Audio device buffering + a 60ms PipeWire playback latency.
-      // Physical acoustic feedback cannot be fully ruled out by any timer.
+      const cancellable = new Gio.Cancellable()
+      this._player.play_from_file(file, `Toas recording ${kind}`, cancellable)
+      this._playing = cancellable
       return cueDurationMs(kind, style) + CUE_GUARD_MS
     } catch (error) {
       console.warn(`[toas] Could not play ${kind} sound: ${error.message}`)
@@ -96,12 +67,7 @@ export class EarconPlayer {
   }
 
   cancel() {
-    if (!this._playing) {
-      return
-    }
-
-    this._playing.cancelled = true
-    this._playing.process.force_exit()
+    this._playing?.cancel()
     this._playing = null
   }
 
