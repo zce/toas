@@ -55,7 +55,9 @@ test('muted capture drops cue-period PCM and unmute resumes writing', async () =
   const bytes = new Uint8Array(value._chunkBytes)
   value._stream = {
     read_bytes_async: async () => {
-      if (count++ === 0) return { get_size: () => bytes.length, get_data: () => bytes }
+      if (count++ === 0) {
+        return { get_size: () => bytes.length, get_data: () => bytes }
+      }
       return { get_size: () => 0 }
     }
   }
@@ -77,12 +79,20 @@ test('a read requested before the sound gate opens is never accepted later', asy
   const data = new Uint8Array(value._chunkBytes)
   let release
   let calls = 0
-  value._stream = { read_bytes_async: async () => {
-    if (calls++ === 0) return new Promise(resolve => { release = () => resolve({
-      get_size: () => data.length, get_data: () => data
-    }) })
-    return { get_size: () => 0 }
-  } }
+  value._stream = {
+    read_bytes_async: async () => {
+      if (calls++ === 0) {
+        return new Promise(resolve => {
+          release = () => resolve({
+            get_size: () => data.length,
+            get_data: () => data
+          })
+        })
+      }
+
+      return { get_size: () => 0 }
+    }
+  }
   const reading = value._readLoop()
   value.unmute()
   release()
@@ -95,7 +105,9 @@ test('stop drains buffered PCM before closing the capture gate', async () => {
   const value = recorder()
   let captureDuringSignal = null
   let finishRead
-  value._process = { send_signal: () => { captureDuringSignal = value._captureEnabled } }
+  value._process = {
+    send_signal: () => { captureDuringSignal = value._captureEnabled }
+  }
   value._readPromise = new Promise(resolve => { finishRead = resolve })
   value._path = null
   value._totalBytes = 0

@@ -6,7 +6,15 @@ import St from 'gi://St'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
-import { MATRIX_FPS, MATRIX_HEIGHT, PROCESS_WIDTH, RECORD_WIDTH, MatrixHoverIntent, MatrixRenderer, MatrixSignal } from './matrix-hud.js'
+import {
+  MATRIX_FPS,
+  MATRIX_HEIGHT,
+  PROCESS_WIDTH,
+  RECORD_WIDTH,
+  MatrixHoverIntent,
+  MatrixRenderer,
+  MatrixSignal
+} from './matrix-hud.js'
 
 const BOTTOM_MARGIN = 112
 const ENTER_MS = 370
@@ -169,7 +177,9 @@ export class MatrixOverlayView {
   }
 
   setLevel(rms) {
-    if (this._mode !== 'recording') return
+    if (this._mode !== 'recording') {
+      return
+    }
     this._signal.pushRms(rms)
     // In GNOME's reduced-motion mode there is no interpolation timer. Levels
     // still update only on the existing 100 ms capture window.
@@ -223,11 +233,15 @@ export class MatrixOverlayView {
       this._overlay.opacity = 255
       this._overlay.translation_y = 0
     }
-    if (this._mode === 'recording' || this._mode === 'busy') this._startAnimation()
+    if (this._mode === 'recording' || this._mode === 'busy') {
+      this._startAnimation()
+    }
   }
 
   hide() {
-    if (this._hiding || !this._overlay?.visible) return
+    if (this._hiding || !this._overlay?.visible) {
+      return
+    }
     this._hiding = true
     this._overlay.reactive = false
     this._hoverIntent.reset()
@@ -256,7 +270,9 @@ export class MatrixOverlayView {
       duration: this._exitDuration,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
       onStopped: () => {
-        if (this._hiding && !this._destroyed) this._finishHide()
+        if (this._hiding && !this._destroyed) {
+          this._finishHide()
+        }
       }
     })
   }
@@ -305,12 +321,15 @@ export class MatrixOverlayView {
   }
 
   _repaint(area) {
-    if (this._mode !== 'recording' && this._mode !== 'busy') return
+    if (this._mode !== 'recording' && this._mode !== 'busy') {
+      return
+    }
     const cr = area.get_context()
     try {
-      const [w,h] = area.get_surface_size()
-      this._renderer.paintSurface(cr,w,h,area.get_width(),this._signal,
-        this._hover,this._exitProgress)
+      const [w, h] = area.get_surface_size()
+      this._renderer.paintSurface(
+        cr, w, h, area.get_width(), this._signal, this._hover, this._exitProgress
+      )
     } finally {
       // St.DrawingArea's Cairo context must be explicitly disposed in GJS.
       cr.$dispose()
@@ -318,24 +337,34 @@ export class MatrixOverlayView {
   }
 
   _reposition() {
-    if (!this._overlay) return
-    const monitor = selectMonitor(Main.layoutManager.monitors,
-      Main.layoutManager.primaryMonitor, this._monitorIndex)
-    if (!monitor) return
-    const [,w] = this._overlay.get_preferred_width(-1)
-    const [,h] = this._overlay.get_preferred_height(w)
-    const {x,y} = calculateOverlayPosition(monitor,w,h,BOTTOM_MARGIN)
-    this._overlay.set_position(x,y)
+    if (!this._overlay) {
+      return
+    }
+    const monitor = selectMonitor(
+      Main.layoutManager.monitors, Main.layoutManager.primaryMonitor, this._monitorIndex
+    )
+    if (!monitor) {
+      return
+    }
+
+    const [, w] = this._overlay.get_preferred_width(-1)
+    const [, h] = this._overlay.get_preferred_height(w)
+    const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
+    this._overlay.set_position(x, y)
   }
 
   _acquireCompositing() {
-    if (this._compositingHeld) return
+    if (this._compositingHeld) {
+      return
+    }
     global.compositor.disable_unredirect()
     this._compositingHeld = true
   }
 
   _releaseCompositing() {
-    if (!this._compositingHeld) return
+    if (!this._compositingHeld) {
+      return
+    }
     global.compositor.enable_unredirect()
     this._compositingHeld = false
   }
@@ -347,7 +376,9 @@ export class MatrixOverlayView {
     this._matrix?.remove_all_transitions()
     this._overlay?.remove_all_transitions()
     this._releaseCompositing()
-    if (this._monitorsChangedId) Main.layoutManager.disconnect(this._monitorsChangedId)
+    if (this._monitorsChangedId) {
+      Main.layoutManager.disconnect(this._monitorsChangedId)
+    }
     if (this._overlay) {
       Main.layoutManager.removeChrome(this._overlay)
       this._overlay.destroy()

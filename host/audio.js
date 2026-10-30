@@ -74,15 +74,27 @@ export function recordingIdForNow() {
 // sizes once capture ends. `stop()` classifies the capture into a
 // RecorderOutcomeKind instead of throwing.
 export class AudioRecorder {
-  constructor({ recordingsDirectory, onLevel, onError, sampleRate = DEFAULT_SAMPLE_RATE, minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS, captureInitiallyMuted = false }) {
+  constructor({
+    recordingsDirectory,
+    onLevel,
+    onError,
+    sampleRate = DEFAULT_SAMPLE_RATE,
+    minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS,
+    captureInitiallyMuted = false
+  }) {
     this._recordingsDirectory = recordingsDirectory
     this._onLevel = onLevel
     this._onError = onError
     this._sampleRate = sampleRate || DEFAULT_SAMPLE_RATE
-    this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0 ? minimumDurationMs : DEFAULT_MINIMUM_RECORDING_DURATION_MS
+    this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0
+      ? minimumDurationMs
+      : DEFAULT_MINIMUM_RECORDING_DURATION_MS
     this._bytesPerMs = (this._sampleRate * BYTES_PER_SAMPLE) / 1000
     this._minimumBytes = this._bytesPerMs * this._minimumDurationMs
-    this._chunkBytes = Math.max(BYTES_PER_SAMPLE, Math.round((this._sampleRate * LEVEL_WINDOW_MS) / 1000) * BYTES_PER_SAMPLE)
+    this._chunkBytes = Math.max(
+      BYTES_PER_SAMPLE,
+      Math.round((this._sampleRate * LEVEL_WINDOW_MS) / 1000) * BYTES_PER_SAMPLE
+    )
     this._levelBuffer = new Uint8Array(this._chunkBytes)
     this._levelBufferSize = 0
     this._outcome = null
@@ -221,7 +233,9 @@ export class AudioRecorder {
         break
       }
 
-      if (!acceptAtRead || !this._captureEnabled) continue
+      if (!acceptAtRead || !this._captureEnabled) {
+        continue
+      }
       this._output.write_all(data, null)
       this._totalBytes += data.length
       this._appendLevelData(data)

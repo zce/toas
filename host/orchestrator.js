@@ -1,6 +1,12 @@
 import GLib from 'gi://GLib'
 
-import { AudioRecorder, DEFAULT_SAMPLE_RATE, RecorderOutcomeKind, resolveMinimumRecordingDuration, resolveSampleRate } from './audio.js'
+import {
+  AudioRecorder,
+  DEFAULT_SAMPLE_RATE,
+  RecorderOutcomeKind,
+  resolveMinimumRecordingDuration,
+  resolveSampleRate
+} from './audio.js'
 import { presentFailure } from './feedback.js'
 import { AttemptSignal } from './transport.js'
 
@@ -9,7 +15,17 @@ import { AttemptSignal } from './transport.js'
 // takes them over; every asynchronous step re-checks that the run is still
 // the live one before touching state.
 export class ToasOrchestrator {
-  constructor({ settings, history, kernel, output, overlay, notifier, recorderFactory = null, onStateChanged = null, cues = null }) {
+  constructor({
+    settings,
+    history,
+    kernel,
+    output,
+    overlay,
+    notifier,
+    recorderFactory = null,
+    onStateChanged = null,
+    cues = null
+  }) {
     this._settings = settings
     this._history = history
     this._kernel = kernel
@@ -39,8 +55,11 @@ export class ToasOrchestrator {
   }
 
   toggle() {
-    if (this._state === 'idle') this.begin()
-    else if (this._state === 'recording') this.end()
+    if (this._state === 'idle') {
+      this.begin()
+    } else if (this._state === 'recording') {
+      this.end()
+    }
   }
 
   begin() {
@@ -82,12 +101,16 @@ export class ToasOrchestrator {
     this._run = run
     this._overlay.resetLevels()
     this._transition('recording')
+
     // Start cue and visual entry share the same turn. Discard microphone PCM
     // until the cue and hardware buffer allowance have elapsed.
     const gateMs = cueEnabled ? this._cues.play('start') : 0
-    if (!gateMs && cueEnabled) run.recorder.unmute()
+    if (!gateMs && cueEnabled) {
+      run.recorder.unmute()
+    }
 
     run.recorder.start().catch(error => this._failLive(run, 'recording', error))
+
     if (gateMs > 0) {
       run.gateId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, gateMs, () => {
         run.gateId = 0
@@ -110,12 +133,16 @@ export class ToasOrchestrator {
     const run = this._run
     this._state = 'transcribing'
     this._clearCaptureGate(run)
-    if (!run.captureStarted) this._cues?.cancel()
+    if (!run.captureStarted) {
+      this._cues?.cancel()
+    }
 
     // Show Processing immediately. The recorder still needs to drain
     // already captured PCM, so do not play the end cue until it has
     // completely stopped; otherwise the cue can enter the tail of the WAV.
-    if (run.captureStarted) this._transition('transcribing')
+    if (run.captureStarted) {
+      this._transition('transcribing')
+    }
 
     let outcome
     try {
@@ -141,7 +168,11 @@ export class ToasOrchestrator {
 
     run.recording = outcome.recording
     run.ownsRecording = true
-    if (!run.captureStarted) this._transition('transcribing')
+
+    if (!run.captureStarted) {
+      this._transition('transcribing')
+    }
+
     // Only a valid completed capture earns the stop cue. Short taps,
     // cancellations and capture failures are all silent.
     this._cues?.play('end')
@@ -300,7 +331,9 @@ export class ToasOrchestrator {
 
     // If capture itself failed, stop the start/stop cue immediately. A
     // failure must not keep sounding like a successful recording boundary.
-    if (stage === 'recording') this._cues?.cancel()
+    if (stage === 'recording') {
+      this._cues?.cancel()
+    }
 
     const failure = failureFrom(error, stage)
     const presentation = presentFailure(failure, stage)
@@ -444,7 +477,9 @@ export class ToasOrchestrator {
   }
 
   _finishRun(run) {
-    if (!run) return
+    if (!run) {
+      return
+    }
     this._clearCaptureGate(run)
 
     // Best effort: extension disable or cancellation may race a dead process.
