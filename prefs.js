@@ -172,14 +172,8 @@ function buildInputGroup(settings) {
   })
   settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
 
-  const cueEnabled = new Adw.SwitchRow({
-    title: 'Recording sounds',
-    subtitle: 'Play short cues on recording start and normal stop. Cancel stays silent.'
-  })
-  settings.bind('sound-enabled', cueEnabled, 'active', Gio.SettingsBindFlags.DEFAULT)
-
-  const cueOptions = ['tap', 'crystal', 'pulse', 'halo']
-  const cueLabels = ['Tap', 'Crystal', 'Pulse', 'Halo']
+  const cueOptions = ['none', 'tap', 'crystal', 'pulse', 'halo']
+  const cueLabels = ['None', 'Tap', 'Crystal', 'Pulse', 'Halo']
   const soundRow = (kind, title) => {
     const key = `sound-${kind}-style`
     const row = new Adw.ComboRow({
@@ -188,7 +182,6 @@ function buildInputGroup(settings) {
       selected: Math.max(0, cueOptions.indexOf(settings.get_string(key)))
     })
     row.connect('notify::selected', () => settings.set_string(key, cueOptions[row.selected]))
-    settings.bind('sound-enabled', row, 'sensitive', Gio.SettingsBindFlags.GET)
     return row
   }
 
@@ -198,9 +191,15 @@ function buildInputGroup(settings) {
   group.add(shortcutRow)
   group.add(autoInsert)
   group.add(restoreClipboard)
-  group.add(cueEnabled)
   group.add(soundRow('start', 'Start sound'))
   group.add(soundRow('end', 'Stop sound'))
+
+  const matrixHud = new Adw.SwitchRow({
+    title: 'Experimental matrix HUD',
+    subtitle: 'Use the dot-matrix overlay after reloading the extension.'
+  })
+  settings.bind('experimental-matrix-hud', matrixHud, 'active', Gio.SettingsBindFlags.DEFAULT)
+  group.add(matrixHud)
   return group
 }
 
