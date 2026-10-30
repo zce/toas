@@ -14,6 +14,7 @@ import {
   switchProcessingProvider,
   writeProcessingConfig
 } from './host/config.js'
+import { CUE_STYLES, DEFAULT_START_CUE, DEFAULT_END_CUE } from './host/earcon-synthesis.js'
 import { inspectSelection, secretKey } from './kernel/process.js'
 import { providers as providerRegistry } from './kernel/providers/registry.js'
 
@@ -175,12 +176,12 @@ function buildInputGroup(settings) {
   })
   settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
 
-  const cueOptions = ['none', 'tap', 'crystal', 'pulse', 'halo']
+  const cueOptions = ['none', ...CUE_STYLES]
   const cueLabels = ['None', 'Tap', 'Crystal', 'Pulse', 'Halo']
   const soundRow = (kind, title, subtitle) => {
     const key = `sound-${kind}-style`
     const requested = settings.get_string(key)
-    const fallback = kind === 'start' ? 'crystal' : 'tap'
+    const fallback = kind === 'start' ? DEFAULT_START_CUE : DEFAULT_END_CUE
     const row = new Adw.ComboRow({
       title,
       subtitle,

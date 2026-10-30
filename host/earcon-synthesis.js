@@ -1,3 +1,5 @@
+import { wavHeader } from './wav.js'
+
 export const CUE_STYLES = ['tap', 'crystal', 'pulse', 'halo']
 export const DEFAULT_START_CUE = 'crystal'
 export const DEFAULT_END_CUE = 'tap'
@@ -78,29 +80,7 @@ export function synthesizeCue(kind, style) {
   const len = Math.ceil(RATE * cueDurationMs(kind, style) / 1000)
   const out = new Uint8Array(44 + len * 2)
   const view = new DataView(out.buffer)
-
-  // 44-byte PCM WAV header, mono 16-bit.
-  const word = (at, value) => {
-    for (let i = 0; i < value.length; i++) {
-      out[at + i] = value.charCodeAt(i)
-    }
-  }
-
-  word(0, 'RIFF')
-  view.setUint32(4, out.length - 8, true)
-  word(8, 'WAVE')
-
-  word(12, 'fmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, RATE, true)
-  view.setUint32(28, RATE * 2, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
-
-  word(36, 'data')
-  view.setUint32(40, len * 2, true)
+  out.set(wavHeader(len * 2, RATE))
 
   for (let i = 0; i < len; i++) {
     const t = i / RATE

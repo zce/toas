@@ -1,6 +1,7 @@
 // AudioRecorder parameterization check: configured capture settings flow
 // into byte sizing. Pure GJS + GLib; no recording is started.
-import { AudioRecorder, recordingIdForNow } from '../host/audio.js'
+import { AUDIO_QUALITY_PRESETS, AudioRecorder, recordingIdForNow } from '../host/audio.js'
+import { wavHeader } from '../host/wav.js'
 import { expectEqual, run, test } from './harness.js'
 
 function recorder(options = {}) {
@@ -28,6 +29,28 @@ test('48 kHz capture keeps the cutoff expressed as time', () => {
 test('zero or invalid constructor values fall back to defaults', () => {
   expectEqual(recorder({ sampleRate: 0 })._sampleRate, 16000)
   expectEqual(recorder({ minimumDurationMs: Number.NaN })._minimumDurationMs, 600)
+})
+
+test('mono s16 WAV headers preserve sizes at every capture rate', () => {
+  for (const { sampleRate } of Object.values(AUDIO_QUALITY_PRESETS)) {
+    const pcmBytes = sampleRate * 2
+    const header = wavHeader(pcmBytes, sampleRate)
+    const view = new DataView(header.buffer)
+
+    expectEqual(header.length, 44)
+    expectEqual(String.fromCharCode(...header.slice(0, 4)), 'RIFF')
+    expectEqual(view.getUint32(4, true), 36 + pcmBytes)
+    expectEqual(String.fromCharCode(...header.slice(8, 16)), 'WAVEfmt ')
+    expectEqual(view.getUint32(16, true), 16)
+    expectEqual(view.getUint16(20, true), 1)
+    expectEqual(view.getUint16(22, true), 1)
+    expectEqual(view.getUint32(24, true), sampleRate)
+    expectEqual(view.getUint32(28, true), sampleRate * 2)
+    expectEqual(view.getUint16(32, true), 2)
+    expectEqual(view.getUint16(34, true), 16)
+    expectEqual(String.fromCharCode(...header.slice(36, 40)), 'data')
+    expectEqual(view.getUint32(40, true), pcmBytes)
+  }
 })
 
 test('recording ids are UTC timestamp file names', () => {
