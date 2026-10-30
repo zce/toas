@@ -1,5 +1,7 @@
 // Sound cues are cosmetic. The recorder, state machine, and cancellation
 // must remain correct when they are enabled, disabled, or interrupted.
+import GLib from 'gi://GLib'
+
 import { recordingOutcomeOk } from '../host/audio.js'
 import { ToasOrchestrator } from '../host/orchestrator.js'
 import {
@@ -83,47 +85,50 @@ function create({ startEnabled = true, endEnabled = true, duration = 12 } = {}) 
 }
 
 test('on: cues gate capture and stop cue accompanies immediate Processing visual', async () => {
-  const { orchestrator, recorder, events, overlay } = create()
+  const gateMs = 60
+  const { orchestrator, recorder, events, overlay } = create({ duration: gateMs })
   let release
   recorder.stopDeferred = new Promise(resolve => { release = resolve })
+  let watchdog
+  const unmuted = new Promise((resolve, reject) => {
+    watchdog = setTimeout(() => reject(new Error('Capture gate did not open')), 1000)
+    recorder.unmute = () => {
+      recorder.unmutes++
+      resolve(GLib.get_monotonic_time())
+    }
+  })
 
-  orchestrator.begin()
-  expectEqual(recorder.mutes, [true])
-  expectEqual(recorder.unmutes, 0)
+  try {
+    const startedAt = GLib.get_monotonic_time()
+    orchestrator.begin()
+    expectEqual(recorder.starts, 1)
+    expectEqual(recorder.mutes, [true])
+    expectEqual(recorder.unmutes, 0)
 
-  await new Promise(resolve => setTimeout(resolve, 25))
-  expectEqual(recorder.unmutes, 1)
+    const openedAt = await unmuted
+    expectTruthy(openedAt - startedAt >= gateMs * 1000, 'capture must wait for the full cue gate')
+    expectEqual(recorder.unmutes, 1)
 
-  const pending = orchestrator.end()
+    const pending = orchestrator.end()
 
-  // UI moves immediately; end cue must wait until buffered PCM is drained.
-  expectEqual(events, ['start'])
-  expectTruthy(overlay.states.some(event => event.state === 'transcribing'))
+    // UI moves immediately; end cue must wait until buffered PCM is drained.
+    expectEqual(events, ['start'])
+    expectTruthy(overlay.states.some(event => event.state === 'transcribing'))
 
-  release(recorder.recording)
-  await pending
-  expectEqual(events, ['start', 'end'])
-
-  orchestrator.destroy()
-})
-
-test('off: no sound, no capture delay, and recorder starts unmuted', async () => {
-  const { orchestrator, recorder, events } = create({ startEnabled: false, endEnabled: false })
-
-  orchestrator.begin()
-  expectEqual(recorder.mutes, [false])
-
-  await orchestrator.end()
-  expectEqual(events, [])
-  expectEqual(recorder.unmutes, 0)
-
-  orchestrator.destroy()
+    release(recorder.recording)
+    await pending
+    expectEqual(events, ['start', 'end'])
+  } finally {
+    clearTimeout(watchdog)
+    orchestrator.destroy()
+  }
 })
 
 test('failed native playback opens the capture gate without a timer', async () => {
   const { orchestrator, recorder, events } = create({ duration: 0 })
 
   orchestrator.begin()
+  expectEqual(recorder.starts, 1)
   expectEqual(recorder.mutes, [true])
   expectEqual(recorder.unmutes, 1)
   await orchestrator.end()

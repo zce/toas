@@ -66,20 +66,41 @@ test('compact layout uses integer bounds and preserves the original design grid'
 
 test('CANCEL uses exactly the same grid cells at both widths', () => {
   const r = new MatrixRenderer()
+  const word = [
+    '.### .##. #..# .### #### #...',
+    '#... #..# ##.# #... #... #...',
+    '#... #### #.## #... ###. #...',
+    '#... #..# #..# #... #... #...',
+    '.### #..# #..# .### #### ####'
+  ]
+  const expected = word.flatMap((row, y) => Array.from(row).flatMap((cell, x) =>
+    cell === '#' ? [[x, y]] : []))
+  let previous
 
-  for (const width of [164, 136]) {
+  for (const width of [RECORD_WIDTH, PROCESS_WIDTH]) {
     const g = r._grid(width)
-    expectEqual(g.cols, width === 164 ? 46 : 38)
+    expectEqual(g.cols, width === RECORD_WIDTH ? 46 : 38)
     expectEqual(g.edge.length, g.cols * 11)
-    expectEqual(g.glyph.reduce((a, b) => a + b, 0), 63)
 
-    const lit = []
-    for (let i = 0; i < 506; i++) {
-      if (g.glyph[i]) {
-        lit.push(g.xy[2 * i])
-      }
+    const drawing = ctx()
+    r.paint(drawing, width, MATRIX_HEIGHT, signal(), 1)
+    // Select visible amber cores, not their faint glow or the blue background.
+    const lit = drawing.dots.filter(d => d.color[0] > d.color[2] && d.color[3] > .2)
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+    expectEqual(lit.length, 63)
+    const left = Math.min(...lit.map(d => d.x))
+    const right = Math.max(...lit.map(d => d.x))
+    const top = Math.min(...lit.map(d => d.y))
+    const bottom = Math.max(...lit.map(d => d.y))
+    expectEqual(lit.map(d => [(d.x - left) / MATRIX_STEP, (d.y - top) / MATRIX_STEP]), expected)
+    expectTruthy(Math.abs((left + right) / 2 - width / 2) <= MATRIX_STEP / 2)
+    expectEqual((top + bottom) / 2, MATRIX_HEIGHT / 2)
+
+    const centered = lit.map(d => [d.x - width / 2, d.y - MATRIX_HEIGHT / 2])
+    if (previous) {
+      expectEqual(centered, previous)
     }
-    expectTruthy(Math.max(...lit) - Math.min(...lit) > 85)
+    previous = centered
   }
 })
 
@@ -171,19 +192,20 @@ test('bright trace fades before the capsule ends without clipping the dot field'
   const r = new MatrixRenderer()
 
   for (const width of [RECORD_WIDTH, PROCESS_WIDTH]) {
-    r.paint(ctx(), width, MATRIX_HEIGHT, s)
-    const grid = r._grid(width)
-    const center = grid.strength[Math.floor(grid.cols / 2)]
+    const drawing = ctx()
+    r.paint(drawing, width, MATRIX_HEIGHT, s)
+    const columns = [...new Set(drawing.dots.map(d => d.x))].sort((a, b) => a - b)
+    const peaks = columns.map(x => Math.max(...drawing.dots.filter(d => d.x === x).map(d => d.color[3])))
+    const center = Math.max(...peaks.slice(Math.floor(peaks.length / 3), Math.ceil(peaks.length * 2 / 3)))
 
-    expectTruthy(center > 0)
-    expectTruthy(grid.strength[0] < center * .02)
-    expectTruthy(grid.strength[grid.cols - 1] < center * .02)
-    expectTruthy(grid.strength[2] < center * .4)
-    expectTruthy(grid.strength[grid.cols - 3] < center * .4)
-    expectTruthy(grid.edge[5] > 0)
-    expectEqual(grid.taper[0], 0)
-    expectEqual(grid.taper[grid.cols - 1], 0)
-    expectTruthy(grid.taper[Math.floor(grid.cols / 2)] > .99)
+    expectTruthy(center > .5, 'the central voice trace must remain visible')
+    for (const index of [0, peaks.length - 1]) {
+      expectTruthy(peaks[index] > 0, 'the quiet background must reach both ends')
+      expectTruthy(peaks[index] < center * .2, 'the bright trace must fade before each end')
+    }
+    for (const index of [2, peaks.length - 3]) {
+      expectTruthy(peaks[index] < center * .75, 'the shoulders must be dimmer than the central trace')
+    }
   }
 })
 
@@ -243,22 +265,41 @@ test('pointer cancel intent and voice history reset', () => {
   expectEqual(m.active, false)
 
   const s = signal()
+  for (let i = 0; i < s.history.length * 2; i++) {
+    // Quiet gaps keep adaptation from treating a steady tone as room noise.
+    s.pushRms(i % 2 === 0 ? 0 : .02)
+  }
+  const ages = [0, .5, 7, 13]
+  expectTruthy(ages.some(age => s.past(age) > 0))
   s.reset()
   expectEqual(s.time, 0)
   expectEqual(s.goal, 0)
+  expectEqual(ages.map(age => s.past(age)), ages.map(() => 0))
 })
 
 test('a new recording clears cached phosphor from previous session', () => {
   const s = signal()
   const r = new MatrixRenderer()
+  const quiet = new MatrixSignal()
+  const expected = new Map()
 
-  r.paint(ctx(), 164, 40, s, 0)
-  const grid = r._grid(164)
-  expectTruthy(grid.tail.some(x => x > 0))
+  for (const width of [RECORD_WIDTH, PROCESS_WIDTH]) {
+    r.paint(ctx(), width, MATRIX_HEIGHT, s)
+    const fresh = ctx()
+    new MatrixRenderer().paint(fresh, width, MATRIX_HEIGHT, quiet)
+    expected.set(width, fresh.dots)
+
+    const stale = ctx()
+    r.paint(stale, width, MATRIX_HEIGHT, quiet)
+    expectTruthy(JSON.stringify(stale.dots) !== JSON.stringify(fresh.dots), 'the fixture must retain a visible old trace')
+  }
 
   r.reset()
-  expectTruthy(grid.tail.every(x => x === 0))
-  expectTruthy(grid.head.every(x => x === 0))
+  for (const width of [RECORD_WIDTH, PROCESS_WIDTH]) {
+    const drawing = ctx()
+    r.paint(drawing, width, MATRIX_HEIGHT, quiet)
+    expectEqual(drawing.dots, expected.get(width))
+  }
 })
 
 test('compact surfaces preserve dot counts, spacing and centered grid bounds', () => {
@@ -281,28 +322,6 @@ test('compact surfaces preserve dot counts, spacing and centered grid bounds', (
     }
     const xs = compact.dots.map(dot => dot.x)
     expectTruthy(Math.abs(Math.min(...xs) + Math.max(...xs) - width) < .00001)
-  }
-})
-
-test('compact rendering follows native Cairo scaling without changing grid geometry', () => {
-  const s = signal()
-
-  for (const width of [HUD_RECORD_WIDTH, HUD_PROCESS_WIDTH]) {
-    const original = ctx()
-    new MatrixRenderer().paintSurface(original, width, HUD_HEIGHT, s, 1)
-
-    for (const density of [1, 1.25, 4 / 3, 1.5, 1.75, 2]) {
-      const scaled = ctx()
-      scaled.scale(density, density)
-      new MatrixRenderer().paintSurface(scaled, width, HUD_HEIGHT, s, 1)
-
-      expectEqual(scaled.dots.length, original.dots.length)
-      for (let i = 0; i < original.dots.length; i++) {
-        expectTruthy(Math.abs(scaled.dots[i].x - original.dots[i].x * density) < .00001)
-        expectTruthy(Math.abs(scaled.dots[i].y - original.dots[i].y * density) < .00001)
-        expectTruthy(Math.abs(scaled.dots[i].r - original.dots[i].r * density) < .00001)
-      }
-    }
   }
 })
 

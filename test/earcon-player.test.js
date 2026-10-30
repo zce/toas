@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio'
 
 import { EarconPlayer } from '../host/earcons.js'
-import { cueDurationMs } from '../host/earcon-synthesis.js'
+import { CUE_STYLES, cueDurationMs } from '../host/earcon-synthesis.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 function fakePlayer(styles, eventSounds = true) {
@@ -9,10 +9,10 @@ function fakePlayer(styles, eventSounds = true) {
   const player = Object.create(EarconPlayer.prototype)
   player._settings = { get_string: key => styles[key] }
   player._soundSettings = { get_boolean: () => eventSounds }
-  player._files = new Map([
-    ['start-crystal', { name: 'start-crystal' }],
-    ['end-tap', { name: 'end-tap' }]
-  ])
+  player._files = new Map(CUE_STYLES.flatMap(style => ['start', 'end'].map(kind => {
+    const name = `${kind}-${style}`
+    return [name, { name }]
+  })))
   player._playing = null
   player._player = {
     play_from_file: (file, description, cancellable) => {
@@ -57,20 +57,24 @@ test('disabled GNOME event sounds do not block microphone capture', () => {
 })
 
 test('native sound player uses independent styles and cancellable playback', () => {
-  const { player, played } = fakePlayer({
-    'sound-start-style': 'none',
-    'sound-end-style': 'tap'
-  })
+  for (const [index, start] of CUE_STYLES.entries()) {
+    const end = CUE_STYLES[(index + 1) % CUE_STYLES.length]
+    const { player, played } = fakePlayer({
+      'sound-start-style': start,
+      'sound-end-style': end
+    })
 
-  expectEqual(player.play('start'), 0)
-  expectEqual(player.play('end'), cueDurationMs('end', 'tap') + 100)
-  expectEqual(played.length, 1)
-  expectEqual(played[0].file.name, 'end-tap')
-  expectTruthy(played[0].cancellable instanceof Gio.Cancellable)
-  expectEqual(played[0].cancellable.is_cancelled(), false)
+    expectEqual(player.play('start'), cueDurationMs('start', start) + 100)
+    expectEqual(player.play('end'), cueDurationMs('end', end) + 100)
+    expectEqual(played.map(cue => cue.file.name), [`start-${start}`, `end-${end}`])
+    expectTruthy(played[0].cancellable instanceof Gio.Cancellable)
+    expectEqual(played[0].cancellable.is_cancelled(), true)
+    expectTruthy(played[1].cancellable instanceof Gio.Cancellable)
+    expectEqual(played[1].cancellable.is_cancelled(), false)
 
-  player.cancel()
-  expectEqual(played[0].cancellable.is_cancelled(), true)
+    player.cancel()
+    expectEqual(played[1].cancellable.is_cancelled(), true)
+  }
 })
 
 test('playback errors leave recording available without a sound delay', () => {

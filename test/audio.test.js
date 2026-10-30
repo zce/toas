@@ -1,5 +1,7 @@
-// AudioRecorder parameterization check: configured capture settings flow
-// into byte sizing. Pure GJS + GLib; no recording is started.
+// AudioRecorder sizing and PCM lifecycle checks. Capture is never started.
+import Gio from 'gi://Gio'
+import GLib from 'gi://GLib'
+
 import { AUDIO_QUALITY_PRESETS, AudioRecorder, recordingIdForNow } from '../host/audio.js'
 import { wavHeader } from '../host/wav.js'
 import { expectEqual, run, test } from './harness.js'
@@ -124,24 +126,47 @@ test('a read requested before the sound gate opens is never accepted later', asy
   expectEqual(writes, [])
 })
 
-test('stop drains buffered PCM before closing the capture gate', async () => {
-  const value = recorder()
-  let captureDuringSignal = null
-  let finishRead
+test('stop preserves buffered tail PCM in the completed WAV', async () => {
+  const value = recorder({ minimumDurationMs: 200 })
+  const captured = new Uint8Array(value._chunkBytes).fill(0x11)
+  const tail = new Uint8Array(value._chunkBytes).fill(0x22)
+  const output = Gio.MemoryOutputStream.new_resizable()
+  output.write_all(new Uint8Array(44), null)
+  output.write_all(captured, null)
+  value._output = output
+  value._totalBytes = captured.length
+  let signalled = false
+  let releaseTail
+  let reads = 0
   value._process = {
-    send_signal: () => { captureDuringSignal = value._captureEnabled }
+    send_signal: signal => {
+      expectEqual(signal, 2)
+      signalled = true
+    }
   }
-  value._readPromise = new Promise(resolve => { finishRead = resolve })
+  value._stream = {
+    read_bytes_async: async () => {
+      if (reads++ === 0) {
+        return new Promise(resolve => { releaseTail = () => resolve(new GLib.Bytes(tail)) })
+      }
+      return new GLib.Bytes(new Uint8Array())
+    }
+  }
+  value._readPromise = value._readLoop()
   value._path = null
-  value._totalBytes = 0
 
   const pending = value.stop()
-  expectEqual(captureDuringSignal, true)
-  expectEqual(value._captureEnabled, true)
-  finishRead()
+  expectEqual(signalled, true)
+  expectEqual(output.is_closed(), false)
+  releaseTail()
   const outcome = await pending
+  expectEqual(outcome.kind, 'ok')
+  expectEqual(outcome.recording.durationMs, 200)
   expectEqual(value._captureEnabled, false)
-  expectEqual(outcome.kind, 'short-tap')
+  const wav = output.steal_as_bytes().get_data()
+  const header = new DataView(wav.buffer, wav.byteOffset, wav.byteLength)
+  expectEqual(header.getUint32(40, true), captured.length + tail.length)
+  expectEqual(Array.from(wav.slice(44)), [...captured, ...tail])
 })
 
 await run()

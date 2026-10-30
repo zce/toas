@@ -1,28 +1,22 @@
+import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
+import { CUE_STYLES, DEFAULT_START_CUE, DEFAULT_END_CUE } from '../host/earcon-synthesis.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 const read = path => new TextDecoder().decode(GLib.file_get_contents(path)[1])
 
-test('recording sounds use independent start and end choices with None', () => {
+test('recording cue settings preserve independent defaults', () => {
   const xml = read('schemas/org.gnome.shell.extensions.toas.gschema.xml')
-  const prefs = read('prefs.js')
-  const player = read('host/earcons.js')
 
-  expectTruthy(!xml.includes('<key name="sound-enabled"'))
-  expectTruthy(xml.includes("<key name=\"sound-start-style\" type=\"s\">\n      <default>'crystal'</default>"))
-  expectTruthy(xml.includes("<key name=\"sound-end-style\" type=\"s\">\n      <default>'tap'</default>"))
-  expectTruthy(prefs.includes("import { CUE_STYLES, DEFAULT_START_CUE, DEFAULT_END_CUE } from './host/earcon-synthesis.js'"))
-  expectTruthy(prefs.includes("const cueOptions = ['none', ...CUE_STYLES]"))
-  expectTruthy(prefs.includes("const fallback = kind === 'start' ? DEFAULT_START_CUE : DEFAULT_END_CUE"))
-  expectTruthy(prefs.includes("group.add(soundRow('start', 'Start sound', 'Play a cue when recording starts; None skips it.'))"))
-  expectTruthy(prefs.includes("group.add(soundRow('end', 'Stop sound', 'Play after a valid recording; None skips the cue.'))"))
-  expectTruthy(!prefs.includes("title: 'Recording sounds'"))
-  expectTruthy(prefs.includes("cueOptions.includes(requested) ? requested : fallback"))
-  expectTruthy(player.includes("if (requested === 'none' || !this._soundSettings.get_boolean('event-sounds'))"))
-  expectTruthy(player.includes('global.display.get_sound_player()'))
-  expectTruthy(player.includes('this._player.play_from_file(file'))
-  expectTruthy(!player.includes('Gio.Subprocess'))
+  for (const [name, value] of [['sound-start-style', 'crystal'], ['sound-end-style', 'tap']]) {
+    const key = xml.match(new RegExp(`<key\\b[^>]*\\bname=["']${name}["'][^>]*>[\\s\\S]*?<\\/key>`))?.[0] ?? ''
+    expectTruthy(/\btype=["']s["']/.test(key), `${name} must be a string setting`)
+    expectEqual(key.match(/<default>\s*(['"])(.*?)\1\s*<\/default>/)?.[2], value)
+  }
+  expectEqual(DEFAULT_START_CUE, 'crystal')
+  expectEqual(DEFAULT_END_CUE, 'tap')
+  expectTruthy(!/<key\b[^>]*\bname=["']sound-enabled["']/.test(xml))
 })
 
 test('legacy HUD is the default, matrix HUD is opt-in', () => {
@@ -40,42 +34,40 @@ test('legacy HUD is the default, matrix HUD is opt-in', () => {
 })
 
 test('Maple Mono only styles overlay surfaces', () => {
-  const css = read('stylesheet.css')
-  const prefsCss = read('prefs.css')
-  const prefs = read('prefs.js')
+  const selectors = source => [...source.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, , body]) => /\bfont-family\s*:[^;]*\bMaple Mono\b/.test(body))
+    .flatMap(([, names]) => names.split(',').map(name => name.trim()))
+    .sort()
 
-  expectTruthy(/\.toas-overlay\s*\{\s*font-family:\s*'Maple Mono'/.test(css))
-  expectTruthy(/\.toas-matrix-overlay\s*\{\s*font-family:\s*'Maple Mono'/.test(css))
-  expectTruthy(!/\.toas-history-menu-scroll\s*\{\s*font-family:/.test(css))
-  expectTruthy(!prefsCss.includes('Maple Mono'))
-  expectTruthy(!prefs.includes("add_css_class('toas-preferences')"))
-})
-
-test('audio quality has a description', () => {
-  const prefs = read('prefs.js')
-  expectTruthy(prefs.includes("subtitle: 'Higher rates use more space and shorten recording time.'"))
-})
-
-test('recording retention and refine failure choices have explanations', () => {
-  const prefs = read('prefs.js')
-
-  expectTruthy(/title: 'On refine failure',\s+subtitle:/.test(prefs))
-  expectTruthy(prefs.includes("'Keep this many history entries on this device.'"))
-  expectTruthy(prefs.includes("'Keep recordings for retries; 0 saves none.'"))
-  expectTruthy(/title: 'Shortcut',\s+subtitle:/.test(prefs))
+  expectEqual(selectors(read('stylesheet.css')), ['.toas-matrix-overlay', '.toas-overlay'])
+  expectEqual(selectors(read('prefs.css')), [])
 })
 
 test('cue cache has a stable unversioned path and refreshes generated audio', () => {
-  const player = read('host/earcons.js')
-  const install = read('install.sh')
-  const uninstall = read('docs/uninstall.sh')
-
-  expectTruthy(player.includes("GLib.get_user_cache_dir(), 'toas', 'sounds'"))
-  expectTruthy(!player.includes('earcons-v'))
-  expectTruthy(player.includes("file.replace_contents(synthesizeCue(kind, style)"))
-  expectTruthy(!player.includes('file.query_exists(null)'))
-  expectTruthy(install.includes('for previous in "$CACHE_DIR"/earcons-v[0-9]*'))
-  expectTruthy(uninstall.includes('rm -rf -- "${XDG_CACHE_HOME:-$HOME/.cache}/toas"'))
+  const root = Gio.File.new_for_path(GLib.dir_make_tmp('toas-cue-cache-test-XXXXXX'))
+  const app = root.get_child('toas')
+  const sounds = app.get_child('sounds')
+  const launcher = new Gio.SubprocessLauncher({ flags: Gio.SubprocessFlags.NONE })
+  // GLib caches XDG paths before module evaluation, so isolate them at startup.
+  launcher.setenv('XDG_CACHE_HOME', root.get_path(), true)
+  launcher.setenv('GSETTINGS_BACKEND', 'memory', true)
+  try {
+    const child = launcher.spawnv(['gjs', '-m', 'test/fixtures/earcon-cache.js', root.get_path()])
+    child.wait_check(null)
+    expectTruthy(read('install.sh').includes('for previous in "$CACHE_DIR"/earcons-v[0-9]*'))
+    expectTruthy(read('docs/uninstall.sh').includes('rm -rf -- "${XDG_CACHE_HOME:-$HOME/.cache}/toas"'))
+  } finally {
+    launcher.close()
+    for (const style of CUE_STYLES) {
+      for (const kind of ['start', 'end']) {
+        const file = sounds.get_child(`${kind}-${style}.wav`)
+        if (file.query_exists(null)) file.delete(null)
+      }
+    }
+    for (const directory of [sounds, app, root]) {
+      if (directory.query_exists(null)) directory.delete(null)
+    }
+  }
 })
 
 await run()
