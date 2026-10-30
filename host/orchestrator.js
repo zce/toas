@@ -82,7 +82,7 @@ export class ToasOrchestrator {
 
     this._overlay.setMonitor(this._output.getFocusedMonitorIndex())
     this._overlay.setPrivate(run.private)
-    const cueEnabled = Boolean(this._cues && this._settings?.get_boolean('sound-enabled'))
+    const cueEnabled = Boolean(this._cues && this._settings?.get_string('sound-start-style') !== 'none')
     // Construct the recorder before the UI and sound are activated. If this
     // fails, no start cue or visible recording state is left behind.
     run.recorder = this._recorderFactory({
