@@ -40,9 +40,11 @@ service, external process, or always-running mixer.
    70ms safety interval. Once the gate opens, only newly read PCM enters
    the WAV file. This is a practical software guard, not a guarantee
    against every acoustic echo or unusually delayed PipeWire buffer.
-3. Normal stop closes the PCM gate **before SIGINT**, then emits the
-   stop cue without waiting for transcription. A short tap that stops
-   before the gate opens is discarded silently.
+3. Normal stop sends SIGINT and **drains any buffered speech** before
+   closing the capture gate. The HUD switches to Processing immediately;
+   a valid completed recording plays its stop cue as soon as the drain
+   finishes, without waiting for network transcription. A short tap,
+   cancellation, or capture failure emits no stop cue.
 4. Cancel and errors do not emit a normal stop cue; pending start audio
    is cancelled. The setting is read at each playback, so disabling it
    takes effect without extension reload.
@@ -63,10 +65,11 @@ recording continues with sound disabled.
 - Pure renderer: seven regression tests (dimensions, contour, equal CANCEL
   glyph, RMS behavior, pointer reset, HiDPI, and simple exit).
 - Earcon synthesis: eight WAV variants, header/length and level checks.
-- Audio gate: test verifies muted data is never written; stop closes
-  its gate before signalling `pw-record`.
-- Mocked orchestrator test verifies start gate timing, normal stop cue,
-  cancellation, and cleanup.
+- Audio gate: tests verify muted data is never written and the final
+  buffered samples are drained before the capture gate closes.
+- Mocked orchestrator tests verify start gate timing, the stop cue after
+  a complete drain, disabled sound, cancellation during the start cue,
+  cancellation during stream draining, and timer cleanup.
 
 **Still required:** hands-on Fedora GNOME 50 check of exact motion
 fidelity, real audio output latency, device echo, scale factors, and
