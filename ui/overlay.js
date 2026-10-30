@@ -8,10 +8,21 @@ export class ToasOverlayPresenter {
     this._hideDelay = hideDelay
     this._timer = null
     this._generation = 0
+    this._onCancelRequested = null
   }
 
   setOnCancelRequested(handler) {
+    this._onCancelRequested = handler
     this._view.setOnCancelRequested?.(handler)
+  }
+
+  replaceView(createView) {
+    const next = createView()
+    this._generation++
+    this._clearTimer()
+    this._view.destroy?.()
+    this._view = next
+    next.setOnCancelRequested?.(this._onCancelRequested)
   }
 
   setMonitor(monitorIndex) {
