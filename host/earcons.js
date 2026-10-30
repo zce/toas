@@ -3,12 +3,13 @@ import GLib from 'gi://GLib'
 
 import {
   CUE_STYLES,
-  CUE_GUARD_MS,
   DEFAULT_START_CUE,
   DEFAULT_END_CUE,
   cueDurationMs,
   synthesizeCue
 } from './earcon-synthesis.js'
+
+const CUE_GUARD_MS = 100
 
 export class EarconPlayer {
   constructor(settings) {
