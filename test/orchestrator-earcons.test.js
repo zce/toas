@@ -40,9 +40,11 @@ class CueRecorder extends FakeRecorder {
 function create({ startEnabled = true, endEnabled = true, duration = 12 } = {}) {
   const recorder = new CueRecorder()
   const events = []
+  const attempts = []
 
   const cues = {
     play: kind => {
+      attempts.push(kind)
       if ((kind === 'start' && !startEnabled) || (kind === 'end' && !endEnabled)) {
         return 0
       }
@@ -77,7 +79,7 @@ function create({ startEnabled = true, endEnabled = true, duration = 12 } = {}) 
     }
   })
 
-  return { orchestrator, recorder, events, overlay }
+  return { orchestrator, recorder, events, attempts, overlay }
 }
 
 test('on: cues gate capture and stop cue accompanies immediate Processing visual', async () => {
@@ -191,13 +193,14 @@ test('microphone launch failure interrupts the start sound', async () => {
 })
 
 test('start can be None while stop still plays', async () => {
-  const { orchestrator, recorder, events } = create({ startEnabled: false })
+  const { orchestrator, recorder, events, attempts } = create({ startEnabled: false })
 
   orchestrator.begin()
   expectEqual(recorder.mutes, [false])
   await orchestrator.end()
 
   expectEqual(events, ['end'])
+  expectEqual(attempts, ['start', 'end'])
   expectEqual(recorder.unmutes, 0)
   orchestrator.destroy()
 })
