@@ -190,7 +190,7 @@ export class MatrixOverlayView {
       const enteringMatrix = this._mode === 'recording' || this._mode === 'busy'
       const finalWidth = this._matrix.width
       if (enteringMatrix && St.Settings.get().enable_animations) {
-        this._matrix.width = 34
+        this._matrix.width = MATRIX_HEIGHT
       }
       this._overlay.show()
       if (St.Settings.get().enable_animations) {
