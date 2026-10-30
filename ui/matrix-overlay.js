@@ -58,7 +58,6 @@ export class MatrixOverlayView {
     content.add_child(this._error)
     this._overlay = new St.Button({
       style_class: 'toas-matrix-overlay',
-      width: -1,
       height: MATRIX_HEIGHT,
       child: content,
       visible: false,
