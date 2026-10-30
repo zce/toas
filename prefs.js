@@ -135,7 +135,6 @@ export default class ToasPreferences extends ExtensionPreferences {
       title: 'toas',
       icon_name: 'audio-input-microphone-symbolic'
     })
-    page.add_css_class('toas-preferences')
     const configurationBanner = new Adw.Banner({ title: '', revealed: false, use_markup: false })
     configurationBanner.add_css_class('toas-config-banner')
     page.banner = configurationBanner
@@ -177,11 +176,13 @@ function buildInputGroup(settings) {
   const cueLabels = ['None', 'Tap', 'Crystal', 'Pulse', 'Halo']
   const soundRow = (kind, title, subtitle) => {
     const key = `sound-${kind}-style`
+    const requested = settings.get_string(key)
+    const fallback = kind === 'start' ? 'crystal' : 'tap'
     const row = new Adw.ComboRow({
       title,
       subtitle,
       model: Gtk.StringList.new(cueLabels),
-      selected: Math.max(0, cueOptions.indexOf(settings.get_string(key)))
+      selected: cueOptions.indexOf(cueOptions.includes(requested) ? requested : fallback)
     })
     row.connect('notify::selected', () => settings.set_string(key, cueOptions[row.selected]))
     return row
