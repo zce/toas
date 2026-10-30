@@ -1,4 +1,3 @@
-// Synthesize the short recording cues as PCM WAV files.
 export const CUE_STYLES = ['tap', 'crystal', 'pulse', 'halo']
 export const DEFAULT_START_CUE = 'crystal'
 export const DEFAULT_END_CUE = 'tap'
@@ -8,7 +7,7 @@ const RATE = 16000
 
 // Each tone: start frequency, end frequency, duration, amplitude,
 // waveform, attack, release, and start delay.
-const N = {
+const tones = {
   tap: {
     start: [
       [735, 690, .088, .16, 'triangle', .003, .063, 0],
@@ -72,7 +71,7 @@ export function cueDurationMs(kind, style) {
 }
 
 export function synthesizeCue(kind, style) {
-  const parts = N[style]?.[kind]
+  const parts = tones[style]?.[kind]
   if (!parts) {
     throw new Error('Invalid cue')
   }
@@ -104,7 +103,6 @@ export function synthesizeCue(kind, style) {
   word(36, 'data')
   view.setUint32(40, len * 2, true)
 
-  // Mix the short tone envelopes into signed PCM samples.
   for (let i = 0; i < len; i++) {
     const t = i / RATE
     let sample = 0
