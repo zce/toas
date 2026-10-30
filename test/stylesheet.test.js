@@ -45,7 +45,7 @@ test('every stylesheet.css class is referenced by Shell-side code', () => {
   // Classes the Shell theme itself owns; toas styles only decorate them.
   const shellTheme = new Set(['panel-button', 'icon-button', 'system-status-icon', 'card', 'inline', 'warning'])
 
-  const sources = ['extension.js', 'ui/indicator.js', 'ui/overlay.js', 'ui/matrix-overlay.js'].map(f => read(`${rootDir}/${f}`)).join('\n')
+  const sources = ['extension.js', 'ui/indicator.js', 'ui/overlay.js', 'ui/legacy-overlay.js', 'ui/matrix-overlay.js'].map(f => read(`${rootDir}/${f}`)).join('\n')
 
   const used = usedClasses(sources)
   const dead = [...defined].filter(c => !used.has(c) && !shellTheme.has(c))
