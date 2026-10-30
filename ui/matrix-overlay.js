@@ -112,6 +112,7 @@ export class MatrixOverlayView {
     const was = this._mode
     if (mode === 'recording' && was !== 'recording') {
       this._signal.reset()
+      this._renderer.reset()
       this._cancelRequested = false
       this._hover = 0
       this._hoverIntent.reset()
@@ -160,6 +161,7 @@ export class MatrixOverlayView {
 
   resetLevels() {
     this._signal.reset()
+    this._renderer.reset()
     this._cancelRequested = false
     this._hover = 0
     this._hoverIntent.reset()

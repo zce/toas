@@ -134,5 +134,9 @@ export class MatrixRenderer{
   const scale=pw/lw;cr.scale(scale,scale)
   return this.paint(cr,pw/scale,ph/scale,model,hover,exit)
  }
+ reset(){
+  for(const grid of this.cache.values()){grid.head.fill(0);grid.tail.fill(0)}
+  if(this.temporary){this.temporary.head.fill(0);this.temporary.tail.fill(0)}
+ }
  clear(){this.cache.clear();this.temporary=null}
 }

@@ -49,6 +49,16 @@ test('pointer cancel intent and voice history reset',()=>{
  m.reset(105,200);m.move(105,200);expectEqual(m.active,false)
  const s=signal();s.reset();expectEqual(s.time,0);expectEqual(s.goal,0)
 })
+test('a new recording clears cached phosphor from previous session',()=>{
+ const s=signal(),r=new MatrixRenderer()
+ r.paint(ctx(),164,40,s,0)
+ const grid=r._grid(164)
+ expectTruthy(grid.tail.some(x=>x>0))
+ r.reset()
+ expectTruthy(grid.tail.every(x=>x===0))
+ expectTruthy(grid.head.every(x=>x===0))
+})
+
 test('same dot count at 1x and 2x; single contraction dims dots',()=>{
  const s=signal(),r=new MatrixRenderer(),a=ctx(),b=ctx(),c=ctx()
  expectEqual(r.paintSurface(a,164,40,164,s),r.paintSurface(b,328,80,164,s))
