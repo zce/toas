@@ -69,15 +69,21 @@ test('muted capture drops cue-period PCM and unmute resumes writing', async () =
   expectEqual(writes.length, 1)
 })
 
-test('stop closes the capture gate before signalling the recorder', async () => {
+test('stop drains buffered PCM before closing the capture gate', async () => {
   const value = recorder()
   let captureDuringSignal = null
+  let finishRead
   value._process = { send_signal: () => { captureDuringSignal = value._captureEnabled } }
-  value._readPromise = Promise.resolve()
+  value._readPromise = new Promise(resolve => { finishRead = resolve })
   value._path = null
   value._totalBytes = 0
-  const outcome = await value.stop()
-  expectEqual(captureDuringSignal, false)
+
+  const pending = value.stop()
+  expectEqual(captureDuringSignal, true)
+  expectEqual(value._captureEnabled, true)
+  finishRead()
+  const outcome = await pending
+  expectEqual(value._captureEnabled, false)
   expectEqual(outcome.kind, 'short-tap')
 })
 
