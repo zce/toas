@@ -184,14 +184,14 @@
   font-family: 'Maple Mono', sans-serif;
   padding: 0;
   border: none;
-  border-radius: 99px;
+  border-radius: 20px;
   background-color: rgba(26, 27, 31, 0.98);
   box-shadow: 0 3px 13px rgba(0, 0, 0, 0.39);
 }
 
 .toas-matrix-error-label {
   max-width: 320px;
-  padding: 10px 18px;
+  padding: 0 18px;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.92);
 }
