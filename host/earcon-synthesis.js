@@ -1,7 +1,6 @@
 export const CUE_STYLES = ['tap', 'crystal', 'pulse', 'halo']
 export const DEFAULT_START_CUE = 'crystal'
 export const DEFAULT_END_CUE = 'tap'
-export const CUE_GUARD_MS = 100
 
 const RATE = 16000
 
