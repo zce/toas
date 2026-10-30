@@ -16,6 +16,7 @@ test('recording sounds use independent start and end choices with None', () => {
   expectTruthy(prefs.includes("group.add(soundRow('start', 'Start sound', 'Play a cue when recording begins; choose None to disable.'))"))
   expectTruthy(prefs.includes("group.add(soundRow('end', 'Stop sound', 'Play a cue after a valid recording; choose None to disable.'))"))
   expectTruthy(!prefs.includes("title: 'Recording sounds'"))
+  expectTruthy(prefs.includes("cueOptions.includes(requested) ? requested : fallback"))
   expectTruthy(player.includes("if (requested === 'none' || !this._soundSettings.get_boolean('event-sounds'))"))
   expectTruthy(player.includes('global.display.get_sound_player()'))
   expectTruthy(player.includes('this._player.play_from_file(file'))
@@ -33,7 +34,19 @@ test('legacy HUD is the default, matrix HUD is opt-in', () => {
   expectTruthy(extension.includes("this._matrixHud = this._settings.get_boolean('experimental-matrix-hud')"))
   expectTruthy(extension.includes("this._settings.connect('changed::experimental-matrix-hud'"))
   expectTruthy(extension.includes('this._overlay.replaceView('))
-  expectTruthy(extension.includes("this._voiceState !== 'idle'"))
+  expectTruthy(extension.includes("this._voiceState !== 'idle' && this._voiceState !== 'error'"))
+})
+
+test('Maple Mono only styles overlay surfaces', () => {
+  const css = read('stylesheet.css')
+  const prefsCss = read('prefs.css')
+  const prefs = read('prefs.js')
+
+  expectTruthy(css.includes(".toas-overlay {\\n  font-family: 'Maple Mono', sans-serif;"))
+  expectTruthy(css.includes(".toas-matrix-overlay {\\n  font-family: 'Maple Mono', sans-serif;"))
+  expectTruthy(!css.includes(".toas-history-menu-scroll {\\n  font-family:"))
+  expectTruthy(!prefsCss.includes('Maple Mono'))
+  expectTruthy(!prefs.includes("add_css_class('toas-preferences')"))
 })
 
 test('audio quality has a description', () => {
