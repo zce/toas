@@ -146,6 +146,23 @@ test('destroy clears pending timers and tears down the view', async () => {
   expectEqual(view.hideCalls, 0)
 })
 
+test('switching HUD views preserves cancellation without running both', () => {
+  const oldView = new FakeOverlayView()
+  const nextView = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view: oldView })
+  const cancel = () => {}
+  presenter.setOnCancelRequested(cancel)
+  presenter.replaceView(() => nextView)
+
+  expectEqual(oldView.destroyed, 1)
+  expectEqual(nextView.destroyed, 0)
+  presenter.render('recording')
+  expectEqual(oldView.renders.length, 0)
+  expectEqual(nextView.renders.length, 1)
+  presenter.destroy()
+  expectEqual(nextView.destroyed, 1)
+})
+
 test('private mode is delegated to the view without a text label', () => {
   const view = new FakeOverlayView()
   const presenter = new ToasOverlayPresenter({ view })
