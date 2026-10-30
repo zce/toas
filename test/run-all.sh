@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 rc=0
 for f in test/*.test.js; do
   case "$f" in
-    test/output-strategy.test.js|test/overlay-presenter.test.js|test/window-role.test.js)
+    test/output-strategy.test.js|test/window-role.test.js)
       echo "== $f (shell-only, skipped headless)"
       continue
       ;;
