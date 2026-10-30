@@ -23,14 +23,12 @@ export const contour = p => 2 / Math.PI * Math.asin(Math.sin(p))
 
 export class MatrixSignal {
   constructor() {
-    this.a = new Float32Array(HISTORY)
-    this.b = new Float32Array(HISTORY)
+    this.history = new Float32Array(HISTORY)
     this.reset()
   }
 
   reset() {
-    this.a.fill(0)
-    this.b.fill(0)
+    this.history.fill(0)
 
     this.head = 0
     this.time = 0
@@ -45,9 +43,6 @@ export class MatrixSignal {
   pushRms(rms) {
     const db = 20 * Math.log10(Math.max(1e-6, Number.isFinite(rms) ? rms : 0))
 
-    // The old per-utterance normalization amplified even tiny noises to
-    // near full scale. Keep a real noise gate and a bounded 23dB display
-    // range; adapt slowly to microphone gain, never to a single loud syllable.
     this.room = follow(this.room, db, .1, db < this.room ? .3 : 12)
 
     if (db > this.room + 10) {
@@ -58,19 +53,18 @@ export class MatrixSignal {
     const level = clamp((db - lower) / Math.max(23, this.peak + 2 - lower))
     this.goal = .85 * smooth(level)
 
-    this.a[this.head] = this.goal
-    this.b[this.head] = this.goal * .86
+    this.history[this.head] = this.goal
     this.head = (this.head + 1) % HISTORY
   }
 
-  past(history, age) {
+  past(age) {
     const p = clamp(age, 0, HISTORY - 2)
     const i = Math.floor(p)
     const f = p - i
     const a = (this.head - 1 - i + HISTORY) % HISTORY
     const b = (a - 1 + HISTORY) % HISTORY
 
-    return history[a] * (1 - f) + history[b] * f
+    return this.history[a] * (1 - f) + this.history[b] * f
   }
 
   advance(dt, mode) {
@@ -228,19 +222,17 @@ export class MatrixRenderer {
     const carrier = t * TAU * .17
     const mid = (ROWS - 1) / 2
 
-    // Compute the two strands once per column, not once per dot.
     for (let x = 0; x < grid.cols; x++) {
       const u = x / (grid.cols - 1)
       const ends = Math.min(smooth(u * 7), smooth((1 - u) * 7))
+      const sample = model.past(1 + u * 13)
 
       for (let k = 0; k < 2; k++) {
-        const history = k === 0 ? model.a : model.b
-        const phases = model.phase
-        const v = model.past(history, 1 + u * 13)
+        const v = k === 0 ? sample : sample * .86
         let spread = 0
 
         for (let j = 0; j < 4; j++) {
-          spread += coeff[j] * Math.sin(TAU * spatial[j] * u - phases[j]) * v
+          spread += coeff[j] * Math.sin(TAU * spatial[j] * u - model.phase[j]) * v
         }
 
         path[k][x] = mid + (k === 0 ? -1 : 1) * ends *
@@ -256,8 +248,6 @@ export class MatrixRenderer {
     const morph = smooth(hover)
     let count = 0
 
-    // Each existing dot participates in the recording, processing, and
-    // CANCEL states. No separate text or stroke layer is drawn.
     for (let i = 0; i < edge.length; i++) {
       const mask = edge[i]
       if (mask <= .015) {
