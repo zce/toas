@@ -16,7 +16,7 @@ test('recording sounds use independent start and end choices with None', () => {
   expectTruthy(prefs.includes("group.add(soundRow('start', 'Start sound'))"))
   expectTruthy(prefs.includes("group.add(soundRow('end', 'Stop sound'))"))
   expectTruthy(!prefs.includes("title: 'Recording sounds'"))
-  expectTruthy(player.includes("if (requested === 'none')"))
+  expectTruthy(player.includes("if (requested === 'none' || !this._soundSettings.get_boolean('event-sounds'))"))
   expectTruthy(player.includes('global.display.get_sound_player()'))
   expectTruthy(player.includes('this._player.play_from_file(file'))
   expectTruthy(!player.includes('Gio.Subprocess'))
