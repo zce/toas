@@ -22,8 +22,6 @@ const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
 
-// The matrix *view* for ToasOverlayPresenter. No change to
-// capture, refinement, notifications or output state. No permanent work.
 export class MatrixOverlayView {
   constructor() {
     this._signal = new MatrixSignal()
@@ -161,12 +159,6 @@ export class MatrixOverlayView {
     this._reposition()
   }
 
-  setPrivate(enabled) {
-    // Privacy status is still shown by the native top-bar indicator. The
-    // experimental HUD has no icon slots, by design.
-    this._private = Boolean(enabled)
-  }
-
   resetLevels() {
     this._signal.reset()
     this._renderer.reset()
@@ -205,8 +197,6 @@ export class MatrixOverlayView {
       const enteringMatrix = this._mode === 'recording' || this._mode === 'busy'
       const finalWidth = this._matrix.width
       if (enteringMatrix && St.Settings.get().enable_animations) {
-        // The dots expand with the capsule, rather than appearing in an
-        // already-full-width box. Only the normal compositor is animated.
         this._matrix.width = 34
       }
       this._overlay.show()
@@ -256,8 +246,6 @@ export class MatrixOverlayView {
       this._mode === 'busy' ? COMPLETE_MS : ERROR_EXIT_MS
     this._exitStarted = GLib.get_monotonic_time()
 
-    // Approved exit: contraction and fade only. No outward wipe or extra
-    // renderer animation: one matched compositor transition.
     if (this._matrix.visible) {
       this._matrix.ease({
         width: 46,

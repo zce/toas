@@ -27,7 +27,6 @@ else
 fi
 
 rm -rf -- "$TARGET_DIR"
-# Remove Toas-owned cache, including any obsolete cue directories.
 rm -rf -- "${XDG_CACHE_HOME:-$HOME/.cache}/toas"
 
 if "$CLEAN_DCONF"; then

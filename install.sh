@@ -22,8 +22,7 @@ if ! command -v pw-play >/dev/null 2>&1; then
   echo "To enable them: sudo dnf install pipewire-utils" >&2
 fi
 
-# Drop caches from the earlier development branch; new sounds use one
-# stable, unversioned directory, independent of visual release numbers.
+# Remove old generated sound caches.
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/toas"
 for previous in "$CACHE_DIR"/earcons-v[0-9]*; do
   if [[ -d "$previous" ]]; then

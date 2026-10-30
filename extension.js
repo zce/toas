@@ -47,7 +47,6 @@ export default class ToasExtension extends Extension {
       )
       this._indicator.setPrivateMode(this._settings.get_boolean('private-mode'))
 
-      // This branch uses the matrix HUD directly; switch back to main to revert.
       this._overlay = new ToasOverlayPresenter({ view: new MatrixOverlayView() })
       this._kernelRunner = new KernelRunner({ settings: this._settings })
       this._output = new TextPaster(this._settings)

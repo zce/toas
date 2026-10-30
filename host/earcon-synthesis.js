@@ -1,5 +1,4 @@
-// Original short earcons from the approved browser timing prototype.
-// Rendered to WAV once; no daemon, WebAudio or ongoing synthesizer.
+// Synthesize the short recording cues as PCM WAV files.
 export const CUE_STYLES = ['tap', 'crystal', 'pulse', 'halo']
 export const DEFAULT_START_CUE = 'crystal'
 export const DEFAULT_END_CUE = 'tap'

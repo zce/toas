@@ -10,10 +10,7 @@ import {
   synthesizeCue
 } from './earcon-synthesis.js'
 
-// PipeWire is already required by Toas for pw-record. Short cues use
-// pw-play's ordinary audio stream, independently of Shell event sounds.
-// The cause of the earlier silent playback was not confirmed.
-// Each cue is one short-lived process, never a resident audio service.
+// Play recording cues with the existing PipeWire tools.
 export class EarconPlayer {
   constructor(settings) {
     this._settings = settings

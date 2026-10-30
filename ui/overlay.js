@@ -1,5 +1,3 @@
-// Voice-input state mapping stays separate from the GNOME Shell matrix view.
-
 const ERROR_HIDE_MS = 2400
 
 // Drives the injected view from voice-input states. A generation counter

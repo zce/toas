@@ -1,11 +1,9 @@
-// Final v8.7: compact 46x11 dot plate, mirrored angular braid, phosphor.
 export const RECORD_WIDTH = 164
 export const PROCESS_WIDTH = 136
 export const MATRIX_HEIGHT = 40
 export const MATRIX_STEP = 3.5
 export const MATRIX_FPS = 30
 
-const COLS = 46
 const ROWS = 11
 const HISTORY = 64
 const TAU = Math.PI * 2
