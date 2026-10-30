@@ -116,13 +116,6 @@ export class MatrixOverlayView {
 
   setMode(mode) {
     const was = this._mode
-    if (mode === 'recording' && was !== 'recording') {
-      this._signal.reset()
-      this._renderer.reset()
-      this._cancelRequested = false
-      this._hover = 0
-      this._hoverIntent.reset()
-    }
     this._mode = mode
     if (!St.Settings.get().enable_animations)
       this._signal.processMix = mode === 'busy' ? 1 : 0
