@@ -6,6 +6,7 @@
 /* --- Overlay (ui/overlay.js) ------------------------------------------------- */
 
 .toas-overlay {
+  font-family: 'Maple Mono', sans-serif;
   spacing: 8px;
   padding: 8px;
 
@@ -124,6 +125,7 @@
 }
 
 .toas-history-preview {
+  font-family: 'Maple Mono', sans-serif;
   font-size: 13px;
   font-weight: 500;
 }
@@ -179,6 +181,7 @@
  * The capsule uses CSS; Cairo paints the dot matrix.
  */
 .toas-matrix-overlay {
+  font-family: 'Maple Mono', sans-serif;
   padding: 0;
   border: none;
   border-radius: 99px;
