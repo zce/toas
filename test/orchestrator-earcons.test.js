@@ -37,13 +37,13 @@ class CueRecorder extends FakeRecorder {
   }
 }
 
-function create({ enabled = true, duration = 12 } = {}) {
+function create({ startEnabled = true, endEnabled = true, duration = 12 } = {}) {
   const recorder = new CueRecorder()
   const events = []
 
   const cues = {
     play: kind => {
-      if (!enabled) {
+      if ((kind === 'start' && !startEnabled) || (kind === 'end' && !endEnabled)) {
         return 0
       }
 
@@ -56,9 +56,10 @@ function create({ enabled = true, duration = 12 } = {}) {
   }
 
   const settings = {
-    get_boolean: key => key === 'sound-enabled' ? enabled : key === 'auto-paste',
+    get_boolean: key => key === 'auto-paste',
     get_uint: () => 600,
-    get_string: () => 'standard'
+    get_string: key => key === 'sound-start-style' ? (startEnabled ? 'crystal' : 'none') :
+      key === 'sound-end-style' ? (endEnabled ? 'tap' : 'none') : 'standard'
   }
 
   const overlay = new FakeOverlay()
@@ -105,7 +106,7 @@ test('on: cues gate capture and stop cue accompanies immediate Processing visual
 })
 
 test('off: no sound, no capture delay, and recorder starts unmuted', async () => {
-  const { orchestrator, recorder, events } = create({ enabled: false })
+  const { orchestrator, recorder, events } = create({ startEnabled: false, endEnabled: false })
 
   orchestrator.begin()
   expectEqual(recorder.mutes, [false])
@@ -174,6 +175,31 @@ test('microphone launch failure interrupts the start sound', async () => {
   expectTruthy(events.includes('cancel'))
   expectEqual(events.includes('end'), false)
 
+  orchestrator.destroy()
+})
+
+test('start can be None while stop still plays', async () => {
+  const { orchestrator, recorder, events } = create({ startEnabled: false })
+
+  orchestrator.begin()
+  expectEqual(recorder.mutes, [false])
+  await orchestrator.end()
+
+  expectEqual(events, ['end'])
+  expectEqual(recorder.unmutes, 0)
+  orchestrator.destroy()
+})
+
+test('stop can be None while start still gates capture', async () => {
+  const { orchestrator, recorder, events } = create({ endEnabled: false })
+
+  orchestrator.begin()
+  expectEqual(recorder.mutes, [true])
+  await new Promise(resolve => setTimeout(resolve, 25))
+  expectEqual(recorder.unmutes, 1)
+  await orchestrator.end()
+
+  expectEqual(events, ['start'])
   orchestrator.destroy()
 })
 
