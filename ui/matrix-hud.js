@@ -174,7 +174,7 @@ function geometry(width) {
     head: new Float32Array(size),
     tail: new Float32Array(size),
     path: [new Float32Array(cols), new Float32Array(cols)],
-    strength: [new Float32Array(cols), new Float32Array(cols)]
+    strength: new Float32Array(cols)
   }
 }
 
@@ -226,6 +226,7 @@ export class MatrixRenderer {
       const u = x / (grid.cols - 1)
       const ends = Math.min(smooth(u * 7), smooth((1 - u) * 7))
       const sample = model.past(1 + u * 13)
+      strength[x] = rec * (.65 + .45 * Math.sqrt(model.voice)) * (.64 + .36 * ends)
 
       for (let k = 0; k < 2; k++) {
         const v = k === 0 ? sample : sample * .86
@@ -238,7 +239,6 @@ export class MatrixRenderer {
         path[k][x] = mid + (k === 0 ? -1 : 1) * ends *
           (amp * contour(TAU * 1.55 * u - carrier + (k === 1 ? .12 : 0)) +
             spread * .68) * rec
-        strength[k][x] = rec * (.65 + .45 * Math.sqrt(model.voice)) * (.64 + .36 * ends)
       }
     }
 
@@ -259,11 +259,11 @@ export class MatrixRenderer {
       const col = Math.floor(i / ROWS)
       const row = i % ROWS
 
-      const da = row - path[0][col]
-      const db = row - path[1][col]
-      const one = Math.exp(-da * da / .63) * strength[0][col]
-      const two = Math.exp(-db * db / .63) * strength[1][col]
-      const current = 1 - (1 - clamp(one)) * (1 - clamp(two))
+      const upperDistance = row - path[0][col]
+      const lowerDistance = row - path[1][col]
+      const upper = Math.exp(-upperDistance * upperDistance / .63) * strength[col]
+      const lower = Math.exp(-lowerDistance * lowerDistance / .63) * strength[col]
+      const current = 1 - (1 - clamp(upper)) * (1 - clamp(lower))
 
       grid.head[i] = Math.max(grid.head[i] * headKeep, current * .75)
       grid.tail[i] = Math.max(grid.tail[i] * tailKeep, current * .84)
