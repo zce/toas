@@ -1,222 +1,138 @@
-// Faithful port of Matrix HUD v7.3's geometry and signal model.
-// Cairo and GJS are only used by the caller. All dot coordinates are logical px.
-export const RECORD_WIDTH = 174
-export const PROCESS_WIDTH = 116
-export const MATRIX_HEIGHT = 42
-export const MATRIX_STEP = 3.7
-export const MATRIX_FPS = 30
-
-const HISTORY = 48
-const TAU_RISE = 0.15
-const TAU_FALL = 0.24
-const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v))
-const ease = v => { const x = clamp(v); return x*x*(3-2*x) }
-const approach = (v, target, tau, dt) => v + (target-v)*(1-Math.exp(-dt/tau))
-
-// Fixed input reference. No automatic per-utterance normalization, FFT or
-// additional audio sampling beyond the host's existing 100 ms RMS windows.
-export function recordingLevel(rms) {
-  if (!Number.isFinite(rms)) return 0
-  return clamp(Math.sqrt(Math.max(0, rms - 0.0015) / 0.085))
+// Final v8.7: compact 46x11 dot plate, mirrored angular braid, phosphor.
+export const RECORD_WIDTH=164,PROCESS_WIDTH=136,MATRIX_HEIGHT=40,MATRIX_STEP=3.5,MATRIX_FPS=30
+const COLS=46,ROWS=11,HISTORY=64,TAU=Math.PI*2
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x))
+const smooth=x=>{const t=clamp(x);return t*t*(3-2*t)}
+const follow=(v,to,dt,tau)=>v+(to-v)*(1-Math.exp(-dt/tau))
+const rates=[.8,1.25,1.85,2.6],spatial=[1.4,2.4,3.8,5.6],coeff=[.55,.42,.3,.2]
+export const contour=p=>2/Math.PI*Math.asin(Math.sin(p))
+export class MatrixSignal{
+ constructor(){this.a=new Float32Array(HISTORY);this.b=new Float32Array(HISTORY);this.reset()}
+ reset(){
+  this.a.fill(0);this.b.fill(0);this.head=0;this.time=0;this.goal=0
+  this.voice=0;this.energy=0;this.peak=-37;this.room=-58;this.processMix=0
+  this.phase=[.1,1.7,3.3,4.6];this.phase2=[2.4,.6,5.1,1.9]
+ }
+ pushRms(rms){
+  const db=20*Math.log10(Math.max(1e-6,Number.isFinite(rms)?rms:0))
+  this.room=follow(this.room,db,.1,db<this.room?.3:6)
+  const floor=Math.max(-60,this.room)+16
+  this.peak=follow(this.peak,Math.max(floor,db),.1,db>this.peak?.04:3)
+  this.peak=Math.max(floor,this.peak)
+  const lower=Math.max(Math.max(-60,this.room)+5,this.peak-24)
+  this.goal=clamp((db-lower)/Math.max(1,this.peak-lower))
+  this.a[this.head]=this.goal;this.b[this.head]=this.goal*.86
+  this.head=(this.head+1)%HISTORY
+ }
+ past(history,age){
+  const p=clamp(age,0,HISTORY-2),i=Math.floor(p),f=p-i
+  const a=(this.head-1-i+HISTORY)%HISTORY,b=(a-1+HISTORY)%HISTORY
+  return history[a]*(1-f)+history[b]*f
+ }
+ advance(dt,mode){
+  if(!Number.isFinite(dt)||dt<=0)return
+  const h=Math.min(.08,dt),voice=mode==='recording',busy=mode==='busy'
+  this.time+=h
+  const target=voice?this.goal:0
+  this.voice=follow(this.voice,target,h,target>this.voice?.04:.12)
+  this.energy=follow(this.energy,this.voice*this.voice*1.8,h,1.6)
+  const rate=voice?1:busy?.15:0,speed=this.voice*.7+.58
+  for(let i=0;i<4;i++){
+   this.phase[i]+=h*TAU*rates[i]*speed*rate
+   this.phase2[i]+=h*TAU*rates[i]*speed*.96*rate
+  }
+  this.processMix=follow(this.processMix,busy?1:0,h,.22)
+ }
 }
-
-// A new HUD appearing under an idle mouse must NOT immediately show CANCEL.
 export class MatrixHoverIntent {
-  constructor() { this.reset() }
-  reset(x = null, y = null) { this.active = false; this.x = x; this.y = y }
-  move(x, y) {
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return
-    if (this.x === null || this.y === null) { this.x = x; this.y = y }
-    else if (Math.hypot(x-this.x, y-this.y) >= 3) this.active = true
-  }
+ constructor(){this.reset()}
+ reset(x=null,y=null){this.active=false;this.x=x;this.y=y}
+ move(x,y){
+  if(!Number.isFinite(x)||!Number.isFinite(y))return
+  if(this.x===null||this.y===null){this.x=x;this.y=y}
+  else if(Math.hypot(x-this.x,y-this.y)>=3)this.active=true
+ }
 }
-
-function hash(i, salt) {
-  let x = Math.imul((i|0) ^ (salt*1664525), 0x45d9f3b)
-  x ^= x >>> 16
-  x = Math.imul(x, 0x45d9f3b)
-  x ^= x >>> 16
-  return (x >>> 0)/2147483647-1
+const letters={C:['0111','1000','1000','1000','0111'],A:['0110','1001','1111','1001','1001'],N:['1001','1101','1011','1001','1001'],E:['1111','1000','1110','1000','1111'],L:['1000','1000','1000','1000','1111']}
+function geometry(width){
+ const size=COLS*ROWS,xy=new Float32Array(size*2),edge=new Float32Array(size),glyph=new Uint8Array(size)
+ const ox=width/2-(COLS-1)*MATRIX_STEP/2,oy=MATRIX_HEIGHT/2-(ROWS-1)*MATRIX_STEP/2
+ for(let x=0;x<COLS;x++)for(let y=0;y<ROWS;y++){
+  const n=x*ROWS+y,px=ox+x*MATRIX_STEP,py=oy+y*MATRIX_STEP
+  const dx=Math.max(0,Math.abs(px-width/2)-(width-MATRIX_HEIGHT)/2)
+  const signed=MATRIX_HEIGHT/2-Math.hypot(dx,py-MATRIX_HEIGHT/2)
+  xy[n*2]=px;xy[n*2+1]=py
+  edge[n]=smooth((signed-1.1)/4.8)*(1-.55*smooth((Math.abs(py-MATRIX_HEIGHT/2)/(MATRIX_HEIGHT/2)-.37)/.63))
+ }
+ const left=Math.floor((COLS-29)/2),top=Math.floor((ROWS-5)/2)
+ for(let k=0;k<6;k++)for(let y=0;y<5;y++)for(let x=0;x<4;x++)if(letters['CANCEL'[k]][y][x]==='1')glyph[(left+k*5+x)*ROWS+(top+y)]=1
+ return {width,xy,edge,glyph,head:new Float32Array(size),tail:new Float32Array(size),path:[new Float32Array(COLS),new Float32Array(COLS)],strength:[new Float32Array(COLS),new Float32Array(COLS)]}
 }
-function smoothNoise(x, salt) {
-  const i = Math.floor(x), f = x-i, k = ease(f)
-  return hash(i,salt)*(1-k) + hash(i+1,salt)*k
-}
-
-export class MatrixSignal {
-  constructor() { this.history = new Float32Array(HISTORY); this.reset() }
-  reset() {
-    this.history.fill(0)
-    this.time = 0
-    this.sampleAt = 0
-    this.signal = 0.06
-    this.target = 0.06
-    this.processMix = 0
-    this.mode = 'recording'
+const base=[135/255,192/255,1],core=[229/255,242/255,1],amber=[216/255,154/255,121/255]
+export class MatrixRenderer{
+ constructor(){this.cache=new Map();this.temporary=null}
+ _grid(w){
+  const width=Math.max(40,Math.round(w))
+  if(width===RECORD_WIDTH||width===PROCESS_WIDTH){
+   if(!this.cache.has(width))this.cache.set(width,geometry(width))
+   return this.cache.get(width)
   }
-  pushRms(rms) {
-    const level = recordingLevel(rms)
-    this.history.copyWithin(0,1)
-    this.history[HISTORY-1] = level
-    this.target = level
-    this.sampleAt = this.time
+  if(this.temporary?.width!==width)this.temporary=geometry(width)
+  return this.temporary
+ }
+ paint(cr,width,height,model,hover=0,exit=0){
+  if(width<=0||height<=0)return 0
+  const grid=this._grid(width),{xy,edge,glyph,path,strength}=grid
+  const rec=1-model.processMix,work=model.processMix,t=model.time
+  const amp=.75*(.55+.35*(.5+.5*Math.sin(t*TAU/5.5)))+3.85*Math.pow(model.voice,.63)
+  const carrier=t*TAU*.17,mid=(ROWS-1)/2
+  for(let x=0;x<COLS;x++){
+   const u=x/(COLS-1),ends=Math.min(smooth(u*7),smooth((1-u)*7))
+   for(let k=0;k<2;k++){
+    const history=k===0?model.a:model.b,phases=k===0?model.phase:model.phase2
+    const v=model.past(history,1+u*13)
+    let spread=0
+    for(let j=0;j<4;j++)spread+=coeff[j]*Math.sin(TAU*spatial[j]*u-phases[j])*v
+    path[k][x]=mid+(k===0?-1:1)*ends*(amp*contour(TAU*1.55*u-carrier+(k===1?.12:0))+spread*2.05)*rec
+    strength[k][x]=rec*(.61+.69*Math.sqrt(model.voice))*(.64+.36*ends)
+   }
   }
-  advance(dt, mode) {
-    if (!Number.isFinite(dt) || dt <= 0) return
-    const step = Math.min(dt, 0.075)
-    this.time += step
-    this.mode = mode
-    this.signal = approach(this.signal, mode === 'recording' ? this.target : 0,
-      this.signal < this.target ? TAU_RISE : TAU_FALL, step)
-    this.processMix = approach(this.processMix, mode === 'recording' ? 0 : 1,
-      mode === 'recording' ? 0.16 : 0.18, step)
+  const headKeep=Math.exp(-1/(MATRIX_FPS*.15)),tailKeep=Math.exp(-1/(MATRIX_FPS*.6))
+  const beam=(((t*.64)%1.42)-.19)*grid.width,morph=smooth(hover)
+  let count=0
+  for(let i=0;i<edge.length;i++){
+   const mask=edge[i];if(mask<=.015)continue
+   const x=xy[2*i],y=xy[2*i+1],col=Math.floor(i/ROWS),row=i%ROWS
+   const da=row-path[0][col],db=row-path[1][col]
+   const one=Math.exp(-da*da/.63)*strength[0][col],two=Math.exp(-db*db/.63)*strength[1][col]
+   const current=1-(1-clamp(one))*(1-clamp(two))
+   grid.head[i]=Math.max(grid.head[i]*headKeep,current*.75)
+   grid.tail[i]=Math.max(grid.tail[i]*tailKeep,current*.84)
+   const glow=Math.max(current,grid.head[i],grid.tail[i]*.43)
+   const pass=Math.exp(-Math.pow((x-beam)/10,2))*1.35
+   const center=Math.exp(-Math.pow((y-MATRIX_HEIGHT/2)/4.7,2))
+   const working=clamp((.10+.12*Math.pow(Math.sin(TAU*1.25*x/grid.width-carrier),2)+pass)*center)
+   let power=(glow*rec+working*work)*(1-.58*smooth(exit))
+   power=power*(1-morph)+(glyph[i]?.98:.015)*morph
+   const val=clamp(power),fresh=current/(glow+.0001)
+   const radius=MATRIX_STEP*(.24+.20*Math.pow(val,.62))
+   const alpha=(.077*(1-.65*smooth(Math.abs(y-MATRIX_HEIGHT/2)/(MATRIX_HEIGHT/2)))+.923*Math.pow(val,.78))*mask
+   if(alpha<.009)continue
+   const bright=Math.min(.97,val*val*1.15)*(.34+.66*clamp(fresh))
+   const warning=morph*(glyph[i]?.88:.10)
+   const red=(base[0]*(1-bright)+core[0]*bright)*(1-warning)+amber[0]*warning
+   const green=(base[1]*(1-bright)+core[1]*bright)*(1-warning)+amber[1]*warning
+   const blue=(base[2]*(1-bright)+core[2]*bright)*(1-warning)+amber[2]*warning
+   if(val>.08){cr.setSourceRGBA(red,green,blue,.12*val*val*mask);cr.arc(x,y,radius*1.7,0,TAU);cr.fill()}
+   cr.setSourceRGBA(red,green,blue,alpha);cr.arc(x,y,radius,0,TAU);cr.fill()
+   count++
   }
-  _historyAt(index) {
-    const x = clamp(index, 0, HISTORY-1), i = Math.floor(x), f = x-i
-    const a = this.history[Math.max(0,i-1)], b = this.history[i]
-    const c = this.history[Math.min(HISTORY-1,i+1)], d = this.history[Math.min(HISTORY-1,i+2)]
-    const m1 = .33*(c-a), m2 = .33*(d-b), f2 = f*f, f3 = f2*f
-    return clamp((2*f3-3*f2+1)*b+(f3-2*f2+f)*m1+(-2*f3+3*f2)*c+(f3-f2)*m2)
-  }
-  audioHistory(u) {
-    // New RMS samples enter on the LEFT, old samples advance to the RIGHT.
-    const age = 1+clamp(u)*13-clamp((this.time-this.sampleAt)/.1,0,1)
-    const i = HISTORY-1-age
-    return (this._historyAt(i-1)+2*this._historyAt(i)+this._historyAt(i+1))*.25
-  }
-}
-
-const GLYPHS = {
-  C:['01110','10001','10000','10000','10000','10001','01110'],
-  A:['01110','10001','10001','11111','10001','10001','10001'],
-  N:['10001','11001','10101','10101','10011','10001','10001'],
-  E:['11111','10000','10000','11110','10000','10000','11111'],
-  L:['10000','10000','10000','10000','10000','10000','11111']
-}
-function dot(cr, x, y, radius, alpha, warning = false) {
-  if (alpha < 0.016) return false
-  if (warning) cr.setSourceRGBA(216/255,154/255,121/255,clamp(alpha))
-  else cr.setSourceRGBA(238/255,239/255,245/255,clamp(alpha))
-  cr.arc(x,y,radius,0,Math.PI*2)
-  cr.fill()
-  return true
-}
-function drawCancel(cr, w, h, amount) {
-  if (amount < .014) return
-  const pitch = Math.min(2.05,w*.52/35)
-  const left = (w-35*pitch)/2+pitch/2
-  const top = h/2-3*pitch
-  for (let i=0; i<6; i++) {
-    const glyph = GLYPHS['CANCEL'[i]]
-    for (let row=0; row<7; row++) for (let col=0; col<5; col++) {
-      if (glyph[row][col] === '1')
-        dot(cr,left+(i*6+col)*pitch,top+row*pitch,Math.max(.55,pitch*.33),amount*.82,true)
-    }
-  }
-}
-
-function geometry(w, h) {
-  const cols = Math.max(2,Math.floor(w/MATRIX_STEP)), rows = Math.max(2,Math.floor(h/MATRIX_STEP))
-  const capacity = cols*rows
-  const xs = new Float32Array(capacity), ys = new Float32Array(capacity), edges = new Float32Array(capacity)
-  const x0 = (w-(cols-1)*MATRIX_STEP)/2, y0 = (h-(rows-1)*MATRIX_STEP)/2
-  const rad = h/2, straight = Math.max(0,(w-h)/2)
-  let k=0
-  for(let col=0;col<cols;col++)for(let row=0;row<rows;row++){
-    const x=x0+col*MATRIX_STEP,y=y0+row*MATRIX_STEP
-    const dx=Math.max(0,Math.abs(x-w/2)-straight)
-    const inset=rad-Math.hypot(dx,y-h/2)
-    // Soft internal shadow: even the outer dot rows remain slightly visible.
-    const rim=inset<=0?0:ease(inset/1.4)*(.38+.62*ease(inset/8))
-    xs[k]=x;ys[k]=y;edges[k]=rim*(.60+.40*ease(Math.min(x,w-x)/13));k++
-  }
-  return {width:w,height:h,cols,rows,capacity,xs,ys,edges,
-    a:new Float32Array(cols),b:new Float32Array(cols),c:new Float32Array(cols),
-    outerX:new Float32Array(cols),innerX:new Float32Array(cols),trailX:new Float32Array(cols),
-    outerY:new Float32Array(rows),innerY:new Float32Array(rows),trailY:new Float32Array(rows)}
-}
-
-export class MatrixRenderer {
-  constructor() { this._cache = new Map(); this._temporary = null }
-  _grid(w,h) {
-    const width = Math.max(20,Math.round(w)), height = Math.round(h)
-    const stable = (width === RECORD_WIDTH || width === PROCESS_WIDTH) && height === MATRIX_HEIGHT
-    const key = width
-    if (stable && this._cache.has(key)) return this._cache.get(key)
-    if (!stable && this._temporary?.width === width && this._temporary?.height === height) return this._temporary
-    const g = geometry(width,height)
-    if (stable) this._cache.set(key,g)
-    else this._temporary = g // one entry, not a cache of every transition width
-    return g
-  }
-  paint(cr,w,h,model,hover=0) {
-    if (w<=0 || h<=0) return 0
-    const grid=this._grid(w,h)
-    const {xs,ys,edges,cols,rows,a,b,c,outerX,innerX,trailX,outerY,innerY,trailY}=grid
-    const center=grid.height/2, t=model.time, mix=model.processMix
-    const recording=1-mix, normal=1-hover*.94
-    const presence=ease(model.signal/.3), field=.27+.30*presence
-    const driftY=.23*smoothNoise(t*.19,271)
-    const packetCenter=grid.width/2+6*smoothNoise(t*.24,415)
-    const breath=.95+.17*Math.sin(t*2.08)
-    const innerBreath=.98-.09*Math.sin(t*2.08+.8)
-    const packetLight=.91+.09*Math.sin(t*2.08-.3)
-    const base=.075+mix*.010
-    for(let col=0;col<cols;col++){
-      const x=xs[col*rows],u=x/grid.width
-      if(recording>.005){
-        const position=col/(cols-1)
-        const anchored=Math.pow(Math.sin(Math.PI*position),1.5)
-        const local=clamp(.25*model.signal+.75*model.audioHistory(u))
-        const amp=2.4+10.8*Math.pow(local,.74)
-        const phase=u*10.3-t*.68+.48*smoothNoise(u*1.45-t*.17,17)
-          +.18*smoothNoise(u*2.8-t*.14,91)+.20*(local-model.signal)
-        const wav=Math.sin(phase), float=.42*smoothNoise(u*1.1+t*.12,383)
-        a[col]=center+anchored*(driftY+float+amp*wav)
-        b[col]=center+anchored*(driftY+float-amp*Math.sin(phase+.16))
-        c[col]=center+anchored*(driftY*.7+amp*.64*Math.sin(phase+1.53))
-      }
-      if(mix>.005){
-        outerX[col]=Math.abs(x-packetCenter)/(22*breath)
-        innerX[col]=Math.abs(x-packetCenter)/(10*innerBreath)
-        trailX[col]=Math.abs(x-(packetCenter-10))/28
-      }
-    }
-    if(mix>.005)for(let row=0;row<rows;row++){
-      const y=Math.abs(ys[row]-center)
-      outerY[row]=y/(10.8*breath)
-      innerY[row]=y/(5.2*innerBreath)
-      trailY[row]=y/11
-    }
-    let painted=0
-    for(let col=0;col<cols;col++)for(let row=0;row<rows;row++){
-      const i=col*rows+row, edge=edges[i]
-      if(edge<.008)continue
-      const y=ys[i]
-      let wave=0,packet=0
-      if(recording>.005){
-        const da=(y-a[col])/1.7, db=(y-b[col])/1.7, dc=(y-c[col])/1.9
-        wave=Math.max(Math.exp(-.5*da*da),.92*Math.exp(-.5*db*db),.24*Math.exp(-.5*dc*dc))
-      }
-      if(mix>.005){
-        const outer=outerX[col]+outerY[row], inner=innerX[col]+innerY[row], trail=trailX[col]+trailY[row]
-        const shell=Math.exp(-.5*((outer-.98)/.20)**2)
-        const core=Math.exp(-.5*((inner-.87)/.24)**2)
-        const balance=.67+.33*ease(Math.abs(y-center)/7.7)
-        packet=packetLight*(.74*shell*balance+.21*core+.02*ease((1.05-trail)/.68))
-      }
-      const light=clamp((base+normal*(recording*field*wave+mix*packet))*edge)
-      if(dot(cr,xs[i],y,1.06,light))painted++
-    }
-    drawCancel(cr,grid.width,grid.height,hover)
-    return painted
-  }
-  paintSurface(cr,pixelWidth,pixelHeight,logicalWidth,model,hover=0) {
-    if(pixelWidth<=0 || pixelHeight<=0 || logicalWidth<=0) return 0
-    const scale=pixelWidth/logicalWidth
-    cr.scale(scale,scale)
-    return this.paint(cr,pixelWidth/scale,pixelHeight/scale,model,hover)
-  }
-  getCacheSize() { return this._cache.size }
-  clear() { this._cache.clear(); this._temporary=null }
+  return count
+ }
+ paintSurface(cr,pw,ph,lw,model,hover=0,exit=0){
+  if(pw<=0||ph<=0||lw<=0)return 0
+  const scale=pw/lw;cr.scale(scale,scale)
+  return this.paint(cr,pw/scale,ph/scale,model,hover,exit)
+ }
+ clear(){this.cache.clear();this.temporary=null}
 }

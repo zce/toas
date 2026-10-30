@@ -1,79 +1,106 @@
-# Matrix HUD · v7.3 GNOME Shell port
+# Toas Matrix HUD · final v8.7 port
 
-This branch runs the **Matrix HUD directly**. There is no feature flag and no
-alternate Shell HUD to maintain. Its visual reference is the user-approved
-`toas-matrix-v7.3.html` prototype, specifically its 1× rendering.
+This branch directly replaces the old HUD with the accepted interactive
+`toas-matrix-v8.7-timing.html` design. There are **no visual feature flags**.
 
-## Fidelity contract
+## Visual specification
 
-| Motion / geometry | GNOME implementation |
-| --- | --- |
-| Recording | 174 × 42 px, 3.7px pitch, exactly 47 columns × 11 rows |
-| Voice feedback | Existing 100ms raw RMS; fixed-range sqrt mapping; 48-sample history |
-| Wave motion | Time-interpolated, left→right history and shared band-limited phase |
-| Anchors | Raised-sine window, all three curve endpoints on vertical midpoint |
-| Edge shadow | Rounded-capsule signed distance with softened top/bottom rows |
-| Processing | 116 × 42px; two stretched hollow diamonds with opposing breath |
-| Hover | Soft amber dot-matrix CANCEL only after fresh pointer movement |
-| Entry | Expand from 76px with native 310ms easing |
-| Completion | Continue diamond breathing during 570ms contraction/fade |
-| Cancel | 320ms fade and immediate input disable |
-| Errors | Readable error message, unchanged presenter error handling |
+- **Recording:** 164×40 logical px capsule, 46×11 dots at 3.5px pitch.
+  Two reflected **angular / folded-triangle** voices with 4 harmonics
+  each; a shared carrier, 100ms RMS history, adaptive display gain, and
+  short phosphor tails. No freestanding lines, icons, or text.
+- **Processing:** 136×40 logical px. A luminous point packet travels
+  horizontally through the same dot plate, with a smooth transition from
+  the recording signal. No alternate geometry or diamond layer.
+- **Hover:** 63 cells of the **existing 4×5 lattice** morph into a small
+  amber CANCEL. Exactly the same glyph size in both stages, no extra label.
+  Only a genuine new pointer move triggers it.
+- **End:** the simpler approved finish, **tight contraction + fade**
+  (400ms), without outward wipe or independent clear fronts.
+- **Cancel:** short fade, **no end sound**. The full capsule remains
+  clickable. Errors retain their readable message.
+- **Color:** the approved blue/ice-white gradient; background dots stay
+  dim and interior edges soften naturally.
 
-No separate lines or icons are drawn; all visible waves, diamonds, and
-the CANCEL label are individual Cairo dots. The top-bar status and privacy
-indicator are unchanged. The completion animation is the **successful
-busy→idle** exit; failure does not misleadingly show a success animation.
+## Recording sounds
 
-## Installation and rollback
+Preferences → **Voice Input → Recording sounds**: enabled by default.
+Users can select start and stop cue styles **independently** from Tap,
+Crystal, Pulse, and Halo. Defaults are **Crystal** start and **Tap** stop.
+These are the eight original short v8.7 sound designs, synthesized to
+tiny PCM WAV files in the app's cache on extension enable and played
+through Mutter's built-in native sound player. No new persistent audio
+service, external process, or always-running mixer.
+
+**Timing contract:**
+1. The HUD begins entering when recording is requested and the start
+   cue plays immediately.
+2. The regular `pw-record` process is started immediately, but its PCM
+   data and RMS levels are **discarded** during the start cue and a
+   70ms safety interval. Once the gate opens, only newly read PCM enters
+   the WAV file. This is a practical software guard, not a guarantee
+   against every acoustic echo or unusually delayed PipeWire buffer.
+3. Normal stop closes the PCM gate **before SIGINT**, then emits the
+   stop cue without waiting for transcription. A short tap that stops
+   before the gate opens is discarded silently.
+4. Cancel and errors do not emit a normal stop cue; pending start audio
+   is cancelled. The setting is read at each playback, so disabling it
+   takes effect without extension reload.
+
+The cue WAV cache is removed by `docs/uninstall.sh`. If the user cache
+or Mutter sound player is unavailable, cue initialization fails open:
+recording continues with sound disabled.
+
+## Runtime cost and validation
+
+- One `St.DrawingArea`, one GLib 30 FPS timeout while HUD is visible,
+  zero ongoing idle timer. Static grid geometry, edge fade, and dot buffers
+  are reused at normal recording/processing widths.
+- Only the existing audio recorder's 100ms RMS readings are consumed.
+  No FFT, new capture source, GPU shader, backend or permanent process.
+- Correct 1×/2× logical dot count and Cairo context disposal on every
+  repaint. Reduced-motion mode disables periodic animation.
+- Pure renderer: seven regression tests (dimensions, contour, equal CANCEL
+  glyph, RMS behavior, pointer reset, HiDPI, and simple exit).
+- Earcon synthesis: eight WAV variants, header/length and level checks.
+- Audio gate: test verifies muted data is never written; stop closes
+  its gate before signalling `pw-record`.
+- Mocked orchestrator test verifies start gate timing, normal stop cue,
+  cancellation, and cleanup.
+
+**Still required:** hands-on Fedora GNOME 50 check of exact motion
+fidelity, real audio output latency, device echo, scale factors, and
+GNOME Shell CPU. Pure JavaScript tests cannot substitute for those.
+Keep this PR Draft until accepted.
+
+## Install and rollback
 
 ```sh
 git switch feat/matrix-hud-preview
 ./install.sh
 ```
 
-The new HUD is enabled immediately. To restore the original, reinstall
-`main` using the same script.
+No setting or restart needed to activate the new visual. For the old
+HUD, install `main` again. Preferences can change the sound switch and
+both sound styles at any time.
 
-## Performance design
+## Fedora acceptance checklist
 
-- A single `St.DrawingArea` and one GLib timeout during active recording,
-  processing, or a finishing transition: **maximum 30 FPS**. No idle loop.
-- Default recording geometry contains 517 dot positions; about 490 lie
-  within the softly masked capsule. Processing draws fewer.
-- Static dot coordinates, edge alpha, and typed curve work buffers are
-  cached for the two stable widths. Only one temporary transition geometry
-  is kept. Cache is released on extension teardown.
-- Curve positions and diamond distance profiles are calculated **once per
-  column/row**, not independently for each dot.
-- Reuse the recorder's existing 100ms RMS events. No FFT, audio changes,
-  shader, additional service or external library.
-- The Cairo context is explicitly disposed after each paint; backing-surface
-  scaling does not multiply the logical grid point count.
-- If GNOME animations are disabled, the periodic timer is not started;
-  recording refreshes only on RMS events, and Processing is static.
-
-A pure-JavaScript fake-Cairo benchmark may help catch regressions, but is
-**not** a measurement of GNOME Shell's compositor, texture upload, or real
-user-session CPU usage. Keep this PR as Draft until Fedora validation.
-
-## Fedora acceptance
-
-1. Compare the HUD beside v7.3 HTML at **1× actual size**, especially the
-   anchored ends, three smooth strands, faint top/bottom dot rows, Processing
-   diamonds and the final contraction/fade.
-2. Record for 30+ seconds, vary microphone distance and volume, and check
-   that syllables change the *vertical* profile, not only luminance.
-3. Finish a run and record again with the mouse unmoved. CANCEL must stay
-   hidden until new mouse movement. Clicking the whole HUD must cancel.
-4. Check the Processing state for long and short transcriptions; ensure the
-   animation runs until the overlay completely disappears.
-5. Trigger an error, disable the extension mid-recording, and turn off Shell
-   animations; ensure no stuck timer, actor, or inaccessible error.
-6. Test fractional monitor scaling and multiple monitors. There should be
-   the same logical number of dots at 1× and 2×.
-7. Compare `gnome-shell` CPU against `main` during a 30-second recording
-   and a long Processing phase; look for skipped frames and memory growth.
-   **Target**: negligible idle overhead and preferably < 5 percentage points
-   of one CPU core incremental load. These are review gates, not measured
-   results.
+1. Record with the built-in mic and at 50% / 100% system input gain.
+   Confirm angular waves move vertically, with no repeating hollow
+   oval patterns.
+2. Observe the smaller Processing HUD and hover it: CANCEL must not
+   change font size; first show after an unmoved pointer must not show it.
+3. Record for 30s, allow Processing to finish, and confirm the tight
+   400ms exit, with no animation/CPU work left afterward.
+4. Hear start sound as the HUD appears. Measure whether any start tone
+   enters the written WAV; test speakers, headphones, and Bluetooth
+   devices, as latency varies.
+5. Stop normally: audio should cease accepting PCM before the stop
+   sound plays. Cancel in both recording and Processing: **silent**.
+6. Turn off Recording sounds in Preferences, then test start/stop.
+   Switch styles and compare all eight options.
+7. Repeat sessions quickly, including cancelling during the start cue.
+   Confirm no stuck recording gate or leaked GLib timeout.
+8. Disable the extension mid-recording, turn off GNOME animations, and
+   test fractional scaling, multi-monitor placement and CPU overhead.

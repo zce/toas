@@ -16,6 +16,7 @@ import { ToasIndicator } from './ui/indicator.js'
 import { ShellNotifier } from './ui/notifier.js'
 import { ToasOverlayPresenter } from './ui/overlay.js'
 import { MatrixOverlayView } from './ui/matrix-overlay.js'
+import { EarconPlayer } from './host/earcons.js'
 
 // Composition root: builds the collaborator graph on enable and tears it
 // down completely on disable.
@@ -50,6 +51,14 @@ export default class ToasExtension extends Extension {
       this._overlay = new ToasOverlayPresenter({ view: new MatrixOverlayView() })
       this._kernelRunner = new KernelRunner({ settings: this._settings })
       this._output = new TextPaster(this._settings)
+      try {
+        this._earcons = new EarconPlayer(this._settings)
+      } catch (error) {
+        // Audio cues are cosmetic: a missing sound backend or unwritable
+        // cache must never stop voice capture from starting.
+        console.warn(`[toas] Recording sounds unavailable: ${error.message}`)
+        this._earcons = null
+      }
 
       this._orchestrator = new ToasOrchestrator({
         settings: this._settings,
@@ -58,6 +67,7 @@ export default class ToasExtension extends Extension {
         output: this._output,
         overlay: this._overlay,
         notifier,
+        cues: this._earcons,
         onStateChanged: (state, message) => this._indicator?.render(state, message)
       })
 
@@ -133,6 +143,8 @@ export default class ToasExtension extends Extension {
 
     this._overlay?.destroy()
     this._overlay = null
+    this._earcons?.destroy()
+    this._earcons = null
 
     this._indicator?.destroy()
     this._indicator = null

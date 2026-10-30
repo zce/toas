@@ -171,12 +171,36 @@ function buildInputGroup(settings) {
     subtitle: 'Restore previous clipboard text after fallback paste. Direct insertion and copying are unaffected.'
   })
   settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
+
+  const cueEnabled = new Adw.SwitchRow({
+    title: 'Recording sounds',
+    subtitle: 'Play short cues on recording start and normal stop. Cancel stays silent.'
+  })
+  settings.bind('sound-enabled', cueEnabled, 'active', Gio.SettingsBindFlags.DEFAULT)
+
+  const cueOptions = ['tap', 'crystal', 'pulse', 'halo']
+  const cueLabels = ['Tap', 'Crystal', 'Pulse', 'Halo']
+  const soundRow = (kind, title) => {
+    const key = `sound-${kind}-style`
+    const row = new Adw.ComboRow({
+      title,
+      model: Gtk.StringList.new(cueLabels),
+      selected: Math.max(0, cueOptions.indexOf(settings.get_string(key)))
+    })
+    row.connect('notify::selected', () => settings.set_string(key, cueOptions[row.selected]))
+    settings.bind('sound-enabled', row, 'sensitive', Gio.SettingsBindFlags.GET)
+    return row
+  }
+
   // Restoring only makes sense when results are inserted automatically.
   settings.bind('auto-paste', restoreClipboard, 'visible', Gio.SettingsBindFlags.GET)
 
   group.add(shortcutRow)
   group.add(autoInsert)
   group.add(restoreClipboard)
+  group.add(cueEnabled)
+  group.add(soundRow('start', 'Start sound'))
+  group.add(soundRow('end', 'Stop sound'))
   return group
 }
 

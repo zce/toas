@@ -9,9 +9,9 @@ import { calculateOverlayPosition, selectMonitor } from './placement.js'
 import { MATRIX_FPS, MATRIX_HEIGHT, PROCESS_WIDTH, RECORD_WIDTH, MatrixHoverIntent, MatrixRenderer, MatrixSignal } from './matrix-hud.js'
 
 const BOTTOM_MARGIN = 112
-const ENTER_MS = 310
-const COMPLETE_MS = 570
-const CANCEL_MS = 320
+const ENTER_MS = 370
+const COMPLETE_MS = 400
+const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
 
 // The matrix *view* for ToasOverlayPresenter. No change to
@@ -24,6 +24,9 @@ export class MatrixOverlayView {
     this._hoverIntent = new MatrixHoverIntent()
     this._timer = 0
     this._cancelRequested = false
+    this._exitStarted = 0
+    this._exitDuration = COMPLETE_MS
+    this._exitProgress = 0
     this._mode = 'hidden'
     this._monitorIndex = null
     this._compositingHeld = false
@@ -169,7 +172,7 @@ export class MatrixOverlayView {
     // In GNOME's reduced-motion mode there is no interpolation timer. Levels
     // still update only on the existing 100 ms capture window.
     if (!St.Settings.get().enable_animations) {
-      this._signal.signal = this._signal.target
+      this._signal.voice = this._signal.goal
       this._matrix.queue_repaint()
     }
   }
@@ -181,6 +184,7 @@ export class MatrixOverlayView {
       this._hover = 0
     }
     this._hiding = false
+    this._exitProgress = 0
     this._overlay.remove_all_transitions()
     this._acquireCompositing()
     this._reposition()
@@ -191,7 +195,7 @@ export class MatrixOverlayView {
       if (enteringMatrix && St.Settings.get().enable_animations) {
         // The dots expand with the capsule, rather than appearing in an
         // already-full-width box. Only the normal compositor is animated.
-        this._matrix.width = 76
+        this._matrix.width = 34
       }
       this._overlay.show()
       if (St.Settings.get().enable_animations) {
@@ -227,21 +231,31 @@ export class MatrixOverlayView {
     this._hoverIntent.reset()
     this._overlay.remove_all_transitions()
     this._matrix.remove_all_transitions()
-    if (!St.Settings.get().enable_animations) { this._finishHide(); return }
-    const completed = this._mode === 'busy' && !this._cancelRequested
-    const duration = completed ? COMPLETE_MS : this._cancelRequested ? CANCEL_MS : ERROR_EXIT_MS
-    if (completed && this._matrix.visible) {
-      // Continue painting the breathing diamond as it contracts.
-      this._matrix.ease({ width: Math.round(PROCESS_WIDTH * .65),
-        duration, mode: Clutter.AnimationMode.EASE_IN_OUT_SINE })
+    if (!St.Settings.get().enable_animations) {
+      this._finishHide()
+      return
+    }
+
+    this._exitDuration = this._cancelRequested ? CANCEL_MS :
+      this._mode === 'busy' ? COMPLETE_MS : ERROR_EXIT_MS
+    this._exitStarted = GLib.get_monotonic_time()
+
+    // Approved exit: contraction and fade only. No outward wipe or extra
+    // renderer animation: one matched compositor transition.
+    if (this._matrix.visible) {
+      this._matrix.ease({
+        width: 46,
+        duration: this._exitDuration,
+        mode: Clutter.AnimationMode.EASE_IN_OUT_SINE
+      })
     }
     this._overlay.ease({
       opacity: 0,
-      // v7.3 holds the completed diamond briefly before fading it away.
-      delay: completed ? 100 : 0,
-      duration: completed ? duration - 100 : duration,
+      duration: this._exitDuration,
       mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-      onStopped: () => { if (this._hiding && !this._destroyed) this._finishHide() }
+      onStopped: () => {
+        if (this._hiding && !this._destroyed) this._finishHide()
+      }
     })
   }
 
@@ -252,6 +266,7 @@ export class MatrixOverlayView {
     this._hover = 0
     this._hoverIntent.reset()
     this._cancelRequested = false
+    this._exitProgress = 0
     this._hiding = false
     this._releaseCompositing()
   }
@@ -269,6 +284,10 @@ export class MatrixOverlayView {
       const dt = Math.min(0.1, (now - previous)/1000000)
       previous = now
       this._signal.advance(dt, this._mode)
+      if (this._hiding) {
+        this._exitProgress = Math.min(1, (now - this._exitStarted) /
+          (this._exitDuration * 1000))
+      }
       const targetHover = !this._hiding && this._hoverIntent.active ? 1 : 0
       this._hover += (targetHover - this._hover)*(1-Math.exp(-dt/.105))
       this._matrix.queue_repaint()
@@ -288,7 +307,8 @@ export class MatrixOverlayView {
     const cr = area.get_context()
     try {
       const [w,h] = area.get_surface_size()
-      this._renderer.paintSurface(cr,w,h,area.get_width(),this._signal,this._hover)
+      this._renderer.paintSurface(cr,w,h,area.get_width(),this._signal,
+        this._hover,this._exitProgress)
     } finally {
       // St.DrawingArea's Cairo context must be explicitly disposed in GJS.
       cr.$dispose()

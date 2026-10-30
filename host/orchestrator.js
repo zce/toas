@@ -9,7 +9,7 @@ import { AttemptSignal } from './transport.js'
 // takes them over; every asynchronous step re-checks that the run is still
 // the live one before touching state.
 export class ToasOrchestrator {
-  constructor({ settings, history, kernel, output, overlay, notifier, recorderFactory = null, onStateChanged = null }) {
+  constructor({ settings, history, kernel, output, overlay, notifier, recorderFactory = null, onStateChanged = null, cues = null }) {
     this._settings = settings
     this._history = history
     this._kernel = kernel
@@ -17,6 +17,7 @@ export class ToasOrchestrator {
     this._overlay = overlay
     this._notifier = notifier
     this._onStateChanged = onStateChanged
+    this._cues = cues
 
     const missing = [
       ['history', history],
@@ -55,11 +56,16 @@ export class ToasOrchestrator {
       recorder: null,
       recording: null,
       ownsRecording: false,
-      result: null
+      result: null,
+      gateId: 0,
+      captureStarted: false
     }
 
     this._overlay.setMonitor(this._output.getFocusedMonitorIndex())
     this._overlay.setPrivate(run.private)
+    const cueEnabled = Boolean(this._cues && this._settings?.get_boolean('sound-enabled'))
+    // Construct the recorder before the UI and sound are activated. If this
+    // fails, no start cue or visible recording state is left behind.
     run.recorder = this._recorderFactory({
       recordingsDirectory: this._history.recordingsDirectory,
       onLevel: level => {
@@ -69,13 +75,31 @@ export class ToasOrchestrator {
       },
       onError: error => this._failLive(run, 'recording', error),
       sampleRate: resolveSampleRate(this._settings ?? {}),
-      minimumDurationMs: resolveMinimumRecordingDuration(this._settings ?? {})
+      minimumDurationMs: resolveMinimumRecordingDuration(this._settings ?? {}),
+      captureInitiallyMuted: cueEnabled
     })
 
     this._run = run
     this._overlay.resetLevels()
     this._transition('recording')
+    // Start cue and visual entry share the same turn. Discard microphone PCM
+    // until the cue and hardware buffer allowance have elapsed.
+    const gateMs = cueEnabled ? this._cues.play('start') : 0
+    if (!gateMs && cueEnabled) run.recorder.unmute()
+
     run.recorder.start().catch(error => this._failLive(run, 'recording', error))
+    if (gateMs > 0) {
+      run.gateId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, gateMs, () => {
+        run.gateId = 0
+        if (this._run === run && this._state === 'recording') {
+          run.captureStarted = true
+          run.recorder.unmute()
+        }
+        return GLib.SOURCE_REMOVE
+      })
+    } else {
+      run.captureStarted = true
+    }
   }
 
   async end() {
@@ -85,10 +109,16 @@ export class ToasOrchestrator {
 
     const run = this._run
     this._state = 'transcribing'
+    this._clearCaptureGate(run)
+    if (!run.captureStarted) this._cues?.cancel()
 
     let outcome
     try {
-      outcome = await run.recorder.stop()
+      // stop() sends SIGINT before its first await: the microphone is closed
+      // before the end cue is queued, so the cue cannot enter the WAV.
+      const stopped = run.recorder.stop()
+      if (run.captureStarted) this._cues?.play('end')
+      outcome = await stopped
     } catch (error) {
       this._failLive(run, 'recording', error)
       return
@@ -243,6 +273,7 @@ export class ToasOrchestrator {
       return
     }
 
+    this._cues?.cancel()
     const run = this._run
     this._abortSignal?.abort()
     this._output.cancel()
@@ -397,10 +428,16 @@ export class ToasOrchestrator {
     this._onStateChanged?.(state, message)
   }
 
-  _finishRun(run) {
-    if (!run) {
-      return
+  _clearCaptureGate(run) {
+    if (run?.gateId) {
+      GLib.source_remove(run.gateId)
+      run.gateId = 0
     }
+  }
+
+  _finishRun(run) {
+    if (!run) return
+    this._clearCaptureGate(run)
 
     // Best effort: extension disable or cancellation may race a dead process.
     try {
@@ -420,6 +457,7 @@ export class ToasOrchestrator {
 
   destroy() {
     this._onStateChanged = null
+    this._cues?.cancel()
     this._abortSignal?.abort()
     this._output?.cancel()
     this._run?.recorder?.cancel()
@@ -430,6 +468,7 @@ export class ToasOrchestrator {
     this._history = null
     this._overlay = null
     this._notifier = null
+    this._cues = null
     this._settings = null
     this._abortSignal = null
     this._state = 'idle'

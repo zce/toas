@@ -46,4 +46,39 @@ test('ids differ across different milliseconds', () => {
   expectEqual(a === b, false)
 })
 
+test('muted capture drops cue-period PCM and unmute resumes writing', async () => {
+  const value = recorder({ captureInitiallyMuted: true })
+  const writes = []
+  value._output = { write_all: data => writes.push(data.length) }
+  value._totalBytes = 0
+  let count = 0
+  const bytes = new Uint8Array(value._chunkBytes)
+  value._stream = {
+    read_bytes_async: async () => {
+      if (count++ === 0) return { get_size: () => bytes.length, get_data: () => bytes }
+      return { get_size: () => 0 }
+    }
+  }
+  await value._readLoop()
+  expectEqual(value._totalBytes, 0)
+  expectEqual(writes.length, 0)
+  value.unmute()
+  count = 0
+  await value._readLoop()
+  expectEqual(value._totalBytes, bytes.length)
+  expectEqual(writes.length, 1)
+})
+
+test('stop closes the capture gate before signalling the recorder', async () => {
+  const value = recorder()
+  let captureDuringSignal = null
+  value._process = { send_signal: () => { captureDuringSignal = value._captureEnabled } }
+  value._readPromise = Promise.resolve()
+  value._path = null
+  value._totalBytes = 0
+  const outcome = await value.stop()
+  expectEqual(captureDuringSignal, false)
+  expectEqual(outcome.kind, 'short-tap')
+})
+
 await run()

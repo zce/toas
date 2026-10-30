@@ -43,6 +43,19 @@
       <summary>Restore previous clipboard text after paste</summary>
     </key>
 
+    <key name="sound-enabled" type="b">
+      <default>true</default>
+      <summary>Play recording start and stop cues</summary>
+    </key>
+    <key name="sound-start-style" type="s">
+      <default>'crystal'</default>
+      <summary>Start recording sound style</summary>
+    </key>
+    <key name="sound-end-style" type="s">
+      <default>'tap'</default>
+      <summary>Stop recording sound style</summary>
+    </key>
+
     <key name="auto-paste" type="b">
       <default>true</default>
       <summary>Paste the output into the focused application</summary>

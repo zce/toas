@@ -74,7 +74,7 @@ export function recordingIdForNow() {
 // sizes once capture ends. `stop()` classifies the capture into a
 // RecorderOutcomeKind instead of throwing.
 export class AudioRecorder {
-  constructor({ recordingsDirectory, onLevel, onError, sampleRate = DEFAULT_SAMPLE_RATE, minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS }) {
+  constructor({ recordingsDirectory, onLevel, onError, sampleRate = DEFAULT_SAMPLE_RATE, minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS, captureInitiallyMuted = false }) {
     this._recordingsDirectory = recordingsDirectory
     this._onLevel = onLevel
     this._onError = onError
@@ -86,6 +86,12 @@ export class AudioRecorder {
     this._levelBuffer = new Uint8Array(this._chunkBytes)
     this._levelBufferSize = 0
     this._outcome = null
+    this._captureEnabled = !captureInitiallyMuted
+  }
+
+  unmute() {
+    this._captureEnabled = true
+    this._levelBufferSize = 0
   }
 
   async start() {
@@ -127,7 +133,9 @@ export class AudioRecorder {
       return (this._outcome = this._cancelled ? recordingOutcomeCancelled() : recordingOutcomeCaptureFailure(new Error('Audio capture is not running')))
     }
 
-    // SIGINT lets pw-record flush and exit, closing the stream on its own.
+    // The end cue may play immediately after this call, so stop accepting
+    // PCM before signalling pw-record (not after awaiting process exit).
+    this._captureEnabled = false
     process.send_signal(2)
 
     try {
@@ -209,6 +217,7 @@ export class AudioRecorder {
         break
       }
 
+      if (!this._captureEnabled) continue
       this._output.write_all(data, null)
       this._totalBytes += data.length
       this._appendLevelData(data)
@@ -258,6 +267,7 @@ export class AudioRecorder {
     this._levelBuffer = null
     this._levelBufferSize = 0
     this._outcome = null
+    this._captureEnabled = false
     this._recordingsDirectory = null
     this._onLevel = null
     this._onError = null
