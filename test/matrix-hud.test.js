@@ -196,6 +196,21 @@ test('processing glow fades at both ends while CANCEL stays centered', () => {
   expectTruthy(glyphColumns.at(-1) < grid.cols - 4)
 })
 
+test('processing remains visibly active when motion is disabled', () => {
+  const s = new MatrixSignal()
+  s.processMix = 1
+  const r = new MatrixRenderer()
+  const cr = ctx()
+  r.paint(cr, PROCESS_WIDTH, MATRIX_HEIGHT, s)
+
+  const grid = r._grid(PROCESS_WIDTH)
+  const col = Math.floor(grid.cols / 2)
+  const x = grid.xy[(col * 11 + 5) * 2]
+  const centerDots = cr.dots.filter(dot => dot.x === x && dot.y === MATRIX_HEIGHT / 2)
+
+  expectTruthy(centerDots.at(-1).color[3] > .25)
+})
+
 test('pointer cancel intent and voice history reset', () => {
   const m = new MatrixHoverIntent()
   m.reset(100, 200)
