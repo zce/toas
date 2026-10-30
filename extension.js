@@ -173,7 +173,7 @@ export default class ToasExtension extends Extension {
   }
 
   _syncOverlayView() {
-    if (!this._overlay || this._voiceState !== 'idle') {
+    if (!this._overlay || (this._voiceState !== 'idle' && this._voiceState !== 'error')) {
       return
     }
     const matrix = this._settings.get_boolean('experimental-matrix-hud')
