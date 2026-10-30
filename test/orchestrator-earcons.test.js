@@ -118,6 +118,18 @@ test('off: no sound, no capture delay, and recorder starts unmuted', async () =>
   orchestrator.destroy()
 })
 
+test('failed native playback opens the capture gate without a timer', async () => {
+  const { orchestrator, recorder, events } = create({ duration: 0 })
+
+  orchestrator.begin()
+  expectEqual(recorder.mutes, [true])
+  expectEqual(recorder.unmutes, 1)
+  await orchestrator.end()
+  expectEqual(events, ['start', 'end'])
+
+  orchestrator.destroy()
+})
+
 test('cancel before the start sound finishes drops the gate and never un-mutes', async () => {
   const { orchestrator, recorder, events } = create({ duration: 55 })
 
