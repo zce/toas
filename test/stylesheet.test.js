@@ -6,6 +6,7 @@
 
 import GLib from 'gi://GLib'
 
+import { HUD_HEIGHT } from '../ui/matrix-hud.js'
 import { expectEqual, run, test } from './harness.js'
 
 const rootDir = GLib.get_current_dir()
@@ -72,13 +73,14 @@ test('every prefs.css class is referenced by prefs.js', () => {
   expectEqual(dead.sort().join(','), '', `unused classes: ${dead.join(', ')}`)
 })
 
-test('matrix capsule keeps the same 40px circular profile in error state', () => {
+test('matrix capsule keeps the compact circular profile in error state', () => {
   const css = read(`${rootDir}/stylesheet.css`)
   const view = read(`${rootDir}/ui/matrix-overlay.js`)
 
-  expectEqual(/\.toas-matrix-overlay\s*\{[^}]*border-radius:\s*20px;/.test(css), true)
-  expectEqual(/\.toas-matrix-error-label\s*\{[^}]*padding:\s*0 18px;/.test(css), true)
-  expectEqual(/this\._overlay = new St\.Button\(\{[^}]*height: MATRIX_HEIGHT,/.test(view), true)
+  const radius = css.match(/\.toas-matrix-overlay\s*\{[^}]*border-radius:\s*(\d+)px;/)
+  expectEqual(Number(radius?.[1]) * 2, HUD_HEIGHT)
+  expectEqual(/\.toas-matrix-error-label\s*\{[^}]*padding:\s*0 16px;/.test(css), true)
+  expectEqual(/this\._overlay = new St\.Button\(\{[^}]*height: HUD_HEIGHT,/.test(view), true)
 })
 
 test('stylesheet and prefs stylesheets stay separate', () => {

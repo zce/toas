@@ -3,6 +3,10 @@ import {
   MatrixRenderer,
   MatrixHoverIntent,
   contour,
+  HUD_HEIGHT,
+  HUD_RECORD_WIDTH,
+  HUD_PROCESS_WIDTH,
+  HUD_EXIT_WIDTH,
   RECORD_WIDTH,
   PROCESS_WIDTH,
   MATRIX_HEIGHT,
@@ -14,13 +18,23 @@ import { expectEqual, expectTruthy, run, test } from './harness.js'
 const ctx = () => {
   const dots = []
   let color = []
+  let scale = 1
+  let tx = 0
+  let ty = 0
 
   return {
     dots,
     setSourceRGBA: (...values) => { color = values },
-    arc: (x, y, r) => dots.push({ x, y, r, color }),
+    arc: (x, y, r) => dots.push({ x: x * scale + tx, y: y * scale + ty, r: r * scale, color }),
     fill() {},
-    scale() {}
+    scale(x, y) {
+      expectEqual(x, y, 'dot circles must not be stretched')
+      scale *= x
+    },
+    translate(x, y) {
+      tx += x * scale
+      ty += y * scale
+    }
   }
 }
 
@@ -35,7 +49,11 @@ const signal = () => {
   return s
 }
 
-test('final HUD dimensions and angular contour', () => {
+test('compact layout uses integer bounds and preserves the original design grid', () => {
+  expectEqual(HUD_RECORD_WIDTH, 148)
+  expectEqual(HUD_PROCESS_WIDTH, 122)
+  expectEqual(HUD_HEIGHT, 36)
+  expectEqual(HUD_EXIT_WIDTH, 41)
   expectEqual(RECORD_WIDTH, 164)
   expectEqual(PROCESS_WIDTH, 136)
   expectEqual(MATRIX_HEIGHT, 40)
@@ -243,14 +261,73 @@ test('a new recording clears cached phosphor from previous session', () => {
   expectTruthy(grid.head.every(x => x === 0))
 })
 
-test('same dot count at 1x and 2x; single contraction dims dots', () => {
+test('compact surfaces preserve dot counts, spacing and centered grid bounds', () => {
+  const s = signal()
+  const scale = HUD_HEIGHT / MATRIX_HEIGHT
+
+  for (const [width, designWidth] of [[HUD_RECORD_WIDTH, RECORD_WIDTH], [HUD_PROCESS_WIDTH, PROCESS_WIDTH]]) {
+    const r = new MatrixRenderer()
+    const original = ctx()
+    const compact = ctx()
+    r.paint(original, designWidth, MATRIX_HEIGHT, s, 1)
+    r.paintSurface(compact, width, HUD_HEIGHT, s, 1)
+
+    expectEqual(compact.dots.length, original.dots.length)
+    const offset = (width - designWidth * scale) / 2
+    for (let i = 0; i < original.dots.length; i++) {
+      expectTruthy(Math.abs(compact.dots[i].x - (original.dots[i].x * scale + offset)) < .00001)
+      expectTruthy(Math.abs(compact.dots[i].y - original.dots[i].y * scale) < .00001)
+      expectTruthy(Math.abs(compact.dots[i].r - original.dots[i].r * scale) < .00001)
+    }
+    const xs = compact.dots.map(dot => dot.x)
+    expectTruthy(Math.abs(Math.min(...xs) + Math.max(...xs) - width) < .00001)
+  }
+})
+
+test('compact rendering follows native Cairo scaling without changing grid geometry', () => {
+  const s = signal()
+
+  for (const width of [HUD_RECORD_WIDTH, HUD_PROCESS_WIDTH]) {
+    const original = ctx()
+    new MatrixRenderer().paintSurface(original, width, HUD_HEIGHT, s, 1)
+
+    for (const density of [1, 1.25, 4 / 3, 1.5, 1.75, 2]) {
+      const scaled = ctx()
+      scaled.scale(density, density)
+      new MatrixRenderer().paintSurface(scaled, width, HUD_HEIGHT, s, 1)
+
+      expectEqual(scaled.dots.length, original.dots.length)
+      for (let i = 0; i < original.dots.length; i++) {
+        expectTruthy(Math.abs(scaled.dots[i].x - original.dots[i].x * density) < .00001)
+        expectTruthy(Math.abs(scaled.dots[i].y - original.dots[i].y * density) < .00001)
+        expectTruthy(Math.abs(scaled.dots[i].r - original.dots[i].r * density) < .00001)
+      }
+    }
+  }
+})
+
+test('compact transition widths keep the dot field centered and inside the surface', () => {
+  const s = signal()
+  const r = new MatrixRenderer()
+
+  for (let width = HUD_HEIGHT; width <= HUD_RECORD_WIDTH; width++) {
+    const cr = ctx()
+    r.paintSurface(cr, width, HUD_HEIGHT, s)
+    expectTruthy(cr.dots.every(dot => dot.x >= 0 && dot.x <= width && dot.y >= 0 && dot.y <= HUD_HEIGHT))
+    const xs = cr.dots.map(dot => dot.x)
+    expectTruthy(Math.abs(Math.min(...xs) + Math.max(...xs) - width) < .00001)
+  }
+})
+
+test('same dot count at 1x and 2x surfaces; single contraction dims dots', () => {
   const s = signal()
   const r = new MatrixRenderer()
   const a = ctx()
   const b = ctx()
   const c = ctx()
 
-  expectEqual(r.paintSurface(a, 164, 40, 164, s), r.paintSurface(b, 328, 80, 164, s))
+  expectEqual(r.paintSurface(a, HUD_RECORD_WIDTH, HUD_HEIGHT, s),
+    r.paintSurface(b, HUD_RECORD_WIDTH * 2, HUD_HEIGHT * 2, s))
   r.paint(c, 164, 40, s, 0, 1)
 
   const light = o => o.dots.reduce((n, d) => n + d.color[3], 0)

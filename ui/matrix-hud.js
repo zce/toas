@@ -1,8 +1,15 @@
+// Keep signal geometry in its original design space; round only the native
+// layout bounds so compact rendering does not change dot counts or spacing.
 export const RECORD_WIDTH = 164
 export const PROCESS_WIDTH = 136
 export const MATRIX_HEIGHT = 40
 export const MATRIX_STEP = 3.5
 export const MATRIX_FPS = 30
+
+export const HUD_HEIGHT = 36
+export const HUD_RECORD_WIDTH = Math.round(RECORD_WIDTH * HUD_HEIGHT / MATRIX_HEIGHT)
+export const HUD_PROCESS_WIDTH = Math.round(PROCESS_WIDTH * HUD_HEIGHT / MATRIX_HEIGHT)
+export const HUD_EXIT_WIDTH = Math.round(46 * HUD_HEIGHT / MATRIX_HEIGHT)
 
 const ROWS = 11
 const HISTORY = 64
@@ -318,14 +325,19 @@ export class MatrixRenderer {
     return count
   }
 
-  paintSurface(cr, pw, ph, lw, model, hover = 0, exit = 0) {
-    if (pw <= 0 || ph <= 0 || lw <= 0) {
+  paintSurface(cr, width, height, model, hover = 0, exit = 0) {
+    if (width <= 0 || height <= 0) {
       return 0
     }
 
-    const scale = pw / lw
+    // St already applies the monitor's resource scale to the Cairo context.
+    // Fit the original grid directly to the content height, without stretching
+    // circles or accumulating rounding errors between individual dots.
+    const scale = height / MATRIX_HEIGHT
+    const designWidth = Math.round(width / scale)
+    cr.translate((width - designWidth * scale) / 2, 0)
     cr.scale(scale, scale)
-    return this.paint(cr, pw / scale, ph / scale, model, hover, exit)
+    return this.paint(cr, designWidth, MATRIX_HEIGHT, model, hover, exit)
   }
 
   reset() {

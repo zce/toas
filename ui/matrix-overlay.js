@@ -6,10 +6,11 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
 import { calculateOverlayPosition, selectMonitor } from './placement.js'
 import {
+  HUD_EXIT_WIDTH,
+  HUD_HEIGHT,
+  HUD_PROCESS_WIDTH,
+  HUD_RECORD_WIDTH,
   MATRIX_FPS,
-  MATRIX_HEIGHT,
-  PROCESS_WIDTH,
-  RECORD_WIDTH,
   MatrixHoverIntent,
   MatrixRenderer,
   MatrixSignal
@@ -39,8 +40,8 @@ export class MatrixOverlayView {
     this._destroyed = false
 
     this._matrix = new St.DrawingArea({
-      width: RECORD_WIDTH,
-      height: MATRIX_HEIGHT,
+      width: HUD_RECORD_WIDTH,
+      height: HUD_HEIGHT,
       y_align: Clutter.ActorAlign.CENTER
     })
     this._matrix.connect('repaint', area => this._repaint(area))
@@ -58,7 +59,7 @@ export class MatrixOverlayView {
     content.add_child(this._error)
     this._overlay = new St.Button({
       style_class: 'toas-matrix-overlay',
-      height: MATRIX_HEIGHT,
+      height: HUD_HEIGHT,
       child: content,
       visible: false,
       reactive: true,
@@ -124,7 +125,7 @@ export class MatrixOverlayView {
     this._overlay.reactive = matrixVisible
     this._overlay.can_focus = matrixVisible
     if (matrixVisible) {
-      const target = mode === 'recording' ? RECORD_WIDTH : PROCESS_WIDTH
+      const target = mode === 'recording' ? HUD_RECORD_WIDTH : HUD_PROCESS_WIDTH
       this._matrix.remove_all_transitions()
       if (was === 'recording' && mode === 'busy' && St.Settings.get().enable_animations) {
         this._matrix.ease({
@@ -189,7 +190,7 @@ export class MatrixOverlayView {
       const enteringMatrix = this._mode === 'recording' || this._mode === 'busy'
       const finalWidth = this._matrix.width
       if (enteringMatrix && St.Settings.get().enable_animations) {
-        this._matrix.width = MATRIX_HEIGHT
+        this._matrix.width = HUD_HEIGHT
       }
       this._overlay.show()
       if (St.Settings.get().enable_animations) {
@@ -240,7 +241,7 @@ export class MatrixOverlayView {
 
     if (this._matrix.visible) {
       this._matrix.ease({
-        width: 46,
+        width: HUD_EXIT_WIDTH,
         duration: this._exitDuration,
         mode: Clutter.AnimationMode.EASE_IN_OUT_SINE
       })
@@ -308,7 +309,7 @@ export class MatrixOverlayView {
     try {
       const [w, h] = area.get_surface_size()
       this._renderer.paintSurface(
-        cr, w, h, area.get_width(), this._signal, this._hover, this._exitProgress
+        cr, w, h, this._signal, this._hover, this._exitProgress
       )
     } finally {
       // St.DrawingArea's Cairo context must be explicitly disposed in GJS.

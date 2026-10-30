@@ -141,7 +141,7 @@ test('settings schema defines persistent privacy and recent-history defaults', (
   const recordingLimit = schemaKey(schema, 'recording-limit')
   expectTruthy(recordingLimit.includes('<range min="0" max="1000"/>'))
   expectTruthy(recordingLimit.includes('<default>20</default>'))
-  expectTruthy(prefs.includes("spinRow(settings, 'recording-limit', 'Saved recordings', 0, 1000)"))
+  expectTruthy(/spinRow\(settings,\s*'recording-limit',\s*'Saved recordings',\s*0,\s*1000,/.test(prefs))
 })
 
 test('saved recordings zero keeps successful text history but removes audio file', async () => {
