@@ -4,10 +4,11 @@ import { EarconPlayer } from '../host/earcons.js'
 import { cueDurationMs } from '../host/earcon-synthesis.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
-function fakePlayer(styles) {
+function fakePlayer(styles, eventSounds = true) {
   const played = []
   const player = Object.create(EarconPlayer.prototype)
   player._settings = { get_string: key => styles[key] }
+  player._soundSettings = { get_boolean: () => eventSounds }
   player._files = new Map([
     ['start-crystal', { name: 'start-crystal' }],
     ['end-tap', { name: 'end-tap' }]
@@ -29,6 +30,13 @@ test('None does not play a cue or add a capture delay', () => {
 
   expectEqual(player.play('start'), 0)
   expectEqual(player.play('end'), 0)
+  expectEqual(played.length, 0)
+})
+
+test('disabled GNOME event sounds do not block microphone capture', () => {
+  const { player, played } = fakePlayer({ 'sound-start-style': 'crystal' }, false)
+
+  expectEqual(player.play('start'), 0)
   expectEqual(played.length, 0)
 })
 
