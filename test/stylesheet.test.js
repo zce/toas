@@ -72,6 +72,15 @@ test('every prefs.css class is referenced by prefs.js', () => {
   expectEqual(dead.sort().join(','), '', `unused classes: ${dead.join(', ')}`)
 })
 
+test('matrix capsule keeps the same 40px circular profile in error state', () => {
+  const css = read(`${rootDir}/stylesheet.css`)
+  const view = read(`${rootDir}/ui/matrix-overlay.js`)
+
+  expectEqual(/\.toas-matrix-overlay\s*\{[^}]*border-radius:\s*20px;/.test(css), true)
+  expectEqual(/\.toas-matrix-error-label\s*\{[^}]*padding:\s*0 18px;/.test(css), true)
+  expectEqual(/this\._overlay = new St\.Button\(\{[^}]*height: MATRIX_HEIGHT,/.test(view), true)
+})
+
 test('stylesheet and prefs stylesheets stay separate', () => {
   // The two CSS dialects are not interchangeable; shipping the wrong one
   // to a process would silently style nothing.
