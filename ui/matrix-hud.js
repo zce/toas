@@ -226,7 +226,7 @@ export class MatrixRenderer {
       const u = x / (grid.cols - 1)
       const ends = Math.min(smooth(u * 7), smooth((1 - u) * 7))
       const sample = model.past(1 + u * 13)
-      strength[x] = rec * (.65 + .45 * Math.sqrt(model.voice)) * (.64 + .36 * ends)
+      strength[x] = rec * (.65 + .45 * Math.sqrt(model.voice)) * ends
 
       for (let k = 0; k < 2; k++) {
         const v = k === 0 ? sample : sample * .86
