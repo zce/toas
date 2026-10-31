@@ -74,25 +74,16 @@
                 </button>
               </div>
             </div>
-            <div class="demo-console">
-              <div class="demo-state">
-                <strong data-demo-status aria-live="polite">Starting voice input…</strong>
-              </div>
-              <div class="demo-actions" aria-label="Demo controls">
-                <div class="demo-modes" role="group" aria-label="Preview mode">
-                  <button class="demo-action" type="button" data-demo-mode="auto" aria-pressed="true">Auto</button>
-                  <button class="demo-action" type="button" data-demo-mode="recording" aria-pressed="false">Recording</button>
-                  <button class="demo-action" type="button" data-demo-mode="processing" aria-pressed="false">Processing</button>
-                  <button class="demo-action" type="button" data-demo-mode="insert" aria-pressed="false">Insert</button>
-                </div>
-                <div class="demo-extras">
-                  <button class="demo-action demo-action-replay" type="button" data-demo-replay>↻ Replay</button>
-                  <button class="demo-action demo-action-sound" type="button" data-demo-sound aria-pressed="false">Sound off</button>
-                </div>
-              </div>
-            </div>
+              <button class="demo-sound-toggle" type="button" data-demo-sound aria-label="Unmute demo audio" aria-pressed="false" title="Unmute demo audio">
+                <svg class="demo-sound-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 5 6 9H3v6h3l5 4V5Z" /><path d="m16 9 5 6m0-6-5 6" />
+                </svg>
+                <svg class="demo-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 5 6 9H3v6h3l5 4V5Z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" />
+                </svg>
+              </button>
           </div>
-          <p class="demo-caption demo-experimental-note">Experimental HUD preview · No microphone or uploads. The standard HUD remains the default; enable <strong>Experimental UI</strong> in Toas Preferences to try it.</p>
+          <p class="demo-caption demo-experimental-note">Experimental HUD preview · The standard UI stays the default. Enable <strong>Experimental UI</strong> in Preferences. No microphone access.</p>
           <noscript><p class="demo-caption">Enable JavaScript to try the interactive HUD preview.</p></noscript>
           </div>
         </div>
