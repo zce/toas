@@ -491,6 +491,50 @@ h3 {
 
 @keyframes demoCaret { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
 
+kbd,
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+kbd {
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom-color: rgba(255, 255, 255, 0.28);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  font-size: 0.82em;
+}
+
+.section-heading {
+  margin-bottom: 42px;
+}
+
+.section-heading > p:last-child {
+  margin-bottom: 0;
+  max-width: 620px;
+  color: var(--muted);
+}
+
+.section-heading.centered {
+  text-align: center;
+}
+
+.section-heading.centered > p:last-child {
+  margin-inline: auto;
+}
+
+.section-heading.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 70px;
+  align-items: end;
+}
+
+.section-heading.split > p {
+  padding-bottom: 6px;
+}
+
 .section {
   padding: 116px 0;
 }
