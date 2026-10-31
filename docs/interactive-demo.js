@@ -99,6 +99,8 @@
 
   function complete() {
     if (phase !== 'processing') return
+    hoverAim = 0
+    pointerStart = null
     clearTimeout(timer)
     elapsed = 0
     show('complete', 'Text is ready for the focused application.')
@@ -107,6 +109,8 @@
 
   function cancel() {
     if (!isActive()) return
+    hoverAim = 0
+    pointerStart = null
     stopCues()
     hold.classList.remove('is-held')
     clearTimeout(timer)
