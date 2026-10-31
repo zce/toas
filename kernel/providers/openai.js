@@ -30,19 +30,47 @@ class OpenAICompatibleProvider extends Provider {
             env: keyEnv
           }
         ],
-        selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
+        selectionFields: [
+          { key: 'model', type: 'string', label: 'Model', required: true },
+          {
+            key: 'thinking',
+            type: 'string',
+            label: 'Thinking',
+            subtitle: id === 'openai'
+              ? 'Only models supporting none can disable reasoning.'
+              : 'Uses reasoning_effort: none; the endpoint must support it.',
+            inputs: ['text'],
+            advanced: true,
+            choices: [
+              { value: 'off', label: 'Off' },
+              { value: 'default', label: 'Provider default' }
+            ]
+          }
+        ],
         support: { inputs: ['text'], instructions: true },
-        defaults: { text: modelDefault ? { model: modelDefault } : {} }
+        defaults: {
+          text: {
+            ...(modelDefault ? { model: modelDefault } : {}),
+            thinking: id === 'openai-compatible' ? 'default' : 'off'
+          }
+        }
       }
     })
   }
 
   resolveSelection({ providerValues, values }) {
+    const model = values.model?.trim()
+    const storedThinking = values.thinking ?? (this.id === 'openai-compatible' ? 'default' : 'off')
+    const requestedThinking = storedThinking === 'off' ? 'off' : 'default'
+    const canDisableThinking =
+      this.id === 'openai-compatible' || supportsOpenAIReasoningNone(model)
+
     return {
       input: 'text',
       config: {
         endpoint: providerValues.endpoint?.trim(),
-        model: values.model?.trim()
+        model,
+        thinking: canDisableThinking ? requestedThinking : 'default'
       },
       capabilities: textCapabilities(),
       issues: []
@@ -70,6 +98,26 @@ export const openaiCompatibleProvider = new OpenAICompatibleProvider({
   keyEnv: ['TOAS_OPENAI_COMPATIBLE_API_KEY']
 })
 
+// Match supported model families rather than maintaining every model ID.
+const OPENAI_REASONING_NONE_PREFIXES = [
+  'gpt-5.',
+  'gpt-6.1-terra',
+  'gpt-6-sol',
+  'gpt-6-luna'
+]
+const OPENAI_REASONING_NONE_EXCLUDED_VARIANTS = new Set(['pro', 'codex', 'cyber'])
+
+function supportsOpenAIReasoningNone(model) {
+  if (typeof model !== 'string') return false
+
+  const modelId = model.trim().toLowerCase()
+  if (!modelId || modelId.split('-').some(part => OPENAI_REASONING_NONE_EXCLUDED_VARIANTS.has(part))) {
+    return false
+  }
+
+  return OPENAI_REASONING_NONE_PREFIXES.some(prefix => modelId.startsWith(prefix))
+}
+
 function textCapabilities() {
   return { inputs: ['text'], instructions: true, context: true }
 }
@@ -88,6 +136,7 @@ class OpenAICompatibleProcessor extends ChatCompletionsProcessor {
           context,
           instructions
         }),
+        ...(this._config.thinking === 'off' ? { reasoning_effort: 'none' } : {}),
         stream: false
       },
       signal

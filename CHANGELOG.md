@@ -1,5 +1,10 @@
 # Changelog
 
+## Version 15 — 2026-10-31
+
+- Made Refine request thinking off by default for MiMo and supported OpenAI models. OpenAI-compatible endpoints retain their provider default unless **Off** is selected in Advanced.
+- Updated MiMo Refine to V2.6 Flash (default) and V2.6 Pro, while retaining the V2.5 ASR model.
+
 ## Version 14 — 2026-10-31
 
 - Added an opt-in **Experimental UI** with a compact dot-matrix HUD for recording and processing, including animated entry/exit and tap-to-cancel. The standard overlay remains the default.

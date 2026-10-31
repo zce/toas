@@ -12,11 +12,11 @@ const MODEL_SHAPES = {
     input: 'audio',
     capabilities: { inputs: ['audio'], instructions: false, context: false }
   },
-  'mimo-v2.5': {
+  'mimo-v2.6-flash': {
     input: 'text',
     capabilities: { inputs: ['text'], instructions: true, context: true }
   },
-  'mimo-v2.5-pro': {
+  'mimo-v2.6-pro': {
     input: 'text',
     capabilities: { inputs: ['text'], instructions: true, context: true }
   }
@@ -61,8 +61,19 @@ class MimoProvider extends Provider {
             required: true,
             inputs: ['text'],
             choices: [
-              { value: 'mimo-v2.5', label: 'mimo-v2.5' },
-              { value: 'mimo-v2.5-pro', label: 'mimo-v2.5-pro' }
+              { value: 'mimo-v2.6-flash', label: 'mimo-v2.6-flash' },
+              { value: 'mimo-v2.6-pro', label: 'mimo-v2.6-pro' }
+            ]
+          },
+          {
+            key: 'thinking',
+            type: 'string',
+            label: 'Thinking',
+            inputs: ['text'],
+            advanced: true,
+            choices: [
+              { value: 'off', label: 'Off' },
+              { value: 'default', label: 'Provider default' }
             ]
           },
           { key: 'language', type: 'string', label: 'Language', inputs: ['audio'] }
@@ -70,7 +81,7 @@ class MimoProvider extends Provider {
         support: { inputs: ['audio', 'text'], instructions: true },
         defaults: {
           audio: { model: 'mimo-v2.5-asr', language: 'auto' },
-          text: { model: 'mimo-v2.5' }
+          text: { model: 'mimo-v2.6-flash', thinking: 'off' }
         }
       }
     })
@@ -80,10 +91,18 @@ class MimoProvider extends Provider {
     const endpoint = providerValues.endpoint?.trim()
     const { model, shape, issues } = this.resolveModelShape(values, MODEL_SHAPES)
     const language = values.language?.trim() || null
+    const thinking = values.thinking === 'default' ? 'default' : 'off'
 
     return {
       input: shape?.input ?? null,
-      config: shape ? { endpoint, model, ...(language ? { language } : {}) } : null,
+      config: shape
+        ? {
+            endpoint,
+            model,
+            ...(language ? { language } : {}),
+            ...(shape.input === 'text' ? { thinking } : {})
+          }
+        : null,
       capabilities: shape?.capabilities ?? null,
       issues
     }
@@ -137,6 +156,9 @@ class MimoProcessor extends ChatCompletionsProcessor {
     const requestBody = {
       model: this._config.model,
       messages,
+      ...(this._shape.input === 'text' && this._config.thinking === 'off'
+        ? { thinking: { type: 'disabled' } }
+        : {}),
       ...(this._shape.input === 'audio' ? { asr_options: { language: this._config.language ?? 'auto' } } : {}),
       stream: false
     }

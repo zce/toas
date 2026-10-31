@@ -56,7 +56,7 @@ function processorCases(transport) {
       processor: createProcessor({
         provider: mimoProvider,
         providerValues: { endpoint: 'https://example.test/v1' },
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         transport
       }),
       input: { kind: 'text', text: 'hello' }
@@ -147,6 +147,161 @@ test('remote processors reject malformed JSON responses consistently', async () 
     const error = await processError(processor, input)
     expectEqual(error?.category, 'invalid-response', `${label} category`)
   }
+})
+
+test('MiMo Refine disables thinking by default and exposes provider overrides', async () => {
+  async function requestFor(values) {
+    let requestBody = null
+    const transport = {
+      async send(request) {
+        requestBody = JSON.parse(new TextDecoder().decode(request.body))
+        return {
+          status: 200,
+          headers: {},
+          body: encodeBody({ choices: [{ message: { content: 'refined' } }] })
+        }
+      }
+    }
+    const processor = createProcessor({
+      provider: mimoProvider,
+      providerValues: { endpoint: 'https://example.test/v1' },
+      values: { model: 'mimo-v2.6-flash', ...values },
+      transport
+    })
+    await processor.process({
+      input: { kind: 'text', text: 'hello' },
+      context: { text: '' },
+      instructions: '',
+      signal: null
+    })
+    return requestBody
+  }
+
+  expectEqual((await requestFor({})).thinking, { type: 'disabled' })
+  expectEqual(Object.hasOwn(await requestFor({ thinking: 'default' }), 'thinking'), false)
+})
+
+test('MiMo transcription does not receive Refine thinking settings', async () => {
+  let requestBody = null
+  const transport = {
+    async send(request) {
+      requestBody = JSON.parse(new TextDecoder().decode(request.body))
+      return {
+        status: 200,
+        headers: {},
+        body: encodeBody({ choices: [{ message: { content: 'recognized' } }] })
+      }
+    }
+  }
+  const processor = createProcessor({
+    provider: mimoProvider,
+    providerValues: { endpoint: 'https://example.test/v1' },
+    values: { model: 'mimo-v2.5-asr', thinking: 'off' },
+    transport
+  })
+  await processor.process({
+    input: AUDIO,
+    context: { text: '' },
+    instructions: '',
+    signal: null
+  })
+  expectEqual(Object.hasOwn(requestBody, 'thinking'), false)
+})
+
+test('OpenAI Refine disables reasoning only for models that support none', async () => {
+  async function requestFor(model, thinking = 'off') {
+    let requestBody = null
+    const transport = {
+      async send(request) {
+        requestBody = JSON.parse(new TextDecoder().decode(request.body))
+        return {
+          status: 200,
+          headers: {},
+          body: encodeBody({ choices: [{ message: { content: 'refined' } }] })
+        }
+      }
+    }
+    const resolved = openaiProvider.resolve({
+      providerValues: { endpoint: 'https://example.test/v1' },
+      values: { model, thinking },
+      secretPresence: { key: true }
+    })
+    expectEqual(resolved.issues, [])
+    const processor = openaiProvider.create(resolved.config, { key: 'secret' }, { transport })
+    await processor.process({
+      input: { kind: 'text', text: 'hello' },
+      context: { text: '' },
+      instructions: '',
+      signal: null
+    })
+    return requestBody
+  }
+
+  for (const model of [
+    'gpt-5.1',
+    'gpt-5.2',
+    'gpt-5.4',
+    'gpt-5.4-mini',
+    'gpt-5.4-nano',
+    'gpt-5.5',
+    'gpt-5.5-2026-04-23',
+    'gpt-5.6',
+    'gpt-5.6-sol',
+    'gpt-5.6-terra',
+    'gpt-5.6-luna',
+    'gpt-6.1-terra',
+    'gpt-6.1-terra-2026-06-01',
+    'gpt-6-sol',
+    'gpt-6-luna'
+  ]) {
+    expectEqual((await requestFor(model)).reasoning_effort, 'none', model)
+  }
+  for (const model of [
+    'gpt-5.4-pro',
+    'gpt-5.5-pro-2026-04-23',
+    'gpt-5.6-cyber',
+    'gpt-5.3-codex',
+    'gpt-6.1-sol',
+    'gpt-6-astra',
+    'gpt-4o-mini'
+  ]) {
+    expectEqual(Object.hasOwn(await requestFor(model), 'reasoning_effort'), false, model)
+  }
+  expectEqual(Object.hasOwn(await requestFor('gpt-5.5', 'default'), 'reasoning_effort'), false)
+})
+
+test('OpenAI-compatible Refine maps Off to reasoning_effort none', async () => {
+  async function requestFor(thinking) {
+    let requestBody = null
+    const transport = {
+      async send(request) {
+        requestBody = JSON.parse(new TextDecoder().decode(request.body))
+        return {
+          status: 200,
+          headers: {},
+          body: encodeBody({ choices: [{ message: { content: 'refined' } }] })
+        }
+      }
+    }
+    const resolved = openaiCompatibleProvider.resolve({
+      providerValues: { endpoint: 'https://example.test/v1' },
+      values: { model: 'custom-model', ...(thinking === undefined ? {} : { thinking }) },
+      secretPresence: { key: true }
+    })
+    expectEqual(resolved.issues, [])
+    const processor = openaiCompatibleProvider.create(resolved.config, { key: 'secret' }, { transport })
+    await processor.process({
+      input: { kind: 'text', text: 'hello' },
+      context: { text: '' },
+      instructions: '',
+      signal: null
+    })
+    return requestBody
+  }
+
+  expectEqual(Object.hasOwn(await requestFor(), 'reasoning_effort'), false)
+  expectEqual((await requestFor('off')).reasoning_effort, 'none')
+  expectEqual(Object.hasOwn(await requestFor('default'), 'reasoning_effort'), false)
 })
 
 await run()
