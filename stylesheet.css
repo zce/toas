@@ -181,8 +181,13 @@
 .toas-matrix-overlay {
   font-family: 'Maple Mono', sans-serif;
   border-radius: 99px;
+  box-shadow: 0 7px 22px rgba(0, 0, 0, 0.54);
+}
+
+.toas-matrix-surface {
+  border-radius: 99px;
   background-color: rgba(26, 27, 31, 0.98);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.39);
+  box-shadow: inset 0 0 0 1px rgba(188, 220, 255, 0.14);
 }
 
 .toas-matrix-error-label {
