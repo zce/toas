@@ -180,9 +180,7 @@
 
 .toas-matrix-overlay {
   font-family: 'Maple Mono', sans-serif;
-  padding: 0;
-  border: none;
-  border-radius: 18px;
+  border-radius: 99px;
   background-color: rgba(26, 27, 31, 0.98);
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.39);
 }

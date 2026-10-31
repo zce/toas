@@ -17,14 +17,6 @@ if ! command -v pw-record >/dev/null 2>&1; then
   exit 1
 fi
 
-# Remove old generated sound caches.
-CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/toas"
-for previous in "$CACHE_DIR"/earcons-v[0-9]*; do
-  if [[ -d "$previous" ]]; then
-    rm -rf -- "$previous"
-  fi
-done
-
 gnome-extensions disable "$UUID" >/dev/null 2>&1 || true
 
 rm -rf "$TARGET_DIR"
