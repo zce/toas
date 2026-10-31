@@ -12,6 +12,7 @@
   const detail = $('[data-demo-detail]')
   const phaseLabel = $('[data-demo-phase]')
   const output = $('[data-demo-inserted]')
+  const editorBody = $('[data-demo-editor-body]')
   const placeholder = $('[data-demo-placeholder]')
   const modeButtons = [...root.querySelectorAll('[data-demo-mode]')]
   const replay = $('[data-demo-replay]')
@@ -97,6 +98,7 @@
   function clearOutput() {
     typedCount = -1
     output.textContent = ''
+    editorBody.scrollTop = 0
     placeholder.hidden = false
   }
 
@@ -106,6 +108,7 @@
     typedCount = count
     output.textContent = words.slice(0, count).join('')
     placeholder.hidden = count > 0
+    editorBody.scrollTop = editorBody.scrollHeight
   }
 
   function setStage(next) {
