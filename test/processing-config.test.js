@@ -67,7 +67,7 @@ test('Refine selection values survive Provider switches and reload', () => {
   const settings = new FakeSettings()
   const config = normalizeProcessingConfig(
     {
-      refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro', thinking: 'on' } }
+      refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro', thinking: 'default' } }
     },
     providers
   )
@@ -76,7 +76,7 @@ test('Refine selection values survive Provider switches and reload', () => {
   config.refine.values.model = 'private-refine-model'
   switchProcessingProvider(config, 'refine', 'mimo', providers)
   expectEqual(config.refine.values.model, 'mimo-v2.5-pro')
-  expectEqual(config.refine.values.thinking, 'on')
+  expectEqual(config.refine.values.thinking, 'default')
 
   writeProcessingConfig(settings, config)
   const restored = readProcessingConfig(settings, providers)

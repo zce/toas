@@ -244,7 +244,7 @@ test('OpenAI Refine disables reasoning only for models that support none', async
 })
 
 test('OpenAI-compatible Refine maps Off to reasoning_effort none', async () => {
-  async function requestFor(thinking) {
+  async function requestFor(thinking = 'off') {
     let requestBody = null
     const transport = {
       async send(request) {

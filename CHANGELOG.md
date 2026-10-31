@@ -2,7 +2,7 @@
 
 ## Version 15 — 2026-10-31
 
-- Made Refine thinking opt-out by default across MiMo, OpenAI, and OpenAI-compatible Providers, with an Advanced override to use the provider default. OpenAI's disable parameter is sent only for models that support it.
+- Made Refine request thinking off by default across MiMo, OpenAI, and OpenAI-compatible Providers, with an Advanced override to use the provider default. OpenAI's disable parameter is sent only for models that support it.
 
 ## Version 14 — 2026-10-31
 
