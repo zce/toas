@@ -1,5 +1,9 @@
 # Changelog
 
+## Version 15 — 2026-10-31
+
+- Made MiMo Refine thinking opt-in by default, with an Advanced override for the provider default or explicit thinking.
+
 ## Version 14 — 2026-10-31
 
 - Added an opt-in **Experimental UI** with a compact dot-matrix HUD for recording and processing, including animated entry/exit and tap-to-cancel. The standard overlay remains the default.

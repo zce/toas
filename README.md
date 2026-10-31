@@ -399,7 +399,8 @@ Refine:        mimo-v2.5
 The ASR model accepts audio input.
 
 The text models are used by the optional Refine stage and support configurable instructions
-and Context.
+and Context. Thinking is disabled by default; the **Thinking** override is available under
+**Advanced** if you want to use the provider default or enable it.
 
 ### OpenAI and OpenAI-compatible Refine
 
@@ -413,7 +414,8 @@ gpt-4o-mini
 ```
 
 The OpenAI-compatible provider accepts a user-configured service base URL and model ID
-using the Chat Completions wire contract.
+using the Chat Completions wire contract. Thinking behavior is left to the endpoint because
+OpenAI-compatible services do not share a standard parameter for controlling it.
 
 ### Refine behavior
 

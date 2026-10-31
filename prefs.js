@@ -528,7 +528,8 @@ function buildProviderRows({ settings, providerId, input, config, selection, inc
     if (field.inputs !== undefined && !field.inputs.includes(input)) {
       continue
     }
-    selectionRows.push(
+    const targetRows = field.advanced ? advancedRows : selectionRows
+    targetRows.push(
       selectionFieldRow(field, selection.values[field.key] ?? field.default ?? '', value => {
         selection.values[field.key] = value
         save()

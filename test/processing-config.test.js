@@ -35,6 +35,7 @@ test('empty persistence gets product defaults from Provider selection defaults',
   expectEqual(config.primary.values.model, 'fun-asr-flash-2026-06-15')
   expectEqual(config.refine.provider, 'mimo')
   expectEqual(config.refine.values.model, 'mimo-v2.5')
+  expectEqual(config.refine.values.thinking, 'off')
   expectEqual(config.refine.instructions, DEFAULT_REFINE_INSTRUCTIONS)
   expectTruthy(DEFAULT_REFINE_INSTRUCTIONS.includes('within otherwise meaningful speech'))
   expectTruthy(DEFAULT_REFINE_INSTRUCTIONS.includes('Preserve standalone interjections or acknowledgements'))
@@ -66,7 +67,7 @@ test('Refine selection values survive Provider switches and reload', () => {
   const settings = new FakeSettings()
   const config = normalizeProcessingConfig(
     {
-      refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro' } }
+      refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro', thinking: 'on' } }
     },
     providers
   )
@@ -75,6 +76,7 @@ test('Refine selection values survive Provider switches and reload', () => {
   config.refine.values.model = 'private-refine-model'
   switchProcessingProvider(config, 'refine', 'mimo', providers)
   expectEqual(config.refine.values.model, 'mimo-v2.5-pro')
+  expectEqual(config.refine.values.thinking, 'on')
 
   writeProcessingConfig(settings, config)
   const restored = readProcessingConfig(settings, providers)

@@ -149,4 +149,64 @@ test('remote processors reject malformed JSON responses consistently', async () 
   }
 })
 
+test('MiMo Refine disables thinking by default and exposes provider overrides', async () => {
+  async function requestFor(values) {
+    let requestBody = null
+    const transport = {
+      async send(request) {
+        requestBody = JSON.parse(new TextDecoder().decode(request.body))
+        return {
+          status: 200,
+          headers: {},
+          body: encodeBody({ choices: [{ message: { content: 'refined' } }] })
+        }
+      }
+    }
+    const processor = createProcessor({
+      provider: mimoProvider,
+      providerValues: { endpoint: 'https://example.test/v1' },
+      values: { model: 'mimo-v2.5', ...values },
+      transport
+    })
+    await processor.process({
+      input: { kind: 'text', text: 'hello' },
+      context: { text: '' },
+      instructions: '',
+      signal: null
+    })
+    return requestBody
+  }
+
+  expectEqual((await requestFor({})).thinking, { type: 'disabled' })
+  expectEqual(Object.hasOwn(await requestFor({ thinking: 'default' }), 'thinking'), false)
+  expectEqual((await requestFor({ thinking: 'on' })).thinking, { type: 'enabled' })
+})
+
+test('MiMo transcription does not receive Refine thinking settings', async () => {
+  let requestBody = null
+  const transport = {
+    async send(request) {
+      requestBody = JSON.parse(new TextDecoder().decode(request.body))
+      return {
+        status: 200,
+        headers: {},
+        body: encodeBody({ choices: [{ message: { content: 'recognized' } }] })
+      }
+    }
+  }
+  const processor = createProcessor({
+    provider: mimoProvider,
+    providerValues: { endpoint: 'https://example.test/v1' },
+    values: { model: 'mimo-v2.5-asr', thinking: 'on' },
+    transport
+  })
+  await processor.process({
+    input: AUDIO,
+    context: { text: '' },
+    instructions: '',
+    signal: null
+  })
+  expectEqual(Object.hasOwn(requestBody, 'thinking'), false)
+})
+
 await run()

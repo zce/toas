@@ -65,12 +65,24 @@ class MimoProvider extends Provider {
               { value: 'mimo-v2.5-pro', label: 'mimo-v2.5-pro' }
             ]
           },
+          {
+            key: 'thinking',
+            type: 'string',
+            label: 'Thinking',
+            inputs: ['text'],
+            advanced: true,
+            choices: [
+              { value: 'off', label: 'Off' },
+              { value: 'default', label: 'Provider default' },
+              { value: 'on', label: 'On' }
+            ]
+          },
           { key: 'language', type: 'string', label: 'Language', inputs: ['audio'] }
         ],
         support: { inputs: ['audio', 'text'], instructions: true },
         defaults: {
           audio: { model: 'mimo-v2.5-asr', language: 'auto' },
-          text: { model: 'mimo-v2.5' }
+          text: { model: 'mimo-v2.5', thinking: 'off' }
         }
       }
     })
@@ -80,10 +92,18 @@ class MimoProvider extends Provider {
     const endpoint = providerValues.endpoint?.trim()
     const { model, shape, issues } = this.resolveModelShape(values, MODEL_SHAPES)
     const language = values.language?.trim() || null
+    const thinking = values.thinking === 'default' || values.thinking === 'on' ? values.thinking : 'off'
 
     return {
       input: shape?.input ?? null,
-      config: shape ? { endpoint, model, ...(language ? { language } : {}) } : null,
+      config: shape
+        ? {
+            endpoint,
+            model,
+            ...(language ? { language } : {}),
+            ...(shape.input === 'text' ? { thinking } : {})
+          }
+        : null,
       capabilities: shape?.capabilities ?? null,
       issues
     }
@@ -137,6 +157,9 @@ class MimoProcessor extends ChatCompletionsProcessor {
     const requestBody = {
       model: this._config.model,
       messages,
+      ...(this._shape.input === 'text' && this._config.thinking !== 'default'
+        ? { thinking: { type: this._config.thinking === 'on' ? 'enabled' : 'disabled' } }
+        : {}),
       ...(this._shape.input === 'audio' ? { asr_options: { language: this._config.language ?? 'auto' } } : {}),
       stream: false
     }
