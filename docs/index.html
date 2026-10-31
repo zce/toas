@@ -14,6 +14,7 @@
     <meta name="twitter:card" content="summary" />
     <title>toas — Talk Once, Act Smart</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="interactive-demo.js" defer></script>
   </head>
 
   <body>
@@ -51,7 +52,7 @@
             <p class="lede">Speak naturally. Get clean text without leaving your flow.</p>
             <div class="hero-actions">
               <a class="button primary" href="#install">Install toas</a>
-              <a class="button secondary" href="#demo">Watch the demo ↓</a>
+              <a class="button secondary" href="#demo">Try the live demo ↓</a>
             </div>
             <div class="compat" aria-label="Compatibility"><span>Fedora</span><span>GNOME 49 / 50</span><span>Wayland</span><span>PipeWire</span></div>
           </div>
@@ -100,35 +101,46 @@
       <section class="demo" id="demo" aria-labelledby="demo-title">
         <div class="shell narrow">
           <div class="section-heading centered">
-            <p class="kicker">The whole idea</p>
-            <h2 id="demo-title">Speak where you type.</h2>
-            <p>One shortcut, one small overlay, and then you are back where you started.</p>
+            <p class="kicker">Try it yourself</p>
+            <h2 id="demo-title">A little interface. A lot less typing.</h2>
+            <p>Meet the experimental matrix HUD. Play the sequence or hold to try it — no microphone required.</p>
           </div>
 
-          <div class="demo-frame" data-demo-frame>
-            <video class="demo-video" controls preload="metadata" playsinline data-demo-video>
-              <source src="assets/toas.mp4" type="video/mp4" />
-              Your browser does not support the video element.
-            </video>
-
-            <button class="demo-cover" type="button" data-demo-cover aria-label="Play toas demo video">
-              <span class="placeholder-orbit placeholder-orbit-left" aria-hidden="true"></span>
-              <span class="placeholder-orbit placeholder-orbit-right" aria-hidden="true"></span>
-              <span class="placeholder-content">
-                <span class="play-button" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="m9 6 9 6-9 6V6Z" fill="currentColor" />
-                  </svg>
-                </span>
-                <span class="placeholder-label">Demo recording</span>
-                <strong>Your desktop, uninterrupted.</strong>
-                <span class="placeholder-copy">See the shortcut, the live overlay, and the moment clean text appears in the focused app.</span>
-                <span class="placeholder-note">Play demo <span aria-hidden="true">→</span></span>
-              </span>
-              <span class="placeholder-corner placeholder-corner-tl">READY / 00:00</span>
-              <span class="placeholder-corner placeholder-corner-br">TOAS / DEMO</span>
-            </button>
+          <div class="demo-frame" data-interactive-demo data-phase="ready">
+            <div class="demo-toolbar" aria-hidden="true">
+              <span><i class="demo-toolbar-dot"></i> INTERACTIVE PREVIEW</span>
+              <span>TOAS / MATRIX HUD</span>
+            </div>
+            <div class="demo-scene">
+              <div class="demo-scene-lines" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <span class="demo-scene-corner demo-scene-corner-left" aria-hidden="true">NO RECORDING · NO UPLOAD</span>
+              <span class="demo-scene-corner demo-scene-corner-right" aria-hidden="true">164 × 40</span>
+              <button class="demo-matrix-pill" data-matrix-pill type="button" disabled
+                aria-label="Cancel the simulated voice input" title="Click to cancel">
+                <canvas data-demo-canvas width="164" height="40" aria-hidden="true"></canvas>
+              </button>
+              <div class="demo-result" data-demo-result hidden>
+                <small>EXAMPLE RESULT</small>
+                <p>Ship the simplest thing that works.</p>
+              </div>
+            </div>
+            <div class="demo-console">
+              <div class="demo-state">
+                <span class="demo-phase" data-demo-phase>READY</span>
+                <strong data-demo-status aria-live="polite">Ready when you are</strong>
+                <span class="demo-detail" data-demo-detail>No microphone needed. Everything runs in your browser.</span>
+              </div>
+              <div class="demo-actions">
+                <button class="demo-action demo-action-primary" type="button" data-demo-play>Play walkthrough</button>
+                <button class="demo-action demo-action-hold" type="button" data-demo-hold>Hold to speak</button>
+                <button class="demo-action demo-action-sound" type="button" data-demo-sound aria-pressed="false">Sound off</button>
+              </div>
+            </div>
           </div>
+          <p class="demo-caption">A simulated voice input, rendered live in JavaScript. Hold to record, release to process, or click the capsule to cancel. Sound is optional.</p>
+          <noscript><p class="demo-caption">Enable JavaScript to try the interactive HUD preview.</p></noscript>
         </div>
       </section>
 
@@ -330,26 +342,5 @@
     </footer>
   </body>
 
-  <script>
-    const frame = document.querySelector('[data-demo-frame]')
-    const cover = frame?.querySelector('[data-demo-cover]')
-    const video = frame?.querySelector('[data-demo-video]')
 
-    if (cover && video) {
-      cover.addEventListener('click', async () => {
-        frame.classList.add('is-playing')
-        try {
-          video.playbackRate = 1.5
-          await video.play()
-        } catch {
-          frame.classList.remove('is-playing')
-        }
-      })
-
-      video.addEventListener('ended', () => {
-        frame.classList.remove('is-playing')
-        video.currentTime = 0
-      })
-    }
-  </script>
 </html>
