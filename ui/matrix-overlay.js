@@ -54,7 +54,7 @@ export class MatrixOverlayView {
     this._error.get_clutter_text().set_ellipsize(Pango.EllipsizeMode.END)
     this._error.get_clutter_text().set_single_line_mode(true)
 
-    const content = new St.BoxLayout()
+    const content = new St.BoxLayout({ style_class: 'toas-matrix-surface' })
     content.add_child(this._matrix)
     content.add_child(this._error)
     this._overlay = new St.Button({
