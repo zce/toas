@@ -14,6 +14,7 @@ import {
   switchProcessingProvider,
   writeProcessingConfig
 } from './host/config.js'
+import { CUE_STYLES, DEFAULT_START_CUE, DEFAULT_END_CUE } from './host/earcon-synthesis.js'
 import { inspectSelection, secretKey } from './kernel/process.js'
 import { providers as providerRegistry } from './kernel/providers/registry.js'
 
@@ -152,31 +153,59 @@ export default class ToasPreferences extends ExtensionPreferences {
 function buildInputGroup(settings) {
   const group = new Adw.PreferencesGroup({
     title: 'Voice Input',
-    description: 'Hold the shortcut to record, then release to process.'
+    description: 'Set how voice input starts and delivers results.'
   })
 
-  const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' })
+  const shortcutRow = new Adw.ActionRow({
+    title: 'Shortcut',
+    subtitle: 'Hold to record; release to process your speech.'
+  })
   const shortcutControl = buildShortcutControl(settings)
   shortcutRow.add_suffix(shortcutControl)
   shortcutRow.activatable_widget = shortcutControl
 
   const autoInsert = new Adw.SwitchRow({
     title: 'Insert automatically',
-    subtitle: 'Insert the result into the focused app; otherwise copy it to the clipboard.'
+    subtitle: 'Insert into the focused app, or copy to clipboard.'
   })
   settings.bind('auto-paste', autoInsert, 'active', Gio.SettingsBindFlags.DEFAULT)
 
   const restoreClipboard = new Adw.SwitchRow({
     title: 'Restore clipboard',
-    subtitle: 'Restore previous clipboard text after fallback paste. Direct insertion and copying are unaffected.'
+    subtitle: 'Restore clipboard text after fallback paste.'
   })
   settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
   // Restoring only makes sense when results are inserted automatically.
   settings.bind('auto-paste', restoreClipboard, 'visible', Gio.SettingsBindFlags.GET)
 
+  const cueOptions = ['none', ...CUE_STYLES]
+  const cueLabels = ['None', 'Tap', 'Crystal', 'Pulse', 'Halo']
+  const soundRow = (kind, title, subtitle) => {
+    const key = `sound-${kind}-style`
+    const requested = settings.get_string(key)
+    const fallback = kind === 'start' ? DEFAULT_START_CUE : DEFAULT_END_CUE
+    const row = new Adw.ComboRow({
+      title,
+      subtitle,
+      model: Gtk.StringList.new(cueLabels),
+      selected: cueOptions.indexOf(cueOptions.includes(requested) ? requested : fallback)
+    })
+    row.connect('notify::selected', () => settings.set_string(key, cueOptions[row.selected]))
+    return row
+  }
+
   group.add(shortcutRow)
   group.add(autoInsert)
   group.add(restoreClipboard)
+  group.add(soundRow('start', 'Start sound', 'Play a cue when recording starts; None skips it.'))
+  group.add(soundRow('end', 'Stop sound', 'Play after a valid recording; None skips the cue.'))
+
+  const matrixHud = new Adw.SwitchRow({
+    title: 'Experimental UI',
+    subtitle: 'Use the dot-matrix HUD instead of the standard overlay.'
+  })
+  settings.bind('experimental-matrix-hud', matrixHud, 'active', Gio.SettingsBindFlags.DEFAULT)
+  group.add(matrixHud)
   return group
 }
 
@@ -186,15 +215,15 @@ function buildInputGroup(settings) {
 function buildProcessingGroups(settings, configurationBanner) {
   const processingGroup = new Adw.PreferencesGroup({
     title: 'Processing',
-    description: 'Audio is sent to the selected provider after recording.'
+    description: 'Send recorded audio to your chosen provider.'
   })
   const contextGroup = new Adw.PreferencesGroup({
     title: 'Context',
-    description: 'Names, terms, and background sent to providers that support context.'
+    description: 'Share names, terms, and context with supported providers.'
   })
   contextGroup.add(
     textAreaRow(settings, 'context', {
-      placeholder: 'Names, product terms, acronyms, or background that may help recognition.',
+      placeholder: 'Names, acronyms, or background that can aid recognition.',
       minHeight: 140,
       maxHeight: 260
     })
@@ -252,7 +281,7 @@ function buildProcessingGroups(settings, configurationBanner) {
 
     const refineExpander = new Adw.ExpanderRow({
       title: 'Refine',
-      subtitle: 'Additional processing may increase latency and provider usage or cost.',
+      subtitle: 'Refine transcription; may add processing time and cost.',
       show_enable_switch: true,
       enable_expansion: processingConfig.refine.enabled
     })
@@ -302,6 +331,7 @@ function buildProcessingGroups(settings, configurationBanner) {
 
     const refineOnErrorRow = new Adw.ComboRow({
       title: 'On refine failure',
+      subtitle: 'Use the original transcript or stop on refine failure.',
       model: Gtk.StringList.new(['Use transcription', 'Fail voice input']),
       selected: Math.max(0, REFINE_ON_ERROR_VALUES.indexOf(processingConfig.refine.onError))
     })
@@ -376,8 +406,8 @@ function updateContextGroup(contextGroup, primary, refine, processingConfig) {
     contextGroup.add_css_class('toas-context-unused')
   }
   contextGroup.description = contextSupported
-    ? 'Names, terms, and background sent to providers that support context.'
-    : 'Not used by the current processing setup.'
+    ? 'Share names, terms, and context with supported providers.'
+    : 'Not used by the selected processing providers.'
 }
 
 // First issue wins: primary errors, then refine (error style under the abort
@@ -412,12 +442,13 @@ function updateConfigurationBanner(banner, primary, refine, processingConfig) {
 function buildLocalGroup(settings) {
   const group = new Adw.PreferencesGroup({
     title: 'Recording &amp; History',
-    description: 'Recording quality and local retention.'
+    description: 'Control recording quality and local retention.'
   })
 
   const qualityValues = ['minimum', 'low', 'standard', 'high', 'maximum']
   const qualityRow = new Adw.ComboRow({
     title: 'Audio quality',
+    subtitle: 'Higher rates use more space and shorten recording time.',
     model: Gtk.StringList.new([
       'Minimum · 8 kHz · ~26 min',
       'Low · 12 kHz · ~17 min',
@@ -433,7 +464,7 @@ function buildLocalGroup(settings) {
 
   const minimumRecordingRow = new Adw.SpinRow({
     title: 'Minimum recording',
-    subtitle: 'Ignore shorter recordings · milliseconds',
+    subtitle: 'Ignore recordings shorter than this duration (ms).',
     adjustment: new Gtk.Adjustment({
       lower: 200,
       upper: 2000,
@@ -450,8 +481,10 @@ function buildLocalGroup(settings) {
 
   group.add(qualityRow)
   group.add(minimumRecordingRow)
-  group.add(spinRow(settings, 'history-limit', 'History entries', 1, 1000))
-  group.add(spinRow(settings, 'recording-limit', 'Saved recordings', 0, 1000))
+  group.add(spinRow(settings, 'history-limit', 'History entries', 1, 1000,
+    'Keep this many history entries on this device.'))
+  group.add(spinRow(settings, 'recording-limit', 'Saved recordings', 0, 1000,
+    'Keep recordings for retries; 0 saves none.'))
   return group
 }
 
@@ -610,9 +643,10 @@ function loadPrefsCss(path) {
   Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }
 
-function spinRow(settings, key, title, lower, upper) {
+function spinRow(settings, key, title, lower, upper, subtitle) {
   const row = new Adw.SpinRow({
     title,
+    subtitle,
     adjustment: new Gtk.Adjustment({
       lower,
       upper,
@@ -670,7 +704,7 @@ function secretRow({ settings, providerId, field }) {
 
 function buildConnectionRow({ settings, role }) {
   const button = new Gtk.Button({ valign: Gtk.Align.CENTER, label: 'Test' })
-  const row = new Adw.ActionRow({ title: 'Connection', subtitle: 'Verify the current settings.', use_markup: false })
+  const row = new Adw.ActionRow({ title: 'Connection', subtitle: 'Check whether the selected provider can connect.', use_markup: false })
   row.add_suffix(button)
   row.activatable_widget = button
 

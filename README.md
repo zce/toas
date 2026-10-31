@@ -36,7 +36,8 @@ record -> transcribe -> optional refine -> focused application
 ```
 
 The extension lives in the GNOME top bar. Hold the default `Ctrl+Shift+Space`, speak,
-and release the modifiers. A compact overlay shows the live waveform and active stage
+and release the modifiers. The standard overlay shows a waveform and processing-stage labels. An optional
+experimental overlay uses a dot-matrix waveform and processing indicator instead,
 without opening another application.
 
 ## Cloud Intelligence, Local Lightness
@@ -243,7 +244,7 @@ desktop notification with a next action.
 
 If Refine fails, behavior follows the configured **On refine failure** policy.
 
-The overlay close action cancels a live voice input.
+The standard overlay's close button or the experimental overlay's capsule cancels a live voice input.
 
 If the original target window is unavailable or focus changes during processing,
 the result stays on the clipboard with a notice.

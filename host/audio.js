@@ -1,6 +1,8 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
+import { wavHeader } from './wav.js'
+
 export const AUDIO_QUALITY_PRESETS = {
   minimum: { sampleRate: 8000 },
   low: { sampleRate: 12000 },
@@ -74,18 +76,36 @@ export function recordingIdForNow() {
 // sizes once capture ends. `stop()` classifies the capture into a
 // RecorderOutcomeKind instead of throwing.
 export class AudioRecorder {
-  constructor({ recordingsDirectory, onLevel, onError, sampleRate = DEFAULT_SAMPLE_RATE, minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS }) {
+  constructor({
+    recordingsDirectory,
+    onLevel,
+    onError,
+    sampleRate = DEFAULT_SAMPLE_RATE,
+    minimumDurationMs = DEFAULT_MINIMUM_RECORDING_DURATION_MS,
+    captureInitiallyMuted = false
+  }) {
     this._recordingsDirectory = recordingsDirectory
     this._onLevel = onLevel
     this._onError = onError
     this._sampleRate = sampleRate || DEFAULT_SAMPLE_RATE
-    this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0 ? minimumDurationMs : DEFAULT_MINIMUM_RECORDING_DURATION_MS
+    this._minimumDurationMs = Number.isFinite(minimumDurationMs) && minimumDurationMs > 0
+      ? minimumDurationMs
+      : DEFAULT_MINIMUM_RECORDING_DURATION_MS
     this._bytesPerMs = (this._sampleRate * BYTES_PER_SAMPLE) / 1000
     this._minimumBytes = this._bytesPerMs * this._minimumDurationMs
-    this._chunkBytes = Math.max(BYTES_PER_SAMPLE, Math.round((this._sampleRate * LEVEL_WINDOW_MS) / 1000) * BYTES_PER_SAMPLE)
+    this._chunkBytes = Math.max(
+      BYTES_PER_SAMPLE,
+      Math.round((this._sampleRate * LEVEL_WINDOW_MS) / 1000) * BYTES_PER_SAMPLE
+    )
     this._levelBuffer = new Uint8Array(this._chunkBytes)
     this._levelBufferSize = 0
     this._outcome = null
+    this._captureEnabled = !captureInitiallyMuted
+  }
+
+  unmute() {
+    this._captureEnabled = true
+    this._levelBufferSize = 0
   }
 
   async start() {
@@ -127,7 +147,8 @@ export class AudioRecorder {
       return (this._outcome = this._cancelled ? recordingOutcomeCancelled() : recordingOutcomeCaptureFailure(new Error('Audio capture is not running')))
     }
 
-    // SIGINT lets pw-record flush and exit, closing the stream on its own.
+    // Let pw-record flush its already captured audio before the end cue.
+    // Closing the capture gate here could cut off the final spoken syllable.
     process.send_signal(2)
 
     try {
@@ -140,6 +161,7 @@ export class AudioRecorder {
         return (this._outcome = recordingOutcomeCaptureFailure(error))
       }
     } finally {
+      this._captureEnabled = false
       this._process = null
       this._stream = null
       this._readPromise = null
@@ -193,6 +215,10 @@ export class AudioRecorder {
 
   async _readLoop() {
     while (this._stream) {
+      // A read issued before the sound gate opens may complete afterward.
+      // Never admit that pre-gate chunk: otherwise the start cue can leak
+      // into the first 100ms of an otherwise muted recording.
+      const acceptAtRead = this._captureEnabled
       const bytes = await this._stream.read_bytes_async(this._chunkBytes, GLib.PRIORITY_DEFAULT, null)
 
       if (bytes.get_size() === 0) {
@@ -209,6 +235,9 @@ export class AudioRecorder {
         break
       }
 
+      if (!acceptAtRead || !this._captureEnabled) {
+        continue
+      }
       this._output.write_all(data, null)
       this._totalBytes += data.length
       this._appendLevelData(data)
@@ -258,6 +287,7 @@ export class AudioRecorder {
     this._levelBuffer = null
     this._levelBufferSize = 0
     this._outcome = null
+    this._captureEnabled = false
     this._recordingsDirectory = null
     this._onLevel = null
     this._onError = null
@@ -283,35 +313,6 @@ export class AudioRecorder {
     }
     this._path = null
   }
-}
-
-// 44-byte PCM WAV header: RIFF/fmt/data sizes for mono s16 at sampleRate.
-function wavHeader(pcmBytes, sampleRate) {
-  const header = new Uint8Array(44)
-  const view = new DataView(header.buffer)
-  const writeAscii = (offset, value) => {
-    for (let i = 0; i < value.length; i++) {
-      header[offset + i] = value.charCodeAt(i)
-    }
-  }
-
-  const blockAlign = BYTES_PER_SAMPLE
-
-  writeAscii(0, 'RIFF')
-  view.setUint32(4, 36 + pcmBytes, true)
-  writeAscii(8, 'WAVE')
-  writeAscii(12, 'fmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * blockAlign, true)
-  view.setUint16(32, blockAlign, true)
-  view.setUint16(34, BYTES_PER_SAMPLE * 8, true)
-  writeAscii(36, 'data')
-  view.setUint32(40, pcmBytes, true)
-
-  return header
 }
 
 // Raw normalized RMS for one fixed-size level window. Presentation-specific

@@ -27,6 +27,7 @@ else
 fi
 
 rm -rf -- "$TARGET_DIR"
+rm -rf -- "${XDG_CACHE_HOME:-$HOME/.cache}/toas"
 
 if "$CLEAN_DCONF"; then
   if command -v dconf >/dev/null 2>&1; then

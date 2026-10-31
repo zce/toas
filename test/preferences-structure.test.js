@@ -16,7 +16,7 @@ test('Context group is mounted beside Processing', () => {
 test('preferences markup-sensitive text stays safe', () => {
   expectTruthy(prefs.includes("title: 'Recording &amp; History'"))
   expectTruthy(prefs.includes("new Adw.Banner({ title: '', revealed: false, use_markup: false })"))
-  expectTruthy(prefs.includes("new Adw.ActionRow({ title: 'Connection', subtitle: 'Verify the current settings.', use_markup: false })"))
+  expectTruthy(/new Adw\.ActionRow\(\{[^}]*title:\s*'Connection'[^}]*use_markup:\s*false[^}]*\}\)/.test(prefs))
 })
 
 await run()

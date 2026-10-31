@@ -4,6 +4,7 @@ import St from 'gi://St'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
+import { EarconPlayer } from './host/earcons.js'
 import { presentFailure } from './host/feedback.js'
 import { extractText, HistoryStore } from './host/history.js'
 import { PushToTalkBinding } from './host/input.js'
@@ -13,8 +14,10 @@ import { TextPaster } from './host/output.js'
 import { KernelRunner } from './host/runner.js'
 import { ConfirmDialog } from './ui/dialog.js'
 import { ToasIndicator } from './ui/indicator.js'
+import { ShellOverlayView } from './ui/legacy-overlay.js'
+import { MatrixOverlayView } from './ui/matrix-overlay.js'
 import { ShellNotifier } from './ui/notifier.js'
-import { ShellOverlayView, ToasOverlayPresenter } from './ui/overlay.js'
+import { ToasOverlayPresenter } from './ui/overlay.js'
 
 // Composition root: builds the collaborator graph on enable and tears it
 // down completely on disable.
@@ -45,9 +48,21 @@ export default class ToasExtension extends Extension {
       )
       this._indicator.setPrivateMode(this._settings.get_boolean('private-mode'))
 
-      this._overlay = new ToasOverlayPresenter({ view: new ShellOverlayView() })
+      this._matrixHud = this._settings.get_boolean('experimental-matrix-hud')
+      this._voiceState = 'idle'
+      this._overlay = new ToasOverlayPresenter({
+        view: this._matrixHud ? new MatrixOverlayView() : new ShellOverlayView()
+      })
       this._kernelRunner = new KernelRunner({ settings: this._settings })
       this._output = new TextPaster(this._settings)
+      try {
+        this._earcons = new EarconPlayer(this._settings)
+      } catch (error) {
+        // Audio cues are cosmetic: a missing sound backend or unwritable
+        // cache must never stop voice capture from starting.
+        console.warn(`[toas] Recording sounds unavailable: ${error.message}`)
+        this._earcons = null
+      }
 
       this._orchestrator = new ToasOrchestrator({
         settings: this._settings,
@@ -56,10 +71,20 @@ export default class ToasExtension extends Extension {
         output: this._output,
         overlay: this._overlay,
         notifier,
-        onStateChanged: (state, message) => this._indicator?.render(state, message)
+        cues: this._earcons,
+        onStateChanged: (state, message) => {
+          this._voiceState = state
+          this._indicator?.render(state, message)
+          if (state === 'idle') {
+            this._syncOverlayView()
+          }
+        }
       })
 
       this._overlay.setOnCancelRequested?.(() => this._orchestrator?.cancel())
+      this._hudChangedId = this._settings.connect('changed::experimental-matrix-hud', () =>
+        this._syncOverlayView()
+      )
 
       this._onboarding = new OnboardingManager({
         settings: this._settings,
@@ -113,6 +138,10 @@ export default class ToasExtension extends Extension {
       this._settings.disconnect(this._privateModeChangedId)
     }
     this._privateModeChangedId = 0
+    if (this._hudChangedId && this._settings) {
+      this._settings.disconnect(this._hudChangedId)
+    }
+    this._hudChangedId = 0
 
     this._orchestrator?.destroy()
     this._orchestrator = null
@@ -131,6 +160,8 @@ export default class ToasExtension extends Extension {
 
     this._overlay?.destroy()
     this._overlay = null
+    this._earcons?.destroy()
+    this._earcons = null
 
     this._indicator?.destroy()
     this._indicator = null
@@ -138,6 +169,23 @@ export default class ToasExtension extends Extension {
     this._history?.destroy()
     this._history = null
     this._settings = null
+    this._voiceState = null
+  }
+
+  _syncOverlayView() {
+    if (!this._overlay || (this._voiceState !== 'idle' && this._voiceState !== 'error')) {
+      return
+    }
+    const matrix = this._settings.get_boolean('experimental-matrix-hud')
+    if (matrix === this._matrixHud) {
+      return
+    }
+    try {
+      this._overlay.replaceView(matrix ? new MatrixOverlayView() : new ShellOverlayView())
+      this._matrixHud = matrix
+    } catch (error) {
+      console.error(`[toas] Could not switch HUD: ${error.message}`)
+    }
   }
 
   _guardReadyToRecord() {

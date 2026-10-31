@@ -6,6 +6,7 @@
 
 import GLib from 'gi://GLib'
 
+import { HUD_HEIGHT } from '../ui/matrix-hud.js'
 import { expectEqual, run, test } from './harness.js'
 
 const rootDir = GLib.get_current_dir()
@@ -45,7 +46,7 @@ test('every stylesheet.css class is referenced by Shell-side code', () => {
   // Classes the Shell theme itself owns; toas styles only decorate them.
   const shellTheme = new Set(['panel-button', 'icon-button', 'system-status-icon', 'card', 'inline', 'warning'])
 
-  const sources = ['extension.js', 'ui/indicator.js', 'ui/overlay.js'].map(f => read(`${rootDir}/${f}`)).join('\n')
+  const sources = ['extension.js', 'ui/indicator.js', 'ui/overlay.js', 'ui/legacy-overlay.js', 'ui/matrix-overlay.js'].map(f => read(`${rootDir}/${f}`)).join('\n')
 
   const used = usedClasses(sources)
   const dead = [...defined].filter(c => !used.has(c) && !shellTheme.has(c))
@@ -70,6 +71,16 @@ test('every prefs.css class is referenced by prefs.js', () => {
   const dead = [...defined].filter(c => !used.has(c) && !adwaitaBuiltins.has(c) && !libadwaitaNodes.has(c))
 
   expectEqual(dead.sort().join(','), '', `unused classes: ${dead.join(', ')}`)
+})
+
+test('matrix capsule keeps the compact circular profile in error state', () => {
+  const css = read(`${rootDir}/stylesheet.css`)
+  const view = read(`${rootDir}/ui/matrix-overlay.js`)
+
+  const radius = css.match(/\.toas-matrix-overlay\s*\{[^}]*border-radius:\s*(\d+)px;/)
+  expectEqual(Number(radius?.[1]) * 2, HUD_HEIGHT)
+  expectEqual(/\.toas-matrix-error-label\s*\{[^}]*padding:\s*0 16px;/.test(css), true)
+  expectEqual(/this\._overlay = new St\.Button\(\{[^}]*height: HUD_HEIGHT,/.test(view), true)
 })
 
 test('stylesheet and prefs stylesheets stay separate', () => {

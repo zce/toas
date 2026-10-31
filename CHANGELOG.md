@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 14 — 2026-10-31
+
+- Added an opt-in **Experimental UI** with a compact dot-matrix HUD for recording and processing, including animated entry/exit and tap-to-cancel. The standard overlay remains the default.
+- Added independently configurable start and stop recording sounds, with four cue styles or None in Preferences.
+- Kept recording cues out of captured audio by delaying microphone capture until the start cue finishes and playing the stop cue only after a valid recording has been finalized. Short, cancelled, and failed recordings do not play a stop cue.
+- Replaced the website's static hero illustration and video demo with an automatically looping, interactive HUD preview showing multilingual text insertion. Simplified the presentation and refreshed the site's visual style.
+- Clarified Preferences, setup, and privacy guidance, and made the uninstaller remove Toas's generated audio cue cache.
+
 ## Version 13 — 2026-09-06
 
 - Added Doubao BigASR Flash as a selectable transcription provider and aligned the website/setup copy with the new option.

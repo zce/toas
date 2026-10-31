@@ -1,7 +1,7 @@
 // Overlay presenter state machine against a fake view.
 
 import { ToasOverlayPresenter } from '../ui/overlay.js'
-import { expectEqual, run, test } from './harness.js'
+import { expectEqual, expectTruthy, run, test } from './harness.js'
 
 class FakeOverlayView {
   constructor() {
@@ -36,6 +36,9 @@ class FakeOverlayView {
   }
   setPrivate(enabled) {
     this.privateFlags.push(enabled)
+  }
+  setOnCancelRequested(handler) {
+    this.onCancelRequested = handler
   }
   destroy() {
     this.destroyed++
@@ -144,6 +147,38 @@ test('destroy clears pending timers and tears down the view', async () => {
   expectEqual(view.destroyed, 1)
   await flushAsync(60)
   expectEqual(view.hideCalls, 0)
+})
+
+test('switching HUD views preserves cancellation without running both', () => {
+  const oldView = new FakeOverlayView()
+  const nextView = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view: oldView })
+  const cancel = () => {}
+  presenter.setOnCancelRequested(cancel)
+  presenter.replaceView(nextView)
+
+  expectTruthy(nextView.onCancelRequested === cancel)
+  expectEqual(oldView.destroyed, 1)
+  expectEqual(nextView.destroyed, 0)
+  presenter.render('recording')
+  expectEqual(oldView.renders.length, 0)
+  expectEqual(nextView.renders.length, 1)
+  presenter.destroy()
+  expectEqual(nextView.destroyed, 1)
+})
+
+test('switching views cancels the pending error-hide timer', async () => {
+  const oldView = new FakeOverlayView()
+  const nextView = new FakeOverlayView()
+  const presenter = new ToasOverlayPresenter({ view: oldView, hideDelay: 20 })
+
+  presenter.render('error', 'broken')
+  presenter.replaceView(nextView)
+  await flushAsync(40)
+
+  expectEqual(oldView.destroyed, 1)
+  expectEqual(nextView.hideCalls, 0)
+  presenter.destroy()
 })
 
 test('private mode is delegated to the view without a text label', () => {

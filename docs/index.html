@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0d110e" />
+    <meta name="theme-color" content="#0d151b" />
     <meta name="description" content="Push-to-talk voice input for GNOME. Hold a shortcut, speak, release, and keep moving." />
     <link rel="canonical" href="https://toas.cc/" />
     <meta property="og:type" content="website" />
@@ -14,6 +14,7 @@
     <meta name="twitter:card" content="summary" />
     <title>toas — Talk Once, Act Smart</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="interactive-demo.js" defer></script>
   </head>
 
   <body>
@@ -51,83 +52,43 @@
             <p class="lede">Speak naturally. Get clean text without leaving your flow.</p>
             <div class="hero-actions">
               <a class="button primary" href="#install">Install toas</a>
-              <a class="button secondary" href="#demo">Watch the demo ↓</a>
+              <a class="button secondary" href="#how">How it works ↓</a>
             </div>
             <div class="compat" aria-label="Compatibility"><span>Fedora</span><span>GNOME 49 / 50</span><span>Wayland</span><span>PipeWire</span></div>
           </div>
 
-          <div class="hero-product" aria-label="Illustration of toas transcribing into an editor" role="img">
-            <div class="hero-live-label"><span></span> live on your desktop</div>
-            <div class="product-window">
-              <div class="product-topbar">
-                <span>09:41</span>
-                <strong>Workbench</strong>
-                <span class="topbar-icons">● ▮▮</span>
+          <div class="hero-product" id="demo" aria-label="Interactive preview of the experimental Matrix HUD">
+          <div class="demo-frame" data-interactive-demo data-phase="entering">
+            <div class="demo-desktop">
+              <div class="demo-desktop-panel" aria-hidden="true">
+                <span>Activities</span>
+                <span>10:31</span>
+                <span></span>
               </div>
-              <div class="product-body">
-                <aside>
-                  <strong>notes</strong>
-                  <i class="active"></i><i></i><i></i><i class="short"></i>
-                </aside>
-                <div class="editor">
-                  <div class="editor-tab"><span></span> release-notes.md</div>
-                  <div class="editor-lines">
-                    <p><small>01</small><b># Next release</b></p>
-                    <p><small>02</small>&nbsp;</p>
-                    <p><small>03</small>- keep the workflow small</p>
-                    <p><small>04</small>- make provider setup obvious</p>
-                    <p class="typing"><small>05</small>ship the simplest thing that works<span></span></p>
-                  </div>
+              <div class="demo-editor-window" aria-label="Simulated text editor">
+                <div class="demo-editor-titlebar" aria-hidden="true">Text Editor</div>
+                <div class="demo-editor-body" data-demo-editor-body>
+                  <div class="demo-editor-output"><span data-demo-inserted></span><span class="demo-editor-caret" aria-hidden="true"></span><span class="demo-editor-placeholder" data-demo-placeholder>Dictated text appears here…</span></div>
                 </div>
               </div>
-              <div class="voice-overlay">
-                <div class="mic-ring">
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M10 3.25a2.5 2.5 0 0 0-2.5 2.5v3.5a2.5 2.5 0 0 0 5 0v-3.5A2.5 2.5 0 0 0 10 3.25ZM5 9.25a5 5 0 0 0 10 0M10 14.25v2.5M7 16.75h6" />
-                  </svg>
-                </div>
-                <div class="wave" aria-hidden="true">
-                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-                </div>
-                <div class="overlay-copy"><small>toas</small><strong>Listening…</strong></div>
+              <div class="demo-hud-anchor">
+                <button class="demo-matrix-pill" data-matrix-pill type="button" disabled
+                  aria-label="Cancel the simulated voice input" title="Click to cancel">
+                  <canvas data-demo-canvas width="148" height="36" aria-hidden="true"></canvas>
+                </button>
               </div>
+              <button class="demo-sound-toggle" type="button" data-demo-sound aria-label="Unmute demo audio" aria-pressed="false" title="Unmute demo audio">
+                <svg class="demo-sound-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 5 6 9H3v6h3l5 4V5Z" /><path d="m16 9 5 6m0-6-5 6" />
+                </svg>
+                <svg class="demo-sound-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 5 6 9H3v6h3l5 4V5Z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" />
+                </svg>
+              </button>
             </div>
-            <div class="shortcut"><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Space</kbd></div>
           </div>
-        </div>
-      </section>
-
-      <section class="demo" id="demo" aria-labelledby="demo-title">
-        <div class="shell narrow">
-          <div class="section-heading centered">
-            <p class="kicker">The whole idea</p>
-            <h2 id="demo-title">Speak where you type.</h2>
-            <p>One shortcut, one small overlay, and then you are back where you started.</p>
-          </div>
-
-          <div class="demo-frame" data-demo-frame>
-            <video class="demo-video" controls preload="metadata" playsinline data-demo-video>
-              <source src="assets/toas.mp4" type="video/mp4" />
-              Your browser does not support the video element.
-            </video>
-
-            <button class="demo-cover" type="button" data-demo-cover aria-label="Play toas demo video">
-              <span class="placeholder-orbit placeholder-orbit-left" aria-hidden="true"></span>
-              <span class="placeholder-orbit placeholder-orbit-right" aria-hidden="true"></span>
-              <span class="placeholder-content">
-                <span class="play-button" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="m9 6 9 6-9 6V6Z" fill="currentColor" />
-                  </svg>
-                </span>
-                <span class="placeholder-label">Demo recording</span>
-                <strong>Your desktop, uninterrupted.</strong>
-                <span class="placeholder-copy">See the shortcut, the live overlay, and the moment clean text appears in the focused app.</span>
-                <span class="placeholder-note">Play demo <span aria-hidden="true">→</span></span>
-              </span>
-              <span class="placeholder-corner placeholder-corner-tl">READY / 00:00</span>
-              <span class="placeholder-corner placeholder-corner-br">TOAS / DEMO</span>
-            </button>
+          <p class="demo-caption">Experimental HUD preview · The standard HUD remains the default. Enable <strong>Experimental UI</strong> in Preferences.</p>
+          <noscript><p class="demo-caption">Enable JavaScript to view the interactive preview.</p></noscript>
           </div>
         </div>
       </section>
@@ -139,7 +100,7 @@
               <p class="kicker">How it works</p>
               <h2>Hold. Speak. Release.</h2>
             </div>
-            <p>toas stays quiet until you ask for it. No extra window, no context switching, no local model runtime to keep alive.</p>
+            <p>Toas stays out of the way until you use your shortcut. No separate app or local AI model to run.</p>
           </div>
 
           <div class="steps">
@@ -170,10 +131,9 @@
         <div class="shell setup-layout">
           <div class="setup-copy">
             <p class="kicker">Your setup</p>
-            <h2>Choose the stack that fits you.</h2>
+            <h2>Choose your providers.</h2>
             <p class="body-copy">
-              Everything important lives in GNOME Preferences. Pick a transcription provider, add its API key, optionally enable Refine, and add useful Context
-              when the provider supports it.
+              Choose a transcription provider, add its API key, and optionally configure Refine and Context in Preferences.
             </p>
 
             <div class="provider-summary">
@@ -240,7 +200,7 @@
               <p class="kicker">Recipes</p>
               <h2>Teach it your words. Shape the result.</h2>
             </div>
-            <p>Context gives the model names, terms, and background. Instructions control cleanup, translation, tone, and structure. Start from a recipe and adapt it.</p>
+            <p>Context supplies names and terms. Refine instructions shape cleanup, tone, and formatting. Choose a recipe and adapt it.</p>
           </div>
 
           <div class="steps">
@@ -276,8 +236,7 @@
               <h2>Small local layer.<br />Clear cloud boundary.</h2>
             </div>
             <p>
-              toas does not hide what leaves your machine. The local behavior is controlled by the extension; provider-side handling follows the service you
-              choose.
+              Audio is recorded locally until you stop. Once uploaded, your chosen providers' privacy policies apply.
             </p>
           </div>
 
@@ -305,7 +264,7 @@
         <div class="shell install-layout">
           <div>
             <p class="kicker">Install</p>
-            <h2>Give your hands the shortcut.</h2>
+            <h2>Install and start speaking.</h2>
             <p>Install the extension, open Preferences, choose a transcription provider, and add its API key.</p>
           </div>
           <div class="command-card">
@@ -330,26 +289,5 @@
     </footer>
   </body>
 
-  <script>
-    const frame = document.querySelector('[data-demo-frame]')
-    const cover = frame?.querySelector('[data-demo-cover]')
-    const video = frame?.querySelector('[data-demo-video]')
 
-    if (cover && video) {
-      cover.addEventListener('click', async () => {
-        frame.classList.add('is-playing')
-        try {
-          video.playbackRate = 1.5
-          await video.play()
-        } catch {
-          frame.classList.remove('is-playing')
-        }
-      })
-
-      video.addEventListener('ended', () => {
-        frame.classList.remove('is-playing')
-        video.currentTime = 0
-      })
-    }
-  </script>
 </html>

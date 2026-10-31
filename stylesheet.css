@@ -3,9 +3,10 @@
    The Preferences window is a separate GTK4 process and cannot load this
    file — its styles live in prefs.css. */
 
-/* --- Overlay (ui/overlay.js) ------------------------------------------------- */
+/* --- Overlay (ui/legacy-overlay.js) ------------------------------------------ */
 
 .toas-overlay {
+  font-family: 'Maple Mono', sans-serif;
   spacing: 8px;
   padding: 8px;
 
@@ -173,4 +174,20 @@
 .toas-private-icon {
   icon-size: 14px;
   color: st-transparentize(-st-accent-color, 0.25);
+}
+
+/* --- Matrix HUD (ui/matrix-overlay.js) --------------------------------------- */
+
+.toas-matrix-overlay {
+  font-family: 'Maple Mono', sans-serif;
+  border-radius: 99px;
+  background-color: rgba(26, 27, 31, 0.98);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.39);
+}
+
+.toas-matrix-error-label {
+  max-width: 288px;
+  padding: 0 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
 }
