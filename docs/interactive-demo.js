@@ -30,10 +30,10 @@
     previewScale = Number.isFinite(value) && value > 0 ? value : 1
   }
   const phases = ['entering', 'recording', 'processing', 'exiting', 'inserting', 'complete']
-  const durations = { entering: .37, recording: 3.15, processing: 1.8, exiting: .40, inserting: 2.25, complete: 2.6, cancelled: .23 }
+  const durations = { entering: .37, recording: 3.15, processing: 1.8, exiting: .40, inserting: 3.6, complete: 2.8, cancelled: .23 }
   const words = Array.from(
-    '今天把 Toas 的 Matrix HUD 打磨好了：录音更流畅，Processing 动画也更克制。\n' +
-    'Next step: verify GNOME Shell 50 on Wayland, review the ASR output, and ship a lightweight release — 简单、稳定、可维护。'
+    'Toas brings push-to-talk voice input to GNOME. Hold a shortcut, speak, and release — your words appear in the app you’re using.\n' +
+    'Capture quick notes, technical names like PostgreSQL, or a message to your team: “The API is ready, 可以开始测试. Merci!” Optional Refine can polish the transcript.'
   )
   const glyphs = {
     C: ['0111', '1000', '1000', '1000', '0111'],
