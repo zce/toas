@@ -24,6 +24,13 @@
   let phase = 'ready', width = REC, voice = 0, hover = 0, hoverAim = 0
   let raf = 0, timer = 0, last = 0, elapsed = 0, visible = true, pressed = false
   let soundOn = false, audio = null, pointerStart = null
+  const playing = new Set()
+  const stopCues = () => {
+    for (const oscillator of playing) {
+      try { oscillator.stop() } catch { /* already stopped */ }
+    }
+    playing.clear()
+  }
   const isActive = () => phase === 'recording' || phase === 'processing'
 
   function show(next, description) {
@@ -41,6 +48,7 @@
   }
 
   function cue(kind) {
+    stopCues()
     if (!soundOn || !audio || audio.state !== 'running') return
     const notes = kind === 'start'
       ? [[740,.20,0,.07],[1110,.21,.048,.055],[1480,.095,.049,.015]]
@@ -54,13 +62,15 @@
       envelope.gain.linearRampToValueAtTime(amp, t + .008)
       envelope.gain.exponentialRampToValueAtTime(.00001, t + d)
       oscillator.connect(envelope).connect(audio.destination)
-      oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect() }
+      oscillator.onended = () => { playing.delete(oscillator); oscillator.disconnect(); envelope.disconnect() }
+      playing.add(oscillator)
       oscillator.start(t)
       oscillator.stop(t + d + .012)
     }
   }
 
   function start(auto = false) {
+    hold.classList.remove('is-held')
     clearTimeout(timer)
     timer = 0
     pressed = !auto
@@ -97,6 +107,8 @@
 
   function cancel() {
     if (!isActive()) return
+    stopCues()
+    hold.classList.remove('is-held')
     clearTimeout(timer)
     pressed = false
     show('cancelled', 'The simulated voice input was discarded.')
@@ -229,6 +241,7 @@
   })
   sound.addEventListener('click', async () => {
     if (soundOn) {
+      stopCues()
       soundOn = false
     } else {
       const Ctor = window.AudioContext || window.webkitAudioContext
