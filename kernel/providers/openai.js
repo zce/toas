@@ -98,26 +98,29 @@ export const openaiCompatibleProvider = new OpenAICompatibleProvider({
   keyEnv: ['TOAS_OPENAI_COMPATIBLE_API_KEY']
 })
 
-// Keep the native OpenAI mapping limited to models that document `none`.
-const OPENAI_MODELS_SUPPORTING_REASONING_NONE = [
+// Match supported model families rather than maintaining every dated snapshot.
+const OPENAI_REASONING_NONE_FAMILIES = [
   'gpt-5.1',
   'gpt-5.2',
   'gpt-5.4',
-  'gpt-5.4-mini',
-  'gpt-5.4-nano',
   'gpt-5.5',
   'gpt-5.6',
-  'gpt-5.6-sol',
-  'gpt-5.6-terra',
-  'gpt-5.6-luna',
   'gpt-6.1-terra',
   'gpt-6-sol',
   'gpt-6-luna'
 ]
+const OPENAI_REASONING_NONE_EXCLUDED_VARIANTS = new Set(['pro', 'codex', 'cyber'])
 
 function supportsOpenAIReasoningNone(model) {
-  return typeof model === 'string' && OPENAI_MODELS_SUPPORTING_REASONING_NONE.some(
-    id => model === id || model.startsWith(`${id}-20`)
+  if (typeof model !== 'string') return false
+
+  const modelId = model.trim().toLowerCase()
+  if (!modelId || modelId.split('-').some(part => OPENAI_REASONING_NONE_EXCLUDED_VARIANTS.has(part))) {
+    return false
+  }
+
+  return OPENAI_REASONING_NONE_FAMILIES.some(
+    family => modelId === family || modelId.startsWith(`${family}-`)
   )
 }
 
