@@ -84,6 +84,24 @@ test('Refine selection values survive Provider switches and reload', () => {
   expectEqual(restored.refine.values.model, 'private-refine-model')
 })
 
+test('stored MiMo V2.5 Refine selection migrates without losing user settings', () => {
+  const settings = new FakeSettings(JSON.stringify({
+    refine: {
+      enabled: true,
+      provider: 'mimo',
+      values: { model: 'mimo-v2.5', thinking: 'default' },
+      instructions: 'Keep technical terms intact.',
+      onError: 'abort'
+    }
+  }))
+  const config = readProcessingConfig(settings, providers)
+
+  expectEqual(config.refine.values.model, 'mimo-v2.6-flash')
+  expectEqual(config.refine.values.thinking, 'default')
+  expectEqual(config.refine.instructions, 'Keep technical terms intact.')
+  expectEqual(config.refine.onError, 'abort')
+})
+
 test('MiMo retirement migration includes inactive remembered selections', () => {
   const config = normalizeProcessingConfig({
     primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr' } },

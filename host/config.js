@@ -89,7 +89,7 @@ export function normalizeProcessingConfig(stored, providerRegistry) {
   }
 }
 
-// Provider manifest defaults first, so stored user values override them.
+// Stored values override defaults; retired model IDs are then remapped by their Provider.
 function selectionValues(stored, provider, input) {
   const values = {
     ...(provider?.manifest?.defaults?.[input] || {}),
