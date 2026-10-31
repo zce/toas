@@ -967,6 +967,17 @@ kbd {
   text-align: center;
 }
 
+.demo-experimental-note {
+  margin-top: 4px;
+  color: #839182;
+  font-size: 11px;
+}
+
+.demo-experimental-note strong {
+  color: #b7c5b2;
+  font-weight: 600;
+}
+
 .section {
   padding: 116px 0;
 }
