@@ -52,8 +52,9 @@ test('MiMo selection determines audio or text behavior without a product role', 
       secretPresence: PRESENT
     })
   expectEqual(resolve('mimo-v2.5-asr').capabilities.inputs, ['audio'])
-  expectEqual(resolve('mimo-v2.5').capabilities.inputs, ['text'])
-  expectEqual(resolve('mimo-v2.5-pro').capabilities.inputs, ['text'])
+  expectEqual(resolve('mimo-v2.6-flash').capabilities.inputs, ['text'])
+  expectEqual(resolve('mimo-v2.6-pro').capabilities.inputs, ['text'])
+  expectTruthy(resolve('mimo-v2.5').issues.length > 0)
   expectTruthy(resolve('mimo-unknown').issues.length > 0)
 })
 

@@ -34,7 +34,7 @@ test('empty persistence gets product defaults from Provider selection defaults',
   expectEqual(config.primary.provider, 'qwen')
   expectEqual(config.primary.values.model, 'fun-asr-flash-2026-06-15')
   expectEqual(config.refine.provider, 'mimo')
-  expectEqual(config.refine.values.model, 'mimo-v2.5')
+  expectEqual(config.refine.values.model, 'mimo-v2.6-flash')
   expectEqual(config.refine.values.thinking, 'off')
   expectEqual(config.refine.instructions, DEFAULT_REFINE_INSTRUCTIONS)
   expectTruthy(DEFAULT_REFINE_INSTRUCTIONS.includes('within otherwise meaningful speech'))
@@ -75,13 +75,30 @@ test('Refine selection values survive Provider switches and reload', () => {
   switchProcessingProvider(config, 'refine', 'openai-compatible', providers)
   config.refine.values.model = 'private-refine-model'
   switchProcessingProvider(config, 'refine', 'mimo', providers)
-  expectEqual(config.refine.values.model, 'mimo-v2.5-pro')
+  expectEqual(config.refine.values.model, 'mimo-v2.6-pro')
   expectEqual(config.refine.values.thinking, 'default')
 
   writeProcessingConfig(settings, config)
   const restored = readProcessingConfig(settings, providers)
   switchProcessingProvider(restored, 'refine', 'openai-compatible', providers)
   expectEqual(restored.refine.values.model, 'private-refine-model')
+})
+
+test('MiMo retirement migration includes inactive remembered selections', () => {
+  const config = normalizeProcessingConfig({
+    primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr' } },
+    refine: { enabled: true, provider: 'openai-compatible', values: { model: 'private-model' } },
+    selectionValues: {
+      refine: {
+        mimo: { model: 'mimo-v2.5-pro', thinking: 'default' }
+      }
+    }
+  }, providers)
+
+  expectEqual(config.primary.values.model, 'mimo-v2.5-asr')
+  switchProcessingProvider(config, 'refine', 'mimo', providers)
+  expectEqual(config.refine.values.model, 'mimo-v2.6-pro')
+  expectEqual(config.refine.values.thinking, 'default')
 })
 
 test('malformed JSON falls back without leaking persistence concerns to Providers', () => {

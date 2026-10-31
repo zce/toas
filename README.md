@@ -392,8 +392,8 @@ MiMo uses one provider family with separate verified model selections for each r
 
 ```text
 Transcription: mimo-v2.5-asr
-Refine:        mimo-v2.5
-               mimo-v2.5-pro
+Refine:        mimo-v2.6-flash
+               mimo-v2.6-pro
 ```
 
 The ASR model accepts audio input.
@@ -403,6 +403,10 @@ and Context. Toas disables thinking by default for MiMo and supported native Ope
 Generic OpenAI-compatible endpoints keep **Provider default** because their reasoning
 extensions vary; choose **Off** under **Advanced** when the endpoint supports
 `reasoning_effort: "none"`.
+
+Stored MiMo Refine selections using the retired `mimo-v2.5` or `mimo-v2.5-pro`
+model IDs are mapped to the corresponding 2.6 models when loaded.
+The separate `mimo-v2.5-asr` transcription model is unchanged.
 
 ### OpenAI and OpenAI-compatible Refine
 
