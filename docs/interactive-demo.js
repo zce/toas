@@ -260,11 +260,14 @@
     const target = stage === 'recording' || stage === 'entering' ? RECORD_WIDTH :
       stage === 'exiting' || stage === 'cancelled' ? EXIT_WIDTH : PROCESS_WIDTH
     if (stage === 'entering') {
-      const ease = 1 - Math.pow(1 - smooth(stageTime / durations.entering), 3)
+      const ease = 1 - Math.pow(1 - clamp(stageTime / durations.entering), 3)
       width = reduced.matches ? RECORD_WIDTH : mix(DESIGN_HEIGHT, RECORD_WIDTH, ease)
     } else if (stage === 'exiting' || stage === 'cancelled') {
       const duration = durations[stage]
-      width = reduced.matches ? EXIT_WIDTH : mix(PROCESS_WIDTH, EXIT_WIDTH, smooth(stageTime / duration))
+      width = reduced.matches ? EXIT_WIDTH : mix(PROCESS_WIDTH, EXIT_WIDTH, (1 - Math.cos(Math.PI * clamp(stageTime / duration))) / 2)
+    } else if (stage === 'processing' && mode === 'auto') {
+      const progress = (1 - Math.cos(Math.PI * clamp(stageTime / .26))) / 2
+      width = reduced.matches ? PROCESS_WIDTH : mix(RECORD_WIDTH, PROCESS_WIDTH, progress)
     } else {
       width = reduced.matches ? target : follow(width, target, 1 / FPS, .13)
     }
