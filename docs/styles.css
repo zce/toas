@@ -399,7 +399,7 @@ h3 {
 }
 
 .hero-product .demo-desktop {
-  height: 352px;
+  height: 372px;
   background:
     radial-gradient(ellipse at 80% 14%, rgba(129, 173, 121, .14), transparent 57%),
     linear-gradient(135deg, #18251e, #2c4236 75%, #3b5743);
@@ -412,8 +412,10 @@ h3 {
 .hero-product .demo-editor-window {
   width: calc(100% - 48px);
   top: 52px;
-  height: 252px;
+  height: 270px;
   border-color: rgba(244, 250, 235, .12);
+  background: #1a211d;
+  color: #d7e1d7;
   box-shadow: 0 17px 48px rgba(0, 0, 0, .36);
 }
 
@@ -428,8 +430,13 @@ h3 {
   min-height: 19px;
 }
 
+.hero-product .demo-editor-titlebar { background: #272f29; }
+.hero-product .demo-editor-tab { background: #202a23; }
+.hero-product .demo-editor-body { background: #1a221d; }
+.hero-product .demo-editor-statusbar { background: #1c2620; }
+
 .hero-product .demo-hud-anchor {
-  bottom: 47px;
+  bottom: 50px;
 }
 
 .hero-product .demo-console {
@@ -1427,11 +1434,11 @@ footer {
     border-radius: 18px;
   }
 
-  .hero-product .demo-desktop { height: 356px; }
-  .hero-product .demo-editor-window { width: calc(100% - 26px); top: 46px; height: 265px; }
+  .hero-product .demo-desktop { height: 375px; }
+  .hero-product .demo-editor-window { width: calc(100% - 26px); top: 46px; height: 282px; }
   .hero-product .demo-editor-body { padding: 11px 10px; font-size: 10px; line-height: 1.45; }
   .hero-product .demo-editor-line { grid-template-columns: 25px minmax(0, 1fr); gap: 7px; min-height: 17px; }
-  .hero-product .demo-hud-anchor { bottom: 40px; }
+  .hero-product .demo-hud-anchor { bottom: 47px; }
   .demo-matrix-pill { --demo-hud-scale: 1.1; width: 162.8px; height: 39.6px; }
   .demo-console { padding: 14px; }
   .demo-state { flex-basis: 100%; }
