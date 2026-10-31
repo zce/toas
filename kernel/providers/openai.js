@@ -30,19 +30,40 @@ class OpenAICompatibleProvider extends Provider {
             env: keyEnv
           }
         ],
-        selectionFields: [{ key: 'model', type: 'string', label: 'Model', required: true }],
+        selectionFields: [
+          { key: 'model', type: 'string', label: 'Model', required: true },
+          {
+            key: 'thinking',
+            type: 'string',
+            label: 'Thinking',
+            inputs: ['text'],
+            advanced: true,
+            choices: [
+              { value: 'off', label: 'Off' },
+              { value: 'default', label: 'Provider default' }
+            ]
+          }
+        ],
         support: { inputs: ['text'], instructions: true },
-        defaults: { text: modelDefault ? { model: modelDefault } : {} }
+        defaults: {
+          text: { ...(modelDefault ? { model: modelDefault } : {}), thinking: 'off' }
+        }
       }
     })
   }
 
   resolveSelection({ providerValues, values }) {
+    const model = values.model?.trim()
+    const requestedThinking = values.thinking === 'default' ? 'default' : 'off'
+    const canDisableThinking =
+      this.id === 'openai-compatible' || supportsOpenAIReasoningNone(model)
+
     return {
       input: 'text',
       config: {
         endpoint: providerValues.endpoint?.trim(),
-        model: values.model?.trim()
+        model,
+        thinking: canDisableThinking ? requestedThinking : 'default'
       },
       capabilities: textCapabilities(),
       issues: []
@@ -70,6 +91,22 @@ export const openaiCompatibleProvider = new OpenAICompatibleProvider({
   keyEnv: ['TOAS_OPENAI_COMPATIBLE_API_KEY']
 })
 
+// Keep the native OpenAI mapping limited to models that document `none`.
+const OPENAI_MODELS_SUPPORTING_REASONING_NONE = [
+  'gpt-5.4',
+  'gpt-5.5',
+  'gpt-5.6',
+  'gpt-6.1-terra',
+  'gpt-6-sol',
+  'gpt-6-luna'
+]
+
+function supportsOpenAIReasoningNone(model) {
+  return typeof model === 'string' && OPENAI_MODELS_SUPPORTING_REASONING_NONE.some(
+    id => model === id || model.startsWith(`${id}-20`)
+  )
+}
+
 function textCapabilities() {
   return { inputs: ['text'], instructions: true, context: true }
 }
@@ -88,6 +125,7 @@ class OpenAICompatibleProcessor extends ChatCompletionsProcessor {
           context,
           instructions
         }),
+        ...(this._config.thinking === 'off' ? { reasoning_effort: 'none' } : {}),
         stream: false
       },
       signal

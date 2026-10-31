@@ -179,7 +179,6 @@ test('MiMo Refine disables thinking by default and exposes provider overrides', 
 
   expectEqual((await requestFor({})).thinking, { type: 'disabled' })
   expectEqual(Object.hasOwn(await requestFor({ thinking: 'default' }), 'thinking'), false)
-  expectEqual((await requestFor({ thinking: 'on' })).thinking, { type: 'enabled' })
 })
 
 test('MiMo transcription does not receive Refine thinking settings', async () => {
@@ -197,7 +196,7 @@ test('MiMo transcription does not receive Refine thinking settings', async () =>
   const processor = createProcessor({
     provider: mimoProvider,
     providerValues: { endpoint: 'https://example.test/v1' },
-    values: { model: 'mimo-v2.5-asr', thinking: 'on' },
+    values: { model: 'mimo-v2.5-asr', thinking: 'off' },
     transport
   })
   await processor.process({
@@ -207,6 +206,74 @@ test('MiMo transcription does not receive Refine thinking settings', async () =>
     signal: null
   })
   expectEqual(Object.hasOwn(requestBody, 'thinking'), false)
+})
+
+test('OpenAI Refine disables reasoning only for models that support none', async () => {
+  async function requestFor(model, thinking = 'off') {
+    let requestBody = null
+    const transport = {
+      async send(request) {
+        requestBody = JSON.parse(new TextDecoder().decode(request.body))
+        return {
+          status: 200,
+          headers: {},
+          body: encodeBody({ choices: [{ message: { content: 'refined' } }] })
+        }
+      }
+    }
+    const resolved = openaiProvider.resolve({
+      providerValues: { endpoint: 'https://example.test/v1' },
+      values: { model, thinking },
+      secretPresence: { key: true }
+    })
+    expectEqual(resolved.issues, [])
+    const processor = openaiProvider.create(resolved.config, { key: 'secret' }, { transport })
+    await processor.process({
+      input: { kind: 'text', text: 'hello' },
+      context: { text: '' },
+      instructions: '',
+      signal: null
+    })
+    return requestBody
+  }
+
+  expectEqual((await requestFor('gpt-5.5')).reasoning_effort, 'none')
+  expectEqual(Object.hasOwn(await requestFor('gpt-5.5', 'default'), 'reasoning_effort'), false)
+  expectEqual(Object.hasOwn(await requestFor('gpt-6.1-sol'), 'reasoning_effort'), false)
+  expectEqual(Object.hasOwn(await requestFor('gpt-4o-mini'), 'reasoning_effort'), false)
+})
+
+test('OpenAI-compatible Refine maps Off to reasoning_effort none', async () => {
+  async function requestFor(thinking) {
+    let requestBody = null
+    const transport = {
+      async send(request) {
+        requestBody = JSON.parse(new TextDecoder().decode(request.body))
+        return {
+          status: 200,
+          headers: {},
+          body: encodeBody({ choices: [{ message: { content: 'refined' } }] })
+        }
+      }
+    }
+    const resolved = openaiCompatibleProvider.resolve({
+      providerValues: { endpoint: 'https://example.test/v1' },
+      values: { model: 'custom-model', thinking },
+      secretPresence: { key: true }
+    })
+    expectEqual(resolved.issues, [])
+    const processor = openaiCompatibleProvider.create(resolved.config, { key: 'secret' }, { transport })
+    await processor.process({
+      input: { kind: 'text', text: 'hello' },
+      context: { text: '' },
+      instructions: '',
+      signal: null
+    })
+    return requestBody
+  }
+
+  expectEqual((await requestFor('off')).reasoning_effort, 'none')
+  expectEqual(Object.hasOwn(await requestFor('default'), 'reasoning_effort'), false)
 })
 
 await run()

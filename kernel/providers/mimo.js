@@ -73,8 +73,7 @@ class MimoProvider extends Provider {
             advanced: true,
             choices: [
               { value: 'off', label: 'Off' },
-              { value: 'default', label: 'Provider default' },
-              { value: 'on', label: 'On' }
+              { value: 'default', label: 'Provider default' }
             ]
           },
           { key: 'language', type: 'string', label: 'Language', inputs: ['audio'] }
@@ -92,7 +91,7 @@ class MimoProvider extends Provider {
     const endpoint = providerValues.endpoint?.trim()
     const { model, shape, issues } = this.resolveModelShape(values, MODEL_SHAPES)
     const language = values.language?.trim() || null
-    const thinking = values.thinking === 'default' || values.thinking === 'on' ? values.thinking : 'off'
+    const thinking = values.thinking === 'default' ? 'default' : 'off'
 
     return {
       input: shape?.input ?? null,
@@ -157,8 +156,8 @@ class MimoProcessor extends ChatCompletionsProcessor {
     const requestBody = {
       model: this._config.model,
       messages,
-      ...(this._shape.input === 'text' && this._config.thinking !== 'default'
-        ? { thinking: { type: this._config.thinking === 'on' ? 'enabled' : 'disabled' } }
+      ...(this._shape.input === 'text' && this._config.thinking === 'off'
+        ? { thinking: { type: 'disabled' } }
         : {}),
       ...(this._shape.input === 'audio' ? { asr_options: { language: this._config.language ?? 'auto' } } : {}),
       stream: false
