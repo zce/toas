@@ -240,6 +240,7 @@ test('OpenAI Refine disables reasoning only for models that support none', async
   for (const model of [
     'gpt-5.1',
     'gpt-5.2',
+    'gpt-5.3',
     'gpt-5.4',
     'gpt-5.4-mini',
     'gpt-5.4-nano',
@@ -250,6 +251,7 @@ test('OpenAI Refine disables reasoning only for models that support none', async
     'gpt-5.6-terra',
     'gpt-5.6-luna',
     'gpt-6.1-terra',
+    'gpt-6.1-terra-2026-06-01',
     'gpt-6-sol',
     'gpt-6-luna'
   ]) {

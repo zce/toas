@@ -98,13 +98,9 @@ export const openaiCompatibleProvider = new OpenAICompatibleProvider({
   keyEnv: ['TOAS_OPENAI_COMPATIBLE_API_KEY']
 })
 
-// Match supported model families rather than maintaining every dated snapshot.
-const OPENAI_REASONING_NONE_FAMILIES = [
-  'gpt-5.1',
-  'gpt-5.2',
-  'gpt-5.4',
-  'gpt-5.5',
-  'gpt-5.6',
+// Match supported model families rather than maintaining every model ID.
+const OPENAI_REASONING_NONE_PREFIXES = [
+  'gpt-5.',
   'gpt-6.1-terra',
   'gpt-6-sol',
   'gpt-6-luna'
@@ -119,9 +115,7 @@ function supportsOpenAIReasoningNone(model) {
     return false
   }
 
-  return OPENAI_REASONING_NONE_FAMILIES.some(
-    family => modelId === family || modelId.startsWith(`${family}-`)
-  )
+  return OPENAI_REASONING_NONE_PREFIXES.some(prefix => modelId.startsWith(prefix))
 }
 
 function textCapabilities() {
