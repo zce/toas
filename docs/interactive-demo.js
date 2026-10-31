@@ -32,7 +32,7 @@
   const durations = { entering: .37, recording: 3.15, processing: 1.8, exiting: .40, inserting: 2.25, complete: 2.6, cancelled: .23 }
   const words = Array.from(
     '今天把 Toas 的 Matrix HUD 打磨好了：录音更流畅，Processing 动画也更克制。\n' +
-    'Next step: review PR #62, run GNOME Shell checks, and ship a lightweight release — 简单、稳定、可维护。'
+    'Next step: verify GNOME Shell 50 on Wayland, review the ASR output, and ship a lightweight release — 简单、稳定、可维护。'
   )
   const glyphs = {
     C: ['0111', '1000', '1000', '1000', '0111'],
@@ -133,9 +133,9 @@
       head = 0
       for (const grid of cached.values()) { grid.head.fill(0); grid.tail.fill(0) }
       if (temporary) { temporary.head.fill(0); temporary.tail.fill(0) }
-      cue('start')
+      if (mode === 'auto') cue('start')
     } else if (next === 'processing') {
-      cue('end')
+      if (mode === 'auto') cue('end')
     } else if (next === 'inserting') {
       clearOutput()
       insert(0)
@@ -157,11 +157,12 @@
     } else if (next === 'recording') {
       setStage('entering')
       setStage('recording')
+      width = RECORD_WIDTH
       cue('start')
     } else if (next === 'processing') {
       setStage('entering')
       setStage('processing')
-      stopCues()
+      width = PROCESS_WIDTH
       processMix = 1
     } else if (next === 'insert') {
       setStage('entering')
@@ -413,6 +414,7 @@
     }, { threshold: .05 }).observe(root)
   }
   reduced.addEventListener?.('change', schedule)
+  modeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.demoMode === mode)))
   setStage('entering')
   draw()
   schedule()
