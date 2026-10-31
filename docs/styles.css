@@ -1752,10 +1752,10 @@ footer {
     border-radius: 18px;
   }
 
-  .demo-desktop { height: 395px; }
-  .demo-editor-window { width: calc(100% - 28px); top: 55px; height: 285px; }
-  .demo-editor-body { padding: 14px 12px; font-size: 10px; }
-  .demo-editor-line { grid-template-columns: 25px minmax(0, 1fr); gap: 7px; }
+  .demo-desktop { height: 430px; }
+  .demo-editor-window { width: calc(100% - 28px); top: 55px; height: 325px; }
+  .demo-editor-body { padding: 12px 11px; font-size: 10px; line-height: 1.5; }
+  .demo-editor-line { grid-template-columns: 25px minmax(0, 1fr); gap: 7px; min-height: 18px; }
   .demo-hud-anchor { bottom: 40px; }
   .demo-matrix-pill { transform: translate(-50%, -50%) scale(1.40); }
   .demo-desktop-note { font-size: 8px; }
