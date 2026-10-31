@@ -28,6 +28,11 @@
   const follow = (v, target, dt, tau) => v + (target - v) * (1 - Math.exp(-dt / tau))
   const contour = p => (2 / Math.PI) * Math.asin(Math.sin(p))
   const reduced = matchMedia('(prefers-reduced-motion: reduce)')
+  let previewScale = 1
+  function syncPreviewScale() {
+    const value = Number.parseFloat(getComputedStyle(pill).getPropertyValue('--demo-hud-scale'))
+    previewScale = Number.isFinite(value) && value > 0 ? value : 1
+  }
   const phases = ['entering', 'recording', 'processing', 'exiting', 'inserting', 'complete']
   const durations = { entering: .37, recording: 3.15, processing: 1.8, exiting: .40, inserting: 2.25, complete: 2.6, cancelled: .23 }
   const words = Array.from(
@@ -272,20 +277,28 @@
       width = reduced.matches ? target : follow(width, target, 1 / FPS, .13)
     }
     const nativeWidth = Math.max(18, Math.round(width * SCALE))
-    pill.style.width = nativeWidth + 'px'
+    const displayWidth = nativeWidth * previewScale
+    const displayHeight = HUD_HEIGHT * previewScale
+    pill.style.width = displayWidth + 'px'
+    pill.style.height = displayHeight + 'px'
     pill.style.opacity = !visibleHud ? '0' : String(
       stage === 'entering' ? (reduced.matches ? 1 : smooth(stageTime / .24)) :
       stage === 'exiting' || stage === 'cancelled'
         ? (reduced.matches ? 0 : 1 - smooth(stageTime / durations[stage])) : 1)
     if (!visibleHud || (reduced.matches && (stage === 'exiting' || stage === 'cancelled'))) return
 
-    const dpr = Math.min(devicePixelRatio || 1, 3)
-    const pw = Math.round(nativeWidth * dpr), ph = Math.round(HUD_HEIGHT * dpr)
+    // Render at the final on-screen size instead of scaling a lower-resolution
+    // canvas with CSS. Supersample on 1x displays for smoother tiny dots.
+    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3)
+    const pw = Math.round(displayWidth * dpr), ph = Math.round(displayHeight * dpr)
     if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph }
     const designWidth = Math.round(nativeWidth / SCALE)
-    const offset = (nativeWidth - designWidth * SCALE) * dpr / 2
-    ctx.setTransform(SCALE * dpr, 0, 0, SCALE * dpr, offset, 0)
-    ctx.clearRect(0, 0, designWidth, DESIGN_HEIGHT)
+    const pixelScale = SCALE * Math.min(pw / nativeWidth, ph / HUD_HEIGHT)
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, pw, ph)
+    ctx.setTransform(pixelScale, 0, 0, pixelScale,
+      (pw - designWidth * pixelScale) / 2,
+      (ph - DESIGN_HEIGHT * pixelScale) / 2)
 
     const grid = gridFor(designWidth)
     const { xy, edge, taper, glyph, path, strength } = grid
@@ -417,6 +430,8 @@
     }, { threshold: .05 }).observe(root)
   }
   reduced.addEventListener?.('change', schedule)
+  window.addEventListener('resize', () => { syncPreviewScale(); draw(); schedule() })
+  syncPreviewScale()
   modeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.demoMode === mode)))
   setStage('entering')
   draw()
