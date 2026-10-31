@@ -115,7 +115,7 @@ export class MatrixOverlayView {
   }
 
   setMode(mode) {
-    const was = this._mode
+    const previousMode = this._mode
     this._mode = mode
     if (!St.Settings.get().enable_animations) {
       this._signal.processMix = mode === 'busy' ? 1 : 0
@@ -126,16 +126,16 @@ export class MatrixOverlayView {
     this._overlay.reactive = matrixVisible
     this._overlay.can_focus = matrixVisible
     if (matrixVisible) {
-      const target = mode === 'recording' ? HUD_RECORD_WIDTH : HUD_PROCESS_WIDTH
+      const targetWidth = mode === 'recording' ? HUD_RECORD_WIDTH : HUD_PROCESS_WIDTH
       this._matrix.remove_all_transitions()
-      if (was === 'recording' && mode === 'busy' && St.Settings.get().enable_animations) {
+      if (previousMode === 'recording' && mode === 'busy' && St.Settings.get().enable_animations) {
         this._matrix.ease({
-          width: target,
+          width: targetWidth,
           duration: 260,
           mode: Clutter.AnimationMode.EASE_IN_OUT_SINE
         })
       } else {
-        this._matrix.width = target
+        this._matrix.width = targetWidth
       }
     } else {
       this._stopAnimation()

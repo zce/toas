@@ -65,13 +65,13 @@ export class MatrixSignal {
   }
 
   past(age) {
-    const p = clamp(age, 0, HISTORY - 2)
-    const i = Math.floor(p)
-    const f = p - i
-    const a = (this.head - 1 - i + HISTORY) % HISTORY
-    const b = (a - 1 + HISTORY) % HISTORY
+    const boundedAge = clamp(age, 0, HISTORY - 2)
+    const offset = Math.floor(boundedAge)
+    const fraction = boundedAge - offset
+    const newerIndex = (this.head - 1 - offset + HISTORY) % HISTORY
+    const olderIndex = (newerIndex - 1 + HISTORY) % HISTORY
 
-    return this.history[a] * (1 - f) + this.history[b] * f
+    return this.history[newerIndex] * (1 - fraction) + this.history[olderIndex] * fraction
   }
 
   advance(dt, mode) {
@@ -80,15 +80,15 @@ export class MatrixSignal {
     }
 
     const h = Math.min(.08, dt)
-    const voice = mode === 'recording'
+    const recording = mode === 'recording'
     const busy = mode === 'busy'
 
     this.time += h
 
-    const target = voice ? this.goal : 0
+    const target = recording ? this.goal : 0
     this.voice = follow(this.voice, target, h, target > this.voice ? .13 : .22)
 
-    const rate = voice ? 1 : busy ? .15 : 0
+    const rate = recording ? 1 : busy ? .15 : 0
     const speed = this.voice * .35 + .42
 
     for (let i = 0; i < 4; i++) {

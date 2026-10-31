@@ -6,8 +6,8 @@ export const DEFAULT_END_CUE = 'tap'
 
 const RATE = 16000
 
-// Each tone: start frequency, end frequency, duration, amplitude,
-// waveform, attack, release, and start delay.
+// Each tone: start/end frequency (Hz), duration (s), amplitude,
+// waveform, attack (s), release (s), and start delay (s).
 const tones = {
   tap: {
     start: [
@@ -77,31 +77,32 @@ export function synthesizeCue(kind, style) {
     throw new Error('Invalid cue')
   }
 
-  const len = Math.ceil(RATE * cueDurationMs(kind, style) / 1000)
-  const out = new Uint8Array(44 + len * 2)
-  const view = new DataView(out.buffer)
-  out.set(wavHeader(len * 2, RATE))
+  const sampleCount = Math.ceil(RATE * cueDurationMs(kind, style) / 1000)
+  const wav = new Uint8Array(44 + sampleCount * 2)
+  const view = new DataView(wav.buffer)
+  wav.set(wavHeader(sampleCount * 2, RATE))
 
-  for (let i = 0; i < len; i++) {
-    const t = i / RATE
+  for (let i = 0; i < sampleCount; i++) {
+    const sampleTime = i / RATE
     let sample = 0
 
-    for (const [start, end, duration, volume, type, attack, release, delay] of parts) {
-      const q = t - delay
-      if (q < 0 || q >= duration) {
+    for (const [startHz, endHz, duration, volume, waveform, attack, release, delay] of parts) {
+      const toneTime = sampleTime - delay
+      if (toneTime < 0 || toneTime >= duration) {
         continue
       }
 
       const angle = 2 * Math.PI *
-        (start * q + (end - start) * q * q / (2 * duration))
+        (startHz * toneTime + (endHz - startHz) * toneTime * toneTime / (2 * duration))
       const sin = Math.sin(angle)
-      const wave = type === 'triangle' ? 2 / Math.PI * Math.asin(sin) : sin
-      sample += wave * volume * Math.max(0, Math.min(1, q / attack, (duration - q) / release))
+      const wave = waveform === 'triangle' ? 2 / Math.PI * Math.asin(sin) : sin
+      const envelope = Math.max(0, Math.min(1, toneTime / attack, (duration - toneTime) / release))
+      sample += wave * volume * envelope
     }
 
     view.setInt16(44 + i * 2,
       Math.round(Math.max(-1, Math.min(1, sample * .86)) * 32767), true)
   }
 
-  return out
+  return wav
 }
