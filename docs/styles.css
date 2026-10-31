@@ -420,10 +420,17 @@ h3 {
 }
 
 .hero-product .demo-editor-body {
+  height: calc(100% - 99px);
   min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
   padding: 13px 18px;
   font-size: 11px;
   line-height: 1.5;
+}
+
+.hero-product .demo-editor-body::-webkit-scrollbar {
+  display: none;
 }
 
 .hero-product .demo-editor-line {
