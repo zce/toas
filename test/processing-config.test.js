@@ -67,7 +67,7 @@ test('Refine selection values survive Provider switches and reload', () => {
   const settings = new FakeSettings()
   const config = normalizeProcessingConfig(
     {
-      refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.5-pro', thinking: 'default' } }
+      refine: { enabled: true, provider: 'mimo', values: { model: 'mimo-v2.6-pro', thinking: 'default' } }
     },
     providers
   )
@@ -82,41 +82,6 @@ test('Refine selection values survive Provider switches and reload', () => {
   const restored = readProcessingConfig(settings, providers)
   switchProcessingProvider(restored, 'refine', 'openai-compatible', providers)
   expectEqual(restored.refine.values.model, 'private-refine-model')
-})
-
-test('stored MiMo V2.5 Refine selection migrates without losing user settings', () => {
-  const settings = new FakeSettings(JSON.stringify({
-    refine: {
-      enabled: true,
-      provider: 'mimo',
-      values: { model: 'mimo-v2.5', thinking: 'default' },
-      instructions: 'Keep technical terms intact.',
-      onError: 'abort'
-    }
-  }))
-  const config = readProcessingConfig(settings, providers)
-
-  expectEqual(config.refine.values.model, 'mimo-v2.6-flash')
-  expectEqual(config.refine.values.thinking, 'default')
-  expectEqual(config.refine.instructions, 'Keep technical terms intact.')
-  expectEqual(config.refine.onError, 'abort')
-})
-
-test('MiMo retirement migration includes inactive remembered selections', () => {
-  const config = normalizeProcessingConfig({
-    primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr' } },
-    refine: { enabled: true, provider: 'openai-compatible', values: { model: 'private-model' } },
-    selectionValues: {
-      refine: {
-        mimo: { model: 'mimo-v2.5-pro', thinking: 'default' }
-      }
-    }
-  }, providers)
-
-  expectEqual(config.primary.values.model, 'mimo-v2.5-asr')
-  switchProcessingProvider(config, 'refine', 'mimo', providers)
-  expectEqual(config.refine.values.model, 'mimo-v2.6-pro')
-  expectEqual(config.refine.values.thinking, 'default')
 })
 
 test('malformed JSON falls back without leaking persistence concerns to Providers', () => {

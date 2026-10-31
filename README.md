@@ -404,10 +404,6 @@ Generic OpenAI-compatible endpoints keep **Provider default** because their reas
 extensions vary; choose **Off** under **Advanced** when the endpoint supports
 `reasoning_effort: "none"`.
 
-Stored MiMo Refine selections using the retired `mimo-v2.5` or `mimo-v2.5-pro`
-model IDs are mapped to the corresponding 2.6 models when loaded.
-The separate `mimo-v2.5-asr` transcription model is unchanged.
-
 ### OpenAI and OpenAI-compatible Refine
 
 OpenAI and OpenAI-compatible providers are text-only in `toas` and are used for Refine,

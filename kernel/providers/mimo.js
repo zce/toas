@@ -45,10 +45,6 @@ class MimoProvider extends Provider {
             env: ['TOAS_MIMO_API_KEY', 'MIMO_API_KEY']
           }
         ],
-        modelAliases: {
-          'mimo-v2.5': 'mimo-v2.6-flash',
-          'mimo-v2.5-pro': 'mimo-v2.6-pro'
-        },
         selectionFields: [
           {
             key: 'model',
