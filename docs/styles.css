@@ -861,20 +861,21 @@ kbd {
 }
 
 .demo-matrix-pill {
+  --demo-hud-scale: 1.2;
   position: absolute;
   left: 0;
   top: 0;
-  width: 148px;
-  height: 36px;
+  width: 177.6px;
+  height: 43.2px;
   padding: 0;
-  border: 1px solid rgba(240, 240, 240, 0.14);
-  border-radius: 18px;
+  border: 0;
+  border-radius: 999px;
   background: #111114;
   box-shadow:
     0 7px 22px rgba(0, 0, 0, 0.54),
-    0 0 0 1px rgba(188, 220, 255, 0.07);
+    inset 0 0 0 1px rgba(188, 220, 255, 0.14);
   overflow: hidden;
-  transform: translate(-50%, -50%) scale(1.2);
+  transform: translate(-50%, -50%);
   transform-origin: center;
   cursor: pointer;
   touch-action: manipulation;
@@ -1726,7 +1727,7 @@ footer {
   .demo-editor-body { padding: 12px 11px; font-size: 10px; line-height: 1.5; }
   .demo-editor-line { grid-template-columns: 25px minmax(0, 1fr); gap: 7px; min-height: 18px; }
   .demo-hud-anchor { bottom: 54px; }
-  .demo-matrix-pill { transform: translate(-50%, -50%) scale(1.1); }
+  .demo-matrix-pill { --demo-hud-scale: 1.1; width: 162.8px; height: 39.6px; }
   .demo-console { padding: 14px; }
   .demo-state { flex-basis: 100%; }
   .demo-actions { width: 100%; justify-content: space-between; }
