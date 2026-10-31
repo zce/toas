@@ -175,6 +175,8 @@ function buildInputGroup(settings) {
     subtitle: 'Restore clipboard text after fallback paste.'
   })
   settings.bind('restore-clipboard', restoreClipboard, 'active', Gio.SettingsBindFlags.DEFAULT)
+  // Restoring only makes sense when results are inserted automatically.
+  settings.bind('auto-paste', restoreClipboard, 'visible', Gio.SettingsBindFlags.GET)
 
   const cueOptions = ['none', ...CUE_STYLES]
   const cueLabels = ['None', 'Tap', 'Crystal', 'Pulse', 'Halo']
@@ -191,9 +193,6 @@ function buildInputGroup(settings) {
     row.connect('notify::selected', () => settings.set_string(key, cueOptions[row.selected]))
     return row
   }
-
-  // Restoring only makes sense when results are inserted automatically.
-  settings.bind('auto-paste', restoreClipboard, 'visible', Gio.SettingsBindFlags.GET)
 
   group.add(shortcutRow)
   group.add(autoInsert)

@@ -16,8 +16,7 @@ export class ToasOverlayPresenter {
     this._view.setOnCancelRequested?.(handler)
   }
 
-  replaceView(createView) {
-    const next = createView()
+  replaceView(next) {
     this._generation++
     this._clearTimer()
     this._view.destroy?.()

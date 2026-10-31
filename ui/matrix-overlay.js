@@ -117,8 +117,9 @@ export class MatrixOverlayView {
   setMode(mode) {
     const was = this._mode
     this._mode = mode
-    if (!St.Settings.get().enable_animations)
+    if (!St.Settings.get().enable_animations) {
       this._signal.processMix = mode === 'busy' ? 1 : 0
+    }
     const matrixVisible = mode === 'recording' || mode === 'busy'
     this._matrix.visible = matrixVisible
     this._error.visible = mode === 'error'
@@ -202,7 +203,6 @@ export class MatrixOverlayView {
           })
         }
         this._overlay.opacity = 0
-        this._overlay.translation_y = 0
         this._overlay.ease({
           opacity: 255,
           duration: 240,
@@ -210,11 +210,9 @@ export class MatrixOverlayView {
         })
       } else {
         this._overlay.opacity = 255
-        this._overlay.translation_y = 0
       }
     } else {
       this._overlay.opacity = 255
-      this._overlay.translation_y = 0
     }
     if (this._mode === 'recording' || this._mode === 'busy') {
       this._startAnimation()
@@ -271,16 +269,18 @@ export class MatrixOverlayView {
   }
 
   _startAnimation() {
-    if (this._timer || !St.Settings.get().enable_animations) return
+    if (this._timer || !St.Settings.get().enable_animations) {
+      return
+    }
     let previous = GLib.get_monotonic_time()
-    this._timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, Math.round(1000/MATRIX_FPS), () => {
+    this._timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, Math.round(1000 / MATRIX_FPS), () => {
       if (this._destroyed || !this._overlay.visible ||
           (this._mode !== 'recording' && this._mode !== 'busy')) {
         this._timer = 0
         return GLib.SOURCE_REMOVE
       }
       const now = GLib.get_monotonic_time()
-      const dt = Math.min(0.1, (now - previous)/1000000)
+      const dt = Math.min(0.1, (now - previous) / 1000000)
       previous = now
       this._signal.advance(dt, this._mode)
       if (this._hiding) {
@@ -288,7 +288,7 @@ export class MatrixOverlayView {
           (this._exitDuration * 1000))
       }
       const targetHover = !this._hiding && this._hoverIntent.active ? 1 : 0
-      this._hover += (targetHover - this._hover)*(1-Math.exp(-dt/.105))
+      this._hover += (targetHover - this._hover) * (1 - Math.exp(-dt / .105))
       this._matrix.queue_repaint()
       return GLib.SOURCE_CONTINUE
     })

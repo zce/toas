@@ -62,8 +62,7 @@ function create({ startEnabled = true, endEnabled = true, duration = 12 } = {}) 
   const settings = {
     get_boolean: key => key === 'auto-paste',
     get_uint: () => 600,
-    get_string: key => key === 'sound-start-style' ? (startEnabled ? 'crystal' : 'none') :
-      key === 'sound-end-style' ? (endEnabled ? 'tap' : 'none') : 'standard'
+    get_string: () => 'standard'
   }
 
   const overlay = new FakeOverlay()
@@ -201,12 +200,13 @@ test('start can be None while stop still plays', async () => {
   const { orchestrator, recorder, events, attempts } = create({ startEnabled: false })
 
   orchestrator.begin()
-  expectEqual(recorder.mutes, [false])
+  expectEqual(recorder.starts, 1)
+  expectEqual(recorder.mutes, [true])
+  expectEqual(recorder.unmutes, 1)
   await orchestrator.end()
 
   expectEqual(events, ['end'])
   expectEqual(attempts, ['start', 'end'])
-  expectEqual(recorder.unmutes, 0)
   orchestrator.destroy()
 })
 

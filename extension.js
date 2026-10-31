@@ -4,6 +4,7 @@ import St from 'gi://St'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 
+import { EarconPlayer } from './host/earcons.js'
 import { presentFailure } from './host/feedback.js'
 import { extractText, HistoryStore } from './host/history.js'
 import { PushToTalkBinding } from './host/input.js'
@@ -13,11 +14,10 @@ import { TextPaster } from './host/output.js'
 import { KernelRunner } from './host/runner.js'
 import { ConfirmDialog } from './ui/dialog.js'
 import { ToasIndicator } from './ui/indicator.js'
-import { ShellNotifier } from './ui/notifier.js'
-import { ToasOverlayPresenter } from './ui/overlay.js'
 import { ShellOverlayView } from './ui/legacy-overlay.js'
 import { MatrixOverlayView } from './ui/matrix-overlay.js'
-import { EarconPlayer } from './host/earcons.js'
+import { ShellNotifier } from './ui/notifier.js'
+import { ToasOverlayPresenter } from './ui/overlay.js'
 
 // Composition root: builds the collaborator graph on enable and tears it
 // down completely on disable.
@@ -181,7 +181,7 @@ export default class ToasExtension extends Extension {
       return
     }
     try {
-      this._overlay.replaceView(() => matrix ? new MatrixOverlayView() : new ShellOverlayView())
+      this._overlay.replaceView(matrix ? new MatrixOverlayView() : new ShellOverlayView())
       this._matrixHud = matrix
     } catch (error) {
       console.error(`[toas] Could not switch HUD: ${error.message}`)

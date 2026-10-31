@@ -82,7 +82,7 @@ export class ToasOrchestrator {
 
     this._overlay.setMonitor(this._output.getFocusedMonitorIndex())
     this._overlay.setPrivate(run.private)
-    const cueEnabled = Boolean(this._cues && this._settings?.get_string('sound-start-style') !== 'none')
+    const captureInitiallyMuted = Boolean(this._cues)
     // Construct the recorder before the UI and sound are activated. If this
     // fails, no start cue or visible recording state is left behind.
     run.recorder = this._recorderFactory({
@@ -95,7 +95,7 @@ export class ToasOrchestrator {
       onError: error => this._failLive(run, 'recording', error),
       sampleRate: resolveSampleRate(this._settings ?? {}),
       minimumDurationMs: resolveMinimumRecordingDuration(this._settings ?? {}),
-      captureInitiallyMuted: cueEnabled
+      captureInitiallyMuted
     })
 
     this._run = run
@@ -105,7 +105,7 @@ export class ToasOrchestrator {
     // Start cue and visual entry share the same turn. Discard microphone PCM
     // until the cue and hardware buffer allowance have elapsed.
     const gateMs = this._cues?.play('start') ?? 0
-    if (!gateMs && cueEnabled) {
+    if (!gateMs && captureInitiallyMuted) {
       run.recorder.unmute()
     }
 

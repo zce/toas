@@ -155,7 +155,7 @@ test('switching HUD views preserves cancellation without running both', () => {
   const presenter = new ToasOverlayPresenter({ view: oldView })
   const cancel = () => {}
   presenter.setOnCancelRequested(cancel)
-  presenter.replaceView(() => nextView)
+  presenter.replaceView(nextView)
 
   expectTruthy(nextView.onCancelRequested === cancel)
   expectEqual(oldView.destroyed, 1)
@@ -173,7 +173,7 @@ test('switching views cancels the pending error-hide timer', async () => {
   const presenter = new ToasOverlayPresenter({ view: oldView, hideDelay: 20 })
 
   presenter.render('error', 'broken')
-  presenter.replaceView(() => nextView)
+  presenter.replaceView(nextView)
   await flushAsync(40)
 
   expectEqual(oldView.destroyed, 1)

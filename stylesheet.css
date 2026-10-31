@@ -3,7 +3,7 @@
    The Preferences window is a separate GTK4 process and cannot load this
    file — its styles live in prefs.css. */
 
-/* --- Overlay (ui/overlay.js) ------------------------------------------------- */
+/* --- Overlay (ui/legacy-overlay.js) ------------------------------------------ */
 
 .toas-overlay {
   font-family: 'Maple Mono', sans-serif;
@@ -176,9 +176,8 @@
   color: st-transparentize(-st-accent-color, 0.25);
 }
 
-/* --- Matrix HUD (ui/matrix-overlay.js) --------------------------------------
- * The capsule uses CSS; Cairo paints the dot matrix.
- */
+/* --- Matrix HUD (ui/matrix-overlay.js) --------------------------------------- */
+
 .toas-matrix-overlay {
   font-family: 'Maple Mono', sans-serif;
   padding: 0;
