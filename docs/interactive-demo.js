@@ -8,14 +8,9 @@
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   const pill = $('[data-matrix-pill]')
-  const status = $('[data-demo-status]')
-  const detail = $('[data-demo-detail]')
-  const phaseLabel = $('[data-demo-phase]')
   const output = $('[data-demo-inserted]')
   const editorBody = $('[data-demo-editor-body]')
   const placeholder = $('[data-demo-placeholder]')
-  const modeButtons = [...root.querySelectorAll('[data-demo-mode]')]
-  const replay = $('[data-demo-replay]')
   const soundButton = $('[data-demo-sound]')
 
   // GNOME's native surface is 36px high; its 40px design lattice is scaled
@@ -52,7 +47,7 @@
   const spatial = [1.4, 2.4, 3.8, 5.6]
   const coeff = [.32, .20, .13, .08]
 
-  let mode = 'auto', stage = 'entering', stageTime = 0, time = 0, last = 0
+  let stage = 'entering', stageTime = 0, time = 0, last = 0
   let width = DESIGN_HEIGHT, voice = 0, goal = 0, processMix = 0
   let hover = 0, hoverAim = 0, pointerStart = null
   let raf = 0, visible = true, audio = null, soundOn = false, typedCount = -1
@@ -115,18 +110,6 @@
     stage = next
     stageTime = 0
     root.dataset.phase = next
-    phaseLabel.textContent = next.toUpperCase()
-    const messages = {
-      entering: ['Starting voice input…', 'The compact HUD expands over your desktop.'],
-      recording: ['Listening…', 'The mirrored dot matrix responds to simulated speech.'],
-      processing: ['Processing…', 'Audio has ended. Toas prepares the transcription.'],
-      exiting: ['Finishing…', 'The HUD contracts and fades away.'],
-      inserting: ['Inserting into Notes…', 'Watch the result appear in the focused editor.'],
-      complete: ['Text inserted.', 'Chinese and English, exactly where you were typing.'],
-      cancelled: ['Cancelled.', 'The voice input was discarded without inserting text.']
-    }
-    status.textContent = messages[next][0]
-    detail.textContent = messages[next][1]
     pill.disabled = next !== 'recording' && next !== 'processing'
     if (next === 'entering') {
       stopCues()
@@ -141,9 +124,9 @@
       head = 0
       for (const grid of cached.values()) { grid.head.fill(0); grid.tail.fill(0) }
       if (temporary) { temporary.head.fill(0); temporary.tail.fill(0) }
-      if (mode === 'auto') cue('start')
+      cue('start')
     } else if (next === 'processing') {
-      if (mode === 'auto') cue('end')
+      cue('end')
     } else if (next === 'inserting') {
       clearOutput()
       insert(0)
@@ -156,33 +139,8 @@
     }
   }
 
-  function setMode(next) {
-    mode = next
-    modeButtons.forEach(button =>
-      button.setAttribute('aria-pressed', String(button.dataset.demoMode === next)))
-    if (next === 'auto') {
-      setStage('entering')
-    } else if (next === 'recording') {
-      setStage('entering')
-      setStage('recording')
-      width = RECORD_WIDTH
-      cue('start')
-    } else if (next === 'processing') {
-      setStage('entering')
-      setStage('processing')
-      width = PROCESS_WIDTH
-      processMix = 1
-    } else if (next === 'insert') {
-      setStage('entering')
-      setStage('inserting')
-    }
-    schedule()
-  }
-
   function cancel() {
     if (stage !== 'recording' && stage !== 'processing') return
-    mode = 'paused'
-    modeButtons.forEach(button => button.setAttribute('aria-pressed', 'false'))
     setStage('cancelled')
     schedule()
   }
@@ -273,7 +231,7 @@
     } else if (stage === 'exiting' || stage === 'cancelled') {
       const duration = durations[stage]
       width = reduced.matches ? EXIT_WIDTH : mix(PROCESS_WIDTH, EXIT_WIDTH, (1 - Math.cos(Math.PI * clamp(stageTime / duration))) / 2)
-    } else if (stage === 'processing' && mode === 'auto') {
+    } else if (stage === 'processing') {
       const progress = (1 - Math.cos(Math.PI * clamp(stageTime / .26))) / 2
       width = reduced.matches ? PROCESS_WIDTH : mix(RECORD_WIDTH, PROCESS_WIDTH, progress)
     } else {
@@ -371,19 +329,13 @@
     stageTime += dt
     advance(dt)
 
-    if (mode === 'auto') {
-      if (stageTime >= durations[stage]) {
-        const at = phases.indexOf(stage)
-        setStage(phases[(at + 1) % phases.length])
-      }
-    } else if (mode === 'insert' && stage === 'inserting' && stageTime >= durations.inserting) {
-      setStage('complete')
+    if (stageTime >= durations[stage]) {
+      const at = phases.indexOf(stage)
+      setStage(at < 0 ? 'entering' : phases[(at + 1) % phases.length])
     }
     if (stage === 'inserting') insert(stageTime / durations.inserting)
     draw()
-    const animating = mode === 'auto' || stage === 'recording' || stage === 'processing' ||
-      stage === 'inserting' || (stage === 'cancelled' && stageTime < durations.cancelled)
-    if (animating) raf = requestAnimationFrame(frame)
+    raf = requestAnimationFrame(frame)
   }
 
   function schedule() {
@@ -396,8 +348,6 @@
     else schedule()
   }
 
-  for (const button of modeButtons) button.addEventListener('click', () => setMode(button.dataset.demoMode))
-  replay.addEventListener('click', () => setMode('auto'))
   soundButton.addEventListener('click', async () => {
     if (soundOn) {
       soundOn = false
@@ -413,7 +363,9 @@
       }
     }
     soundButton.setAttribute('aria-pressed', String(soundOn))
-    soundButton.textContent = soundOn ? 'Sound on' : 'Sound off'
+    const title = soundOn ? 'Mute demo audio' : 'Unmute demo audio'
+    soundButton.setAttribute('aria-label', title)
+    soundButton.title = title
   })
   pill.addEventListener('pointermove', event => {
     if (pill.disabled) return
@@ -435,7 +387,6 @@
   reduced.addEventListener?.('change', schedule)
   window.addEventListener('resize', () => { syncPreviewScale(); draw(); schedule() })
   syncPreviewScale()
-  modeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.demoMode === mode)))
   setStage('entering')
   draw()
   schedule()
