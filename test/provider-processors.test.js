@@ -244,7 +244,7 @@ test('OpenAI Refine disables reasoning only for models that support none', async
 })
 
 test('OpenAI-compatible Refine maps Off to reasoning_effort none', async () => {
-  async function requestFor(thinking = 'off') {
+  async function requestFor(thinking) {
     let requestBody = null
     const transport = {
       async send(request) {
@@ -258,7 +258,7 @@ test('OpenAI-compatible Refine maps Off to reasoning_effort none', async () => {
     }
     const resolved = openaiCompatibleProvider.resolve({
       providerValues: { endpoint: 'https://example.test/v1' },
-      values: { model: 'custom-model', thinking },
+      values: { model: 'custom-model', ...(thinking === undefined ? {} : { thinking }) },
       secretPresence: { key: true }
     })
     expectEqual(resolved.issues, [])
@@ -272,6 +272,7 @@ test('OpenAI-compatible Refine maps Off to reasoning_effort none', async () => {
     return requestBody
   }
 
+  expectEqual(Object.hasOwn(await requestFor(), 'reasoning_effort'), false)
   expectEqual((await requestFor('off')).reasoning_effort, 'none')
   expectEqual(Object.hasOwn(await requestFor('default'), 'reasoning_effort'), false)
 })

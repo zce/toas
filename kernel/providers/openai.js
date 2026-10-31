@@ -36,6 +36,9 @@ class OpenAICompatibleProvider extends Provider {
             key: 'thinking',
             type: 'string',
             label: 'Thinking',
+            subtitle: id === 'openai'
+              ? 'Only models supporting none can disable reasoning.'
+              : 'Uses reasoning_effort: none; the endpoint must support it.',
             inputs: ['text'],
             advanced: true,
             choices: [
@@ -46,7 +49,10 @@ class OpenAICompatibleProvider extends Provider {
         ],
         support: { inputs: ['text'], instructions: true },
         defaults: {
-          text: { ...(modelDefault ? { model: modelDefault } : {}), thinking: 'off' }
+          text: {
+            ...(modelDefault ? { model: modelDefault } : {}),
+            thinking: id === 'openai-compatible' ? 'default' : 'off'
+          }
         }
       }
     })
@@ -54,7 +60,8 @@ class OpenAICompatibleProvider extends Provider {
 
   resolveSelection({ providerValues, values }) {
     const model = values.model?.trim()
-    const requestedThinking = values.thinking === 'default' ? 'default' : 'off'
+    const storedThinking = values.thinking ?? (this.id === 'openai-compatible' ? 'default' : 'off')
+    const requestedThinking = storedThinking === 'off' ? 'off' : 'default'
     const canDisableThinking =
       this.id === 'openai-compatible' || supportsOpenAIReasoningNone(model)
 

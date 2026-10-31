@@ -546,6 +546,7 @@ function selectionFieldRow(field, value, onChanged) {
     const selected = field.choices.findIndex(choice => String(choice.value) === String(value))
     const row = new Adw.ComboRow({
       title: field.label,
+      subtitle: field.subtitle ?? '',
       model: Gtk.StringList.new(field.choices.map(choice => choice.label ?? choice.value)),
       selected: Math.max(0, selected),
       use_markup: false

@@ -400,12 +400,12 @@ The ASR model accepts audio input.
 
 The text models are used by the optional Refine stage and support configurable instructions
 and Context. Toas requests thinking off by default where the selected provider and model
-support an explicit control; choose **Provider default** under **Advanced** to leave it
-entirely to the model.
+support an explicit control. Choose **Provider default** under **Advanced** to leave it to
+the model.
 
-OpenAI uses `reasoning_effort: "none"` only for models that support it; other models retain
-their default. OpenAI-compatible endpoints use the same parameter when **Off** is selected.
-If an endpoint does not support it, choose **Provider default**.
+OpenAI applies `reasoning_effort: "none"` only to models that support it. Generic
+OpenAI-compatible endpoints default to **Provider default** because their extensions vary;
+choose **Off** when the endpoint supports `reasoning_effort: "none"`.
 
 ### OpenAI and OpenAI-compatible Refine
 
@@ -419,9 +419,9 @@ gpt-4o-mini
 ```
 
 The OpenAI-compatible provider accepts a user-configured service base URL and model ID
-using the Chat Completions wire contract. Its **Thinking** control uses the OpenAI-style
+using the Chat Completions wire contract. Its optional **Off** setting uses the OpenAI-style
 `reasoning_effort: "none"` extension; endpoints with a different or unsupported control
-should use **Provider default**.
+should keep **Provider default**.
 
 ### Refine behavior
 

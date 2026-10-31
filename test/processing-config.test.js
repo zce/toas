@@ -55,7 +55,7 @@ test('Provider values and arbitrary selection values round trip generically', ()
     {
       providers: { custom: { region: 'cn', deployment: 'voice' } },
       primary: { provider: 'mimo', values: { model: 'mimo-v2.5-asr', language: 'zh' } },
-      refine: { enabled: true, provider: 'openai-compatible', values: { model: 'private-model', thinking: 'off' } }
+      refine: { enabled: true, provider: 'openai-compatible', values: { model: 'private-model', thinking: 'default' } }
     },
     providers
   )
