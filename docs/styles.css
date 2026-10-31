@@ -559,7 +559,7 @@ h3 {
 }
 
 .setup .kicker {
-  color: #536f17;
+  color: #266e64;
 }
 
 .setup-layout {
@@ -737,8 +737,8 @@ h3 {
   display: block;
   position: relative;
   border-radius: 999px;
-  background: #7da532;
-  box-shadow: 0 0 0 0 rgba(125, 165, 50, 0);
+  background: #4da18b;
+  box-shadow: 0 0 0 0 rgba(77, 161, 139, 0);
   animation: toggleGlow 3.1s ease-in-out infinite;
 }
 
@@ -763,14 +763,14 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #587522 !important;
+  color: #297665 !important;
 }
 
 .status i {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #7da532;
+  background: #4da18b;
   animation: statusPulse 2.2s ease-in-out infinite;
 }
 
@@ -807,7 +807,7 @@ h3 {
 .privacy {
   --muted: var(--light-muted);
   --line: rgba(23, 27, 23, 0.16);
-  --accent: #536f17;
+  --accent: #266e64;
   background: var(--light);
   color: var(--light-text);
 }
@@ -842,7 +842,7 @@ h3 {
 .install {
   padding: 116px 0;
   border-top: 1px solid var(--line);
-  background: #0a0d0b;
+  background: #0b1117;
 }
 
 .install-layout {
@@ -925,7 +925,7 @@ pre code {
 
 footer {
   border-top: 1px solid var(--line);
-  background: #0a0d0b;
+  background: #0b1117;
 }
 
 .footer-inner {
@@ -1003,11 +1003,11 @@ footer {
 @keyframes toggleGlow {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(125, 165, 50, 0);
+    box-shadow: 0 0 0 0 rgba(77, 161, 139, 0);
   }
 
   50% {
-    box-shadow: 0 0 0 6px rgba(125, 165, 50, 0.08);
+    box-shadow: 0 0 0 6px rgba(77, 161, 139, 0.08);
   }
 }
 
