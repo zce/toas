@@ -91,10 +91,15 @@ export function normalizeProcessingConfig(stored, providerRegistry) {
 
 // Provider manifest defaults first, so stored user values override them.
 function selectionValues(stored, provider, input) {
-  return {
+  const values = {
     ...(provider?.manifest?.defaults?.[input] || {}),
     ...(isObject(stored) ? stored : {})
   }
+  const replacement = provider?.manifest?.modelAliases?.[values.model]
+  if (replacement) {
+    values.model = replacement
+  }
+  return values
 }
 
 export function providerIdsFor(providerRegistry, input, instructions = false) {

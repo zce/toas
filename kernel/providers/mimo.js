@@ -12,11 +12,11 @@ const MODEL_SHAPES = {
     input: 'audio',
     capabilities: { inputs: ['audio'], instructions: false, context: false }
   },
-  'mimo-v2.5': {
+  'mimo-v2.6-flash': {
     input: 'text',
     capabilities: { inputs: ['text'], instructions: true, context: true }
   },
-  'mimo-v2.5-pro': {
+  'mimo-v2.6-pro': {
     input: 'text',
     capabilities: { inputs: ['text'], instructions: true, context: true }
   }
@@ -45,6 +45,10 @@ class MimoProvider extends Provider {
             env: ['TOAS_MIMO_API_KEY', 'MIMO_API_KEY']
           }
         ],
+        modelAliases: {
+          'mimo-v2.5': 'mimo-v2.6-flash',
+          'mimo-v2.5-pro': 'mimo-v2.6-pro'
+        },
         selectionFields: [
           {
             key: 'model',
@@ -61,8 +65,8 @@ class MimoProvider extends Provider {
             required: true,
             inputs: ['text'],
             choices: [
-              { value: 'mimo-v2.5', label: 'mimo-v2.5' },
-              { value: 'mimo-v2.5-pro', label: 'mimo-v2.5-pro' }
+              { value: 'mimo-v2.6-flash', label: 'mimo-v2.6-flash' },
+              { value: 'mimo-v2.6-pro', label: 'mimo-v2.6-pro' }
             ]
           },
           {
@@ -81,7 +85,7 @@ class MimoProvider extends Provider {
         support: { inputs: ['audio', 'text'], instructions: true },
         defaults: {
           audio: { model: 'mimo-v2.5-asr', language: 'auto' },
-          text: { model: 'mimo-v2.5', thinking: 'off' }
+          text: { model: 'mimo-v2.6-flash', thinking: 'off' }
         }
       }
     })
