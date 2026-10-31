@@ -30,11 +30,15 @@
     previewScale = Number.isFinite(value) && value > 0 ? value : 1
   }
   const phases = ['entering', 'recording', 'processing', 'exiting', 'inserting', 'complete']
-  const durations = { entering: .37, recording: 3.15, processing: 1.8, exiting: .40, inserting: 3.6, complete: 2.8, cancelled: .23 }
-  const words = Array.from(
-    'Toas brings push-to-talk voice input to GNOME. Hold a shortcut, speak, and release — your words appear in the app you’re using.\n' +
-    'Capture quick notes, technical names like PostgreSQL, or a message to your team: “The API is ready, 可以开始测试. Merci!” Optional Refine can polish the transcript.'
-  )
+  const durations = { entering: .37, recording: 2.6, processing: 1.2, exiting: .40, inserting: 2.4, complete: 5.6, cancelled: .23 }
+  const samples = [
+    'Toas is push-to-talk voice input for GNOME.\n\n' +
+    'Hold a shortcut, speak, and release. Your words appear in the app you’re using — a reply, a note, or the start of something new.',
+    'Hi Alex, I’ll be about ten minutes late.\n\n' +
+    'Please start without me. I’ll catch up when I arrive. 不用等我，待会儿见！',
+    'A thought for the weekend: take the early train to the coast and leave the afternoon open.\n\n' +
+    'Find a quiet café, walk by the water, and make room for whatever catches our eye.'
+  ].map(text => Array.from(text))
   const glyphs = {
     C: ['0111', '1000', '1000', '1000', '0111'],
     A: ['0110', '1001', '1111', '1001', '1001'],
@@ -48,6 +52,7 @@
   const coeff = [.32, .20, .13, .08]
 
   let stage = 'entering', stageTime = 0, time = 0, last = 0
+  let sampleIndex = 0
   let width = DESIGN_HEIGHT, voice = 0, goal = 0, processMix = 0
   let hover = 0, hoverAim = 0, pointerStart = null
   let raf = 0, visible = true, audio = null, soundOn = false, typedCount = -1
@@ -98,6 +103,7 @@
   }
 
   function insert(progress) {
+    const words = samples[sampleIndex]
     const count = reduced.matches ? words.length : Math.min(words.length, Math.floor(clamp(progress) * words.length))
     if (count === typedCount) return
     typedCount = count
@@ -330,6 +336,9 @@
     advance(dt)
 
     if (stageTime >= durations[stage]) {
+      if (stage === 'complete') {
+        sampleIndex = (sampleIndex + 1) % samples.length
+      }
       const at = phases.indexOf(stage)
       setStage(at < 0 ? 'entering' : phases[(at + 1) % phases.length])
     }

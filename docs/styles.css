@@ -142,7 +142,7 @@ button {
 
 .brand-note {
   margin-left: 2px;
-  color: #788378;
+  color: #819597;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 9px;
   letter-spacing: 0.055em;
@@ -171,8 +171,8 @@ p {
 
 h1 {
   margin-bottom: 28px;
-  font-size: clamp(60px, 7vw, 104px);
-  line-height: 0.91;
+  font-size: clamp(56px, 5.8vw, 80px);
+  line-height: 1.02;
   letter-spacing: -0.07em;
   font-weight: 790;
 }
@@ -232,7 +232,7 @@ h3 {
 .hero::after {
   content: '';
   position: absolute;
-  border: 1px solid rgba(164, 221, 202, 0.09);
+  border: 1px solid rgba(164, 221, 202, 0.05);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -242,7 +242,6 @@ h3 {
   height: 720px;
   right: -290px;
   top: -160px;
-  animation: orbitDriftLarge 16s ease-in-out infinite;
 }
 
 .hero::after {
@@ -250,7 +249,6 @@ h3 {
   height: 470px;
   right: -105px;
   top: -35px;
-  animation: orbitDriftSmall 12s ease-in-out infinite;
 }
 
 .hero-glow {
@@ -260,10 +258,9 @@ h3 {
   right: 2%;
   top: 14%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(164, 221, 202, 0.09), transparent 68%);
+  background: radial-gradient(circle, rgba(164, 221, 202, 0.055), transparent 68%);
   filter: blur(6px);
   pointer-events: none;
-  animation: heroGlow 9s ease-in-out infinite;
 }
 
 .hero-grid {
@@ -283,7 +280,7 @@ h3 {
 .lede {
   max-width: 650px;
   margin-bottom: 34px;
-  color: #c5ccc1;
+  color: #c1cfce;
   font-size: clamp(18px, 1.8vw, 22px);
   line-height: 1.55;
 }
@@ -365,7 +362,7 @@ h3 {
   border: 1px solid rgba(218, 239, 242, .13);
   border-radius: 18px;
   background: #101b21;
-  box-shadow: 16px 28px 75px rgba(0, 0, 0, .35);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .26);
   transform: perspective(1400px) rotateY(-1.8deg) rotateX(.6deg);
   transition: transform 300ms ease, box-shadow 300ms ease;
 }
@@ -373,7 +370,7 @@ h3 {
 .hero-product .demo-frame:hover,
 .hero-product .demo-frame:focus-within {
   transform: none;
-  box-shadow: 0 22px 65px rgba(0, 0, 0, .36);
+  box-shadow: 0 20px 52px rgba(0, 0, 0, .29);
 }
 
 .demo-desktop {
@@ -410,7 +407,7 @@ h3 {
   border: 1px solid rgba(227, 244, 241, .12);
   border-radius: 12px;
   background: #18242a;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, .26);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .20);
   transform: translateX(-50%);
 }
 
@@ -682,8 +679,8 @@ kbd {
   margin-left: 5px;
   padding: 3px 6px;
   border-radius: 999px;
-  background: #dbeab8;
-  color: #435d12;
+  background: #d8eae2;
+  color: #266e64;
   font-size: 9px;
   font-style: normal;
   letter-spacing: 0.02em;
@@ -897,7 +894,7 @@ kbd {
 
 .privacy-points article:hover {
   transform: translateY(-3px);
-  border-color: rgba(83, 111, 23, 0.32);
+  border-color: rgba(38, 110, 100, 0.32);
 }
 
 .privacy-points article > span {
@@ -930,7 +927,7 @@ kbd {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 18px;
-  background: #151a16;
+  background: var(--bg-soft);
   transition:
     transform 180ms ease,
     border-color 180ms ease,
@@ -1021,41 +1018,6 @@ footer {
   gap: 22px;
   color: var(--muted);
   font-size: 13px;
-}
-
-@keyframes orbitDriftLarge {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  50% {
-    transform: translate3d(-18px, 14px, 0) scale(1.025);
-  }
-}
-
-@keyframes orbitDriftSmall {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  50% {
-    transform: translate3d(16px, -10px, 0) scale(0.98);
-  }
-}
-
-@keyframes heroGlow {
-  0%,
-  100% {
-    opacity: 0.72;
-    transform: scale(0.98);
-  }
-
-  50% {
-    opacity: 1;
-    transform: scale(1.08);
-  }
 }
 
 @keyframes preferencesFloat {

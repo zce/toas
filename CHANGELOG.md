@@ -1,6 +1,6 @@
 # Changelog
 
-## Version 14 — Unreleased
+## Version 14 — 2026-10-31
 
 - Added an opt-in **Experimental UI** with a compact dot-matrix HUD for recording and processing, including animated entry/exit and tap-to-cancel. The standard overlay remains the default.
 - Added independently configurable start and stop recording sounds, with four cue styles or None in Preferences.
