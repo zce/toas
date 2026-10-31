@@ -238,8 +238,11 @@ test('OpenAI Refine disables reasoning only for models that support none', async
   }
 
   expectEqual((await requestFor('gpt-5.5')).reasoning_effort, 'none')
+  expectEqual((await requestFor('gpt-5.5-2026-04-23')).reasoning_effort, 'none')
+  expectEqual((await requestFor('gpt-6-sol')).reasoning_effort, 'none')
   expectEqual(Object.hasOwn(await requestFor('gpt-5.5', 'default'), 'reasoning_effort'), false)
   expectEqual(Object.hasOwn(await requestFor('gpt-6.1-sol'), 'reasoning_effort'), false)
+  expectEqual(Object.hasOwn(await requestFor('gpt-6-astra'), 'reasoning_effort'), false)
   expectEqual(Object.hasOwn(await requestFor('gpt-4o-mini'), 'reasoning_effort'), false)
 })
 

@@ -399,13 +399,10 @@ Refine:        mimo-v2.5
 The ASR model accepts audio input.
 
 The text models are used by the optional Refine stage and support configurable instructions
-and Context. Toas requests thinking off by default where the selected provider and model
-support an explicit control. Choose **Provider default** under **Advanced** to leave it to
-the model.
-
-OpenAI applies `reasoning_effort: "none"` only to models that support it. Generic
-OpenAI-compatible endpoints default to **Provider default** because their extensions vary;
-choose **Off** when the endpoint supports `reasoning_effort: "none"`.
+and Context. Toas disables thinking by default for MiMo and supported native OpenAI models.
+Generic OpenAI-compatible endpoints keep **Provider default** because their reasoning
+extensions vary; choose **Off** under **Advanced** when the endpoint supports
+`reasoning_effort: "none"`.
 
 ### OpenAI and OpenAI-compatible Refine
 
