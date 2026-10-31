@@ -103,43 +103,64 @@
           <div class="section-heading centered">
             <p class="kicker">Try it yourself</p>
             <h2 id="demo-title">A little interface. A lot less typing.</h2>
-            <p>Meet the experimental matrix HUD. Play the sequence or hold to try it — no microphone required.</p>
+            <p>A live desktop walkthrough: watch the HUD record, process, and insert text — then replay it.</p>
           </div>
 
-          <div class="demo-frame" data-interactive-demo data-phase="ready">
-            <div class="demo-toolbar" aria-hidden="true">
-              <span><i class="demo-toolbar-dot"></i> INTERACTIVE PREVIEW</span>
-              <span>TOAS / MATRIX HUD</span>
-            </div>
-            <div class="demo-scene">
-              <div class="demo-scene-lines" aria-hidden="true">
-                <span></span><span></span><span></span><span></span><span></span>
+          <div class="demo-frame" data-interactive-demo data-phase="entering">
+            <div class="demo-desktop">
+              <div class="demo-desktop-panel" aria-hidden="true">
+                <span>Activities</span>
+                <span>Sat 10:31</span>
+                <span class="demo-panel-icons">● ◕ ▰</span>
               </div>
-              <span class="demo-scene-corner demo-scene-corner-left" aria-hidden="true">NO RECORDING · NO UPLOAD</span>
-              <span class="demo-scene-corner demo-scene-corner-right" aria-hidden="true">164 × 40</span>
-              <button class="demo-matrix-pill" data-matrix-pill type="button" disabled
-                aria-label="Cancel the simulated voice input" title="Click to cancel">
-                <canvas data-demo-canvas width="164" height="40" aria-hidden="true"></canvas>
-              </button>
-              <div class="demo-result" data-demo-result hidden>
-                <small>EXAMPLE RESULT</small>
-                <p>Ship the simplest thing that works.</p>
+              <div class="demo-editor-window" aria-label="Simulated GNOME text editor">
+                <div class="demo-editor-titlebar">
+                  <span class="demo-window-buttons" aria-hidden="true"><i></i><i></i><i></i></span>
+                  <strong>Notes</strong>
+                  <span class="demo-window-action" aria-hidden="true">⋮</span>
+                </div>
+                <div class="demo-editor-tab"><span class="demo-file-icon" aria-hidden="true"></span> ideas.md <span class="demo-unsaved" aria-hidden="true">●</span></div>
+                <div class="demo-editor-body">
+                  <div class="demo-editor-line"><span>01</span><b># Project notes</b></div>
+                  <div class="demo-editor-line"><span>02</span></div>
+                  <div class="demo-editor-line"><span>03</span><em>## Next steps</em></div>
+                  <div class="demo-editor-line"><span>04</span></div>
+                  <div class="demo-editor-line demo-editor-output">
+                    <span>05</span>
+                    <div class="demo-editor-output-text"><span data-demo-inserted></span><span class="demo-editor-caret" aria-hidden="true"></span><span class="demo-editor-placeholder" data-demo-placeholder>Voice input will appear here…</span></div>
+                  </div>
+                </div>
+                <div class="demo-editor-statusbar"><span>Markdown</span><span>UTF-8 · Ln 5, Col 1</span></div>
               </div>
+              <div class="demo-hud-anchor">
+                <button class="demo-matrix-pill" data-matrix-pill type="button" disabled
+                  aria-label="Cancel the simulated voice input" title="Click to cancel">
+                  <canvas data-demo-canvas width="148" height="36" aria-hidden="true"></canvas>
+                </button>
+              </div>
+              <span class="demo-desktop-note" aria-hidden="true">DESKTOP PREVIEW · NO MICROPHONE</span>
             </div>
             <div class="demo-console">
               <div class="demo-state">
-                <span class="demo-phase" data-demo-phase>READY</span>
-                <strong data-demo-status aria-live="polite">Ready when you are</strong>
-                <span class="demo-detail" data-demo-detail>No microphone needed. Everything runs in your browser.</span>
+                <span class="demo-phase" data-demo-phase>ENTERING</span>
+                <strong data-demo-status aria-live="polite">Starting voice input…</strong>
+                <span class="demo-detail" data-demo-detail>Watch a complete voice input appear in the editor.</span>
               </div>
-              <div class="demo-actions">
-                <button class="demo-action demo-action-primary" type="button" data-demo-play>Play walkthrough</button>
-                <button class="demo-action demo-action-hold" type="button" data-demo-hold>Hold to speak</button>
-                <button class="demo-action demo-action-sound" type="button" data-demo-sound aria-pressed="false">Sound off</button>
+              <div class="demo-actions" aria-label="Demo controls">
+                <div class="demo-modes" role="group" aria-label="Preview mode">
+                  <button class="demo-action" type="button" data-demo-mode="auto" aria-pressed="true">Auto</button>
+                  <button class="demo-action" type="button" data-demo-mode="recording" aria-pressed="false">Recording</button>
+                  <button class="demo-action" type="button" data-demo-mode="processing" aria-pressed="false">Processing</button>
+                  <button class="demo-action" type="button" data-demo-mode="insert" aria-pressed="false">Insert</button>
+                </div>
+                <div class="demo-extras">
+                  <button class="demo-action demo-action-replay" type="button" data-demo-replay>↻ Replay</button>
+                  <button class="demo-action demo-action-sound" type="button" data-demo-sound aria-pressed="false">Sound off</button>
+                </div>
               </div>
             </div>
           </div>
-          <p class="demo-caption">A browser-only simulation. Hold to record, release to process, or click the capsule to cancel. Sound is optional.</p>
+          <p class="demo-caption">A looping JavaScript preview. Choose a stage to inspect it, or click the capsule to cancel. No microphone or uploads.</p>
           <p class="demo-caption demo-experimental-note">Experimental preview · The standard HUD remains the default. Enable <strong>Experimental UI</strong> in Toas Preferences to try this design.</p>
           <noscript><p class="demo-caption">Enable JavaScript to try the interactive HUD preview.</p></noscript>
         </div>
