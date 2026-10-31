@@ -94,7 +94,7 @@ test('OpenAI-compatible maps Provider Refine semantics to system and user messag
 })
 
 test('MiMo text maps the same inherited Refine semantics to system and user messages', async () => {
-  expectEqual(await sentMessages(mimoProvider, 'mimo-v2.5'), expectedMessages(mimoProvider))
+  expectEqual(await sentMessages(mimoProvider, 'mimo-v2.6-flash'), expectedMessages(mimoProvider))
 })
 
 function composePrompt(provider) {

@@ -44,7 +44,7 @@ test('refine configuration failure obeys fallback policy', async () => {
       refine: {
         enabled: true,
         provider: 'mimo',
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         instructions: 'Polish the transcript.',
         onError: 'fallback'
       }

@@ -142,7 +142,7 @@ test('qwen to mimo: refine runs the configured provider in order', async () => {
       refine: {
         enabled: true,
         provider: 'mimo',
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         instructions: 'Refine without changing meaning.',
         onError: 'fallback'
       }
@@ -179,7 +179,7 @@ test('mimo refine endpoint that already carries the path is never double-appende
       refine: {
         enabled: true,
         provider: 'mimo',
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         instructions: 'Refine without changing meaning.',
         onError: 'fallback'
       }
@@ -205,7 +205,7 @@ test('mimo refine endpoint with trailing slashes gets a single path appended', a
       refine: {
         enabled: true,
         provider: 'mimo',
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         instructions: 'Refine without changing meaning.',
         onError: 'fallback'
       }
@@ -261,7 +261,7 @@ test('mimo to mimo: one shared credential source, independent models', async () 
       refine: {
         enabled: true,
         provider: 'mimo',
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         instructions: 'Clean up.',
         onError: 'fallback'
       }
@@ -277,9 +277,9 @@ test('mimo to mimo: one shared credential source, independent models', async () 
   expectEqual(transport.requests[0].headers.Authorization, 'Bearer mimo-secret')
   expectEqual(transport.requests[1].headers.Authorization, 'Bearer mimo-secret')
   expectEqual(transport.requests[0].body.model, 'mimo-v2.5-asr')
-  expectEqual(transport.requests[1].body.model, 'mimo-v2.5')
+  expectEqual(transport.requests[1].body.model, 'mimo-v2.6-flash')
   expectEqual(result.trace[0].model, 'mimo-v2.5-asr')
-  expectEqual(result.trace[1].model, 'mimo-v2.5')
+  expectEqual(result.trace[1].model, 'mimo-v2.6-flash')
 })
 
 test('empty context is valid', async () => {
@@ -307,7 +307,7 @@ test('refine fallback returns primary text with warning and failed trace', async
       refine: {
         enabled: true,
         provider: 'mimo',
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         instructions: 'x',
         onError: 'fallback'
       }
@@ -339,7 +339,7 @@ test('refine abort fails the whole attempt', async () => {
         refine: {
           enabled: true,
           provider: 'mimo',
-          values: { model: 'mimo-v2.5' },
+          values: { model: 'mimo-v2.6-flash' },
           instructions: 'x',
           onError: 'abort'
         }
@@ -370,7 +370,7 @@ test('primary failure fails the attempt with zero refine calls', async () => {
         refine: {
           enabled: true,
           provider: 'mimo',
-          values: { model: 'mimo-v2.5' },
+          values: { model: 'mimo-v2.6-flash' },
           instructions: 'x',
           onError: 'fallback'
         }
@@ -591,7 +591,7 @@ test('cancel during refine never converts into a fallback warning', async () => 
         refine: {
           enabled: true,
           provider: 'mimo',
-          values: { model: 'mimo-v2.5' },
+          values: { model: 'mimo-v2.6-flash' },
           instructions: 'x',
           onError: 'fallback'
         }
@@ -618,7 +618,7 @@ test('context is delivered verbatim only to roles that support it', async () => 
       refine: {
         enabled: true,
         provider: 'mimo',
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         instructions: 'x',
         onError: 'fallback'
       }
@@ -679,7 +679,7 @@ test('trace and warnings never carry credentials or context contents', async () 
       refine: {
         enabled: true,
         provider: 'mimo',
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         instructions: 'confidential-instructions',
         onError: 'fallback'
       }

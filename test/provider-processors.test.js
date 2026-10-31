@@ -56,7 +56,7 @@ function processorCases(transport) {
       processor: createProcessor({
         provider: mimoProvider,
         providerValues: { endpoint: 'https://example.test/v1' },
-        values: { model: 'mimo-v2.5' },
+        values: { model: 'mimo-v2.6-flash' },
         transport
       }),
       input: { kind: 'text', text: 'hello' }
@@ -165,7 +165,7 @@ test('MiMo Refine disables thinking by default and exposes provider overrides', 
     const processor = createProcessor({
       provider: mimoProvider,
       providerValues: { endpoint: 'https://example.test/v1' },
-      values: { model: 'mimo-v2.5', ...values },
+      values: { model: 'mimo-v2.6-flash', ...values },
       transport
     })
     await processor.process({
