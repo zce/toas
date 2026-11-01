@@ -106,15 +106,16 @@
  * color so the state remains immediately recognizable.
  */
 .toas-recording {
-  border-radius: 99px;
+  background-color: #ee3d5c;
+}
 
-  color: white;
-  background-color: #e01b24;
+.toas-recording .toas-status-icon {
+  color: #fff;
 }
 
 .toas-recording:hover,
 .toas-recording:focus {
-  background-color: st-lighten(#e01b24, 8%);
+  background-color: st-lighten(#ee3d5c, 8%);
 }
 
 /* --- History menu (ui/indicator.js) ----------------------------------------- */
