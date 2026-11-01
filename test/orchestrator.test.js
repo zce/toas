@@ -264,7 +264,7 @@ test('paste shortcut failure reports a manual-copy fallback without processing f
   expectEqual(history.appends[0].status, 'ok')
   expectEqual(notifier.notifications, [{
     title: 'Copied to clipboard',
-    body: 'Automatic paste failed. Paste the text manually.'
+    body: 'Automatic paste could not be confirmed. Paste manually if needed.'
   }])
   expectEqual(state.events.at(-1).state, 'idle')
   orchestrator.destroy()
