@@ -1,5 +1,7 @@
 // Output method selection: direct input versus clipboard fallback.
 
+import Clutter from 'gi://Clutter'
+
 import { selectOutputMethod, TextPaster } from '../host/output.js'
 import { expectEqual, run, test } from './harness.js'
 
@@ -175,6 +177,36 @@ test('failed virtual-keyboard paste leaves the verified clipboard available', as
   expectEqual(calls.writes, ['paste manually\\n'])
   expectEqual(calls.pastes, 1)
   expectEqual(paster._targetWindow, null)
+})
+
+test('failed key injection releases every attempted key in reverse order', () => {
+  const { paster } = delivery({ autoPaste: true, matches: true })
+  const events = []
+  paster._keyboard = {
+    notify_key: (_when, key, state) => {
+      events.push([key, state])
+      if (key === 47 && state === Clutter.KeyState.PRESSED) {
+        throw new Error('Key injection failed')
+      }
+    }
+  }
+
+  let error = null
+  try {
+    paster._pasteShortcut()
+  } catch (caught) {
+    error = caught
+  }
+
+  expectEqual(error?.message, 'Key injection failed')
+  expectEqual(events, [
+    [29, Clutter.KeyState.PRESSED],
+    [42, Clutter.KeyState.PRESSED],
+    [47, Clutter.KeyState.PRESSED],
+    [47, Clutter.KeyState.RELEASED],
+    [42, Clutter.KeyState.RELEASED],
+    [29, Clutter.KeyState.RELEASED]
+  ])
 })
 
 test('clipboard write failure must never be reported as copied', async () => {
