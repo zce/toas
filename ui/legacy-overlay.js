@@ -25,7 +25,7 @@ export class ShellOverlayView {
     this._mode = 'hidden'
 
     this._overlay = new St.BoxLayout({
-      name: 'zce-toas-legacy-overlay',
+      name: 'toas-legacy-overlay',
       style_class: 'toas-overlay',
       reactive: false,
       visible: false
@@ -65,7 +65,7 @@ export class ShellOverlayView {
     this._spinner.add_style_class_name('toas-spinner')
 
     this._closeButton = new St.Button({
-      name: 'zce-toas-close',
+      name: 'toas-close',
       style_class: 'toas-close-button icon-button',
       child: new St.Icon({
         icon_name: 'window-close-symbolic',
