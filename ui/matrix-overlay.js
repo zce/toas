@@ -101,8 +101,8 @@ export class MatrixOverlayView {
     })
 
     Main.layoutManager.addTopChrome(this._overlay)
-    this._overlay.connect('notify::width', () => this._reposition())
-    this._overlay.connect('notify::height', () => this._reposition())
+    this._overlay.connect('notify::width', () => this._syncTranslation())
+    this._overlay.connect('notify::height', () => this._syncTranslation())
     this._monitorsChangedId = Main.layoutManager.connect('monitors-changed', () => {
       this._monitorIndex = null
       this._reposition()
@@ -334,6 +334,24 @@ export class MatrixOverlayView {
     const [, h] = this._overlay.get_preferred_height(w)
     const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
     this._overlay.set_position(x, y)
+    this._overlay.translation_x = 0
+    this._overlay.translation_y = 0
+  }
+
+  _syncTranslation() {
+    const monitor = selectMonitor(
+      Main.layoutManager.monitors, Main.layoutManager.primaryMonitor, this._monitorIndex
+    )
+    if (!monitor || !this._overlay || this._overlay.width <= 0 || this._overlay.height <= 0) {
+      return
+    }
+
+    const { x, y } = calculateOverlayPosition(
+      monitor, this._overlay.width, this._overlay.height, BOTTOM_MARGIN
+    )
+    // Size transitions need visual centering, not another allocation.
+    this._overlay.translation_x = x - this._overlay.x
+    this._overlay.translation_y = y - this._overlay.y
   }
 
   _acquireCompositing() {
