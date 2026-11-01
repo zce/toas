@@ -147,7 +147,13 @@ export class TextPaster {
       return { mode: 'copied', reason: 'focus-mismatch' }
     }
 
-    this._pasteShortcut()
+    try {
+      this._pasteShortcut()
+    } catch (error) {
+      console.warn(`[toas] Could not paste automatically: ${error.message}`)
+      this._targetWindow = null
+      return { mode: 'copied', reason: 'paste-unavailable' }
+    }
     this._targetWindow = null
 
     if (restoreClipboard && originalText !== null && originalText !== text) {
@@ -166,8 +172,13 @@ export class TextPaster {
 
   _commitDirect(text) {
     if (Main.inputMethod?.currentFocus) {
-      Main.inputMethod.commit(text)
-      return true
+      try {
+        Main.inputMethod.commit(text)
+        return true
+      } catch (error) {
+        console.warn(`[toas] Direct input failed, using clipboard fallback: ${error.message}`)
+        return false
+      }
     }
 
     if (!this._ibusFocused || !this._ibusManager._panelService) {
@@ -197,16 +208,25 @@ export class TextPaster {
       ? [KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_V]
       : [KEY_LEFTSHIFT, KEY_INSERT]
 
-    for (let i = 0; i < keys.length - 1; i++) {
-      this._keyboard.notify_key(GLib.get_monotonic_time(), keys[i], Clutter.KeyState.PRESSED)
+    const held = []
+    let failure = null
+    try {
+      for (const key of keys) {
+        held.push(key)
+        this._keyboard.notify_key(GLib.get_monotonic_time(), key, Clutter.KeyState.PRESSED)
+      }
+    } catch (error) {
+      failure = error
     }
-
-    const mainKey = keys[keys.length - 1]
-    this._keyboard.notify_key(GLib.get_monotonic_time(), mainKey, Clutter.KeyState.PRESSED)
-    this._keyboard.notify_key(GLib.get_monotonic_time(), mainKey, Clutter.KeyState.RELEASED)
-
-    for (let i = keys.length - 2; i >= 0; i--) {
-      this._keyboard.notify_key(GLib.get_monotonic_time(), keys[i], Clutter.KeyState.RELEASED)
+    for (const key of held.reverse()) {
+      try {
+        this._keyboard.notify_key(GLib.get_monotonic_time(), key, Clutter.KeyState.RELEASED)
+      } catch (error) {
+        failure ??= error
+      }
+    }
+    if (failure) {
+      throw failure
     }
   }
 

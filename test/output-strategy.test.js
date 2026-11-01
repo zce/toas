@@ -164,4 +164,30 @@ test('focus loss during clipboard verification never pastes into the next window
   expectEqual(calls.pastes, 0)
 })
 
+test('failed virtual-keyboard paste leaves the verified clipboard available', async () => {
+  const { paster, calls } = delivery({ autoPaste: true, restoreClipboard: true, matches: true })
+  paster._pasteShortcut = () => {
+    calls.pastes++
+    throw new Error('Virtual keyboard unavailable')
+  }
+
+  expectEqual(await paster.write('paste manually\\n'), { mode: 'copied', reason: 'paste-unavailable' })
+  expectEqual(calls.writes, ['paste manually\\n'])
+  expectEqual(calls.pastes, 1)
+  expectEqual(paster._targetWindow, null)
+})
+
+test('clipboard write failure must never be reported as copied', async () => {
+  const { paster } = delivery({ autoPaste: false })
+  paster._clipboard.set_text = () => { throw new Error('Clipboard unavailable') }
+
+  let caught = null
+  try {
+    await paster.write('unavailable text')
+  } catch (error) {
+    caught = error
+  }
+  expectEqual(caught?.message, 'Clipboard unavailable')
+})
+
 await run()

@@ -244,6 +244,32 @@ test('target-window mismatch reports the actual clipboard fallback', async () =>
   orchestrator.destroy()
 })
 
+test('paste shortcut failure reports a manual-copy fallback without processing failure', async () => {
+  const recording = { id: 'rec-paste', path: '/tmp/rec-paste.wav', durationMs: 1000, mimeType: 'audio/wav' }
+  const output = new FakePaster()
+  output.write = async text => {
+    output.writes.push(text)
+    return { mode: 'copied', reason: 'paste-unavailable' }
+  }
+  const { orchestrator, history, notifier, state } = makeOrchestrator({
+    recorder: new FakeRecorder({ recording: recordingOutcomeOk(recording) }),
+    output
+  })
+
+  orchestrator.begin()
+  await orchestrator.end()
+
+  expectEqual(output.writes, ['hello'])
+  expectEqual(history.appends.length, 1)
+  expectEqual(history.appends[0].status, 'ok')
+  expectEqual(notifier.notifications, [{
+    title: 'Copied to clipboard',
+    body: 'Automatic paste failed. Paste the text manually.'
+  }])
+  expectEqual(state.events.at(-1).state, 'idle')
+  orchestrator.destroy()
+})
+
 test('output target is captured before kernel processing starts', async () => {
   const recording = { id: 'rec-order', path: '/tmp/rec-order.wav', durationMs: 1000, mimeType: 'audio/wav' }
   const order = []
