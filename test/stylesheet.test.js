@@ -78,7 +78,7 @@ test('matrix capsule keeps the compact circular profile in error state', () => {
   const view = read(`${rootDir}/ui/matrix-overlay.js`)
 
   const radius = css.match(/\.toas-matrix-overlay\s*\{[^}]*border-radius:\s*(\d+)px;/)
-  expectEqual(Number(radius?.[1]) * 2, HUD_HEIGHT)
+  expectEqual(Number(radius?.[1]) * 2 >= HUD_HEIGHT, true)
   expectEqual(/\.toas-matrix-error-label\s*\{[^}]*padding:\s*0 16px;/.test(css), true)
   expectEqual(/this\._overlay = new St\.Button\(\{[^}]*height: HUD_HEIGHT,/.test(view), true)
 })

@@ -79,6 +79,12 @@ else
   echo "Log out/in once, then run: gnome-extensions enable $UUID"
 fi
 
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/toas"
+for previous in "$CACHE_DIR"/earcons-v[0-9]*; do
+  [[ -e "$previous" || -L "$previous" ]] || continue
+  rm -rf -- "$previous" || echo "Could not remove obsolete sound cache: $previous" >&2
+done
+
 echo
 echo "Open preferences:"
 echo "  gnome-extensions prefs $UUID"
