@@ -169,4 +169,29 @@ test('stop preserves buffered tail PCM in the completed WAV', async () => {
   expectEqual(Array.from(wav.slice(44)), [...captured, ...tail])
 })
 
+test('stalled pw-record is terminated and its partial recording discarded', async () => {
+  const value = recorder()
+  const cancellable = new Gio.Cancellable()
+  let forced = false
+  let signalled = false
+  value._process = {
+    send_signal: signal => { signalled = signal === 2 },
+    force_exit: () => { forced = true }
+  }
+  value._readCancellable = cancellable
+  value._readPromise = new Promise(resolve => {
+    cancellable.connect(resolve)
+  })
+  value._output = Gio.MemoryOutputStream.new_resizable()
+  value._output.write_all(new Uint8Array(44), null)
+  value._totalBytes = 32000
+
+  const outcome = await value.stop()
+  expectEqual(signalled, true)
+  expectEqual(forced, true)
+  expectEqual(outcome.kind, 'capture-failure')
+  expectEqual(outcome.error.message, 'Audio capture did not stop within 3 seconds')
+  expectEqual(value._output, null)
+})
+
 await run()

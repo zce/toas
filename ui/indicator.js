@@ -18,6 +18,8 @@ export class ToasIndicator extends PanelMenu.Button {
 
   constructor({ onToggle, onClearHistory, onOpenPreferences, onListHistory, onCopySession, onRetrySession, onCanRetrySession, onPrivateModeChanged }) {
     super(0.5, 'toas')
+    this.name = 'toas-indicator'
+    this.menu.actor.name = 'toas-menu'
 
     this._onToggle = onToggle
     this._onClearHistory = onClearHistory
@@ -41,12 +43,15 @@ export class ToasIndicator extends PanelMenu.Button {
     const historyHeading = new PopupMenu.PopupMenuItem('Your words', {
       reactive: false
     })
+    historyHeading.name = 'toas-history-heading'
     addMenuIcon(historyHeading, 'document-open-recent-symbolic')
     this.menu.addMenuItem(historyHeading)
 
     this._historySection = new PopupMenu.PopupMenuSection()
+    this._historySection.actor.name = 'toas-history-results'
     const scrollSection = new PopupMenu.PopupMenuSection()
     const scrollView = new St.ScrollView({
+      name: 'toas-history-scroll',
       style_class: 'toas-history-menu-scroll',
       overlay_scrollbars: true,
       hscrollbar_policy: St.PolicyType.NEVER,
@@ -59,6 +64,7 @@ export class ToasIndicator extends PanelMenu.Button {
     // Persisted preference: private voice inputs leave no local history and
     // their recordings are deleted once processed.
     this._privateModeItem = new PopupMenu.PopupSwitchMenuItem('Private mode', false, { reactive: true })
+    this._privateModeItem.name = 'toas-private-mode'
     this._syncingPrivateMode = false
     this._privateModeItem.connect('toggled', (_item, enabled) => {
       if (!this._syncingPrivateMode) {
@@ -69,6 +75,7 @@ export class ToasIndicator extends PanelMenu.Button {
     this.menu.addMenuItem(this._privateModeItem)
 
     this._clearHistoryItem = new PopupMenu.PopupMenuItem('Clear History')
+    this._clearHistoryItem.name = 'toas-clear-history'
     addMenuIcon(this._clearHistoryItem, 'edit-clear-all-symbolic')
     this._clearHistoryItem.connect('activate', () => {
       this.menu.close()
@@ -77,6 +84,7 @@ export class ToasIndicator extends PanelMenu.Button {
     this.menu.addMenuItem(this._clearHistoryItem)
 
     const settingsItem = new PopupMenu.PopupMenuItem('Settings')
+    settingsItem.name = 'toas-settings'
     addMenuIcon(settingsItem, 'preferences-system-symbolic')
     settingsItem.connect('activate', () => {
       this.menu.close()
@@ -202,12 +210,15 @@ export class ToasIndicator extends PanelMenu.Button {
     const entries = this._onListHistory?.() ?? []
 
     if (entries.length === 0) {
-      this._historySection.addMenuItem(new PopupMenu.PopupMenuItem('Nothing here yet. Say something.', { reactive: false }))
+      const emptyItem = new PopupMenu.PopupMenuItem('Nothing here yet. Say something.', { reactive: false })
+      emptyItem.name = 'toas-history-empty'
+      this._historySection.addMenuItem(emptyItem)
       return
     }
 
     for (const entry of entries) {
       const item = new PopupMenu.PopupBaseMenuItem({ reactive: false })
+      item.name = 'toas-history-row'
       const textColumn = new St.BoxLayout({ vertical: true, x_expand: true })
       const preview = new St.Label({
         text: previewText(entry),
@@ -264,6 +275,7 @@ function addMenuIcon(item, iconName) {
 
 function historyActionButton(iconName, accessibleName, onClicked) {
   const button = new St.Button({
+    name: 'toas-history-action',
     style_class: 'icon-button toas-history-action',
     accessible_name: accessibleName,
     can_focus: true,

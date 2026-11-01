@@ -17,29 +17,73 @@ if ! command -v pw-record >/dev/null 2>&1; then
   exit 1
 fi
 
+PARENT_DIR="$(dirname "$TARGET_DIR")"
+mkdir -p "$PARENT_DIR"
+STAGING_DIR="$(mktemp -d "$PARENT_DIR/.toas-staging.XXXXXX")"
+BACKUP_DIR=""
+INSTALL_STARTED=false
+REPLACEMENT_STARTED=false
+
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if (( status != 0 )); then
+    if [[ -n "$BACKUP_DIR" && ( -e "$BACKUP_DIR" || -L "$BACKUP_DIR" ) ]]; then
+      rm -rf -- "$TARGET_DIR"
+      mv -- "$BACKUP_DIR" "$TARGET_DIR" || echo "Could not restore previous installation: $BACKUP_DIR" >&2
+    elif [[ "$REPLACEMENT_STARTED" == true ]]; then
+      rm -rf -- "$TARGET_DIR"
+    fi
+    if [[ "$INSTALL_STARTED" == true ]]; then
+      gnome-extensions enable "$UUID" >/dev/null 2>&1 || true
+    fi
+  elif [[ -n "$BACKUP_DIR" ]]; then
+    rm -rf -- "$BACKUP_DIR"
+  fi
+  rm -rf -- "$STAGING_DIR"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+cp "$SOURCE_DIR"/*.js "$STAGING_DIR/"
+cp "$SOURCE_DIR"/metadata.json "$STAGING_DIR/"
+cp "$SOURCE_DIR"/prefs.css "$STAGING_DIR/"
+cp "$SOURCE_DIR"/stylesheet.css "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/host "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/kernel "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/ui "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/schemas "$STAGING_DIR/"
+
+glib-compile-schemas --strict "$STAGING_DIR/schemas"
+
 gnome-extensions disable "$UUID" >/dev/null 2>&1 || true
-
-rm -rf "$TARGET_DIR"
-mkdir -p "$TARGET_DIR"
-
-cp "$SOURCE_DIR"/*.js "$TARGET_DIR/"
-cp "$SOURCE_DIR"/metadata.json "$TARGET_DIR/"
-cp "$SOURCE_DIR"/prefs.css "$TARGET_DIR/"
-cp "$SOURCE_DIR"/stylesheet.css "$TARGET_DIR/"
-cp -R "$SOURCE_DIR"/host "$TARGET_DIR/"
-cp -R "$SOURCE_DIR"/kernel "$TARGET_DIR/"
-cp -R "$SOURCE_DIR"/ui "$TARGET_DIR/"
-cp -R "$SOURCE_DIR"/schemas "$TARGET_DIR/"
-
-glib-compile-schemas --strict "$TARGET_DIR/schemas"
+INSTALL_STARTED=true
+if [[ -e "$TARGET_DIR" || -L "$TARGET_DIR" ]]; then
+  BACKUP_DIR="$(mktemp -d "$PARENT_DIR/.toas-backup.XXXXXX")"
+  rmdir "$BACKUP_DIR"
+  mv -- "$TARGET_DIR" "$BACKUP_DIR"
+fi
+REPLACEMENT_STARTED=true
+mv -- "$STAGING_DIR" "$TARGET_DIR"
 
 if gnome-extensions enable "$UUID" 2>/dev/null; then
   echo "Installed and enabled: $UUID"
+elif [[ -n "$BACKUP_DIR" ]]; then
+  echo "Could not enable the update; restoring the previous installation." >&2
+  exit 1
 else
   echo "Installed: $UUID"
   echo "GNOME may need to discover the new extension first."
   echo "Log out/in once, then run: gnome-extensions enable $UUID"
 fi
+
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/toas"
+for previous in "$CACHE_DIR"/earcons-v[0-9]*; do
+  [[ -e "$previous" || -L "$previous" ]] || continue
+  rm -rf -- "$previous" || echo "Could not remove obsolete sound cache: $previous" >&2
+done
 
 echo
 echo "Open preferences:"
