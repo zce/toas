@@ -70,6 +70,9 @@ mv -- "$STAGING_DIR" "$TARGET_DIR"
 
 if gnome-extensions enable "$UUID" 2>/dev/null; then
   echo "Installed and enabled: $UUID"
+elif [[ -n "$BACKUP_DIR" ]]; then
+  echo "Could not enable the update; restoring the previous installation." >&2
+  exit 1
 else
   echo "Installed: $UUID"
   echo "GNOME may need to discover the new extension first."
