@@ -17,21 +17,47 @@ if ! command -v pw-record >/dev/null 2>&1; then
   exit 1
 fi
 
+PARENT_DIR="$(dirname "$TARGET_DIR")"
+mkdir -p "$PARENT_DIR"
+STAGING_DIR="$(mktemp -d "$PARENT_DIR/.toas-staging.XXXXXX")"
+BACKUP_DIR=""
+
+cleanup() {
+  if [[ -n "$STAGING_DIR" ]]; then
+    rm -rf -- "$STAGING_DIR"
+  fi
+  if [[ -n "$BACKUP_DIR" && -e "$BACKUP_DIR" ]]; then
+    if [[ ! -e "$TARGET_DIR" && ! -L "$TARGET_DIR" ]]; then
+      mv -- "$BACKUP_DIR" "$TARGET_DIR"
+      gnome-extensions enable "$UUID" >/dev/null 2>&1 || true
+    else
+      rm -rf -- "$BACKUP_DIR"
+    fi
+  fi
+}
+trap cleanup EXIT
+
+cp "$SOURCE_DIR"/*.js "$STAGING_DIR/"
+cp "$SOURCE_DIR"/metadata.json "$STAGING_DIR/"
+cp "$SOURCE_DIR"/prefs.css "$STAGING_DIR/"
+cp "$SOURCE_DIR"/stylesheet.css "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/host "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/kernel "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/ui "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/schemas "$STAGING_DIR/"
+
+glib-compile-schemas --strict "$STAGING_DIR/schemas"
+
 gnome-extensions disable "$UUID" >/dev/null 2>&1 || true
-
-rm -rf "$TARGET_DIR"
-mkdir -p "$TARGET_DIR"
-
-cp "$SOURCE_DIR"/*.js "$TARGET_DIR/"
-cp "$SOURCE_DIR"/metadata.json "$TARGET_DIR/"
-cp "$SOURCE_DIR"/prefs.css "$TARGET_DIR/"
-cp "$SOURCE_DIR"/stylesheet.css "$TARGET_DIR/"
-cp -R "$SOURCE_DIR"/host "$TARGET_DIR/"
-cp -R "$SOURCE_DIR"/kernel "$TARGET_DIR/"
-cp -R "$SOURCE_DIR"/ui "$TARGET_DIR/"
-cp -R "$SOURCE_DIR"/schemas "$TARGET_DIR/"
-
-glib-compile-schemas --strict "$TARGET_DIR/schemas"
+if [[ -e "$TARGET_DIR" || -L "$TARGET_DIR" ]]; then
+  BACKUP_DIR="$(mktemp -d "$PARENT_DIR/.toas-backup.XXXXXX")"
+  rmdir "$BACKUP_DIR"
+  mv -- "$TARGET_DIR" "$BACKUP_DIR"
+fi
+mv -- "$STAGING_DIR" "$TARGET_DIR"
+STAGING_DIR=""
+cleanup
+trap - EXIT
 
 if gnome-extensions enable "$UUID" 2>/dev/null; then
   echo "Installed and enabled: $UUID"

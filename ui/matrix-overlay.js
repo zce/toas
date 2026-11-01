@@ -40,6 +40,7 @@ export class MatrixOverlayView {
     this._destroyed = false
 
     this._matrix = new St.DrawingArea({
+      name: 'zce-toas-matrix-canvas',
       width: HUD_RECORD_WIDTH,
       height: HUD_HEIGHT,
       y_align: Clutter.ActorAlign.CENTER
@@ -58,6 +59,7 @@ export class MatrixOverlayView {
     content.add_child(this._matrix)
     content.add_child(this._error)
     this._overlay = new St.Button({
+      name: 'zce-toas-matrix-overlay',
       style_class: 'toas-matrix-overlay',
       height: HUD_HEIGHT,
       child: content,

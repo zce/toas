@@ -60,6 +60,7 @@ const BYTES_PER_SAMPLE = 2
 // Bounds an accidentally open recording so it cannot exhaust Shell memory
 // during upload (~4 minutes at 48 kHz mono s16).
 const MAX_PCM_BYTES = 24 * 1024 * 1024
+const STOP_TIMEOUT_MS = 3000
 
 export function recordingIdForNow() {
   const now = new Date()
@@ -133,8 +134,13 @@ export class AudioRecorder {
     this._output.write_all(new Uint8Array(44), null)
     this._totalBytes = 0
     this._stream = this._process.get_stdout_pipe()
+    this._readCancellable = new Gio.Cancellable()
     this._readPromise = this._readLoop()
-    this._readPromise.catch(error => this._onError?.(error))
+    this._readPromise.catch(error => {
+      if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+        this._onError?.(error)
+      }
+    })
   }
 
   async stop() {
@@ -151,20 +157,45 @@ export class AudioRecorder {
     // Closing the capture gate here could cut off the final spoken syllable.
     process.send_signal(2)
 
+    let stopTimedOut = false
+    const readCancellable = this._readCancellable
+    const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, STOP_TIMEOUT_MS, () => {
+      stopTimedOut = true
+      try {
+        process.force_exit()
+      } catch {
+        // The process may have exited while the timeout was dispatched.
+      }
+      readCancellable?.cancel()
+      return GLib.SOURCE_REMOVE
+    })
+
     try {
       await this._readPromise
     } catch (error) {
       if (this._cancelled) {
         return (this._outcome = recordingOutcomeCancelled())
       }
-      if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+      if (!stopTimedOut && !error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+        this._discardFile()
         return (this._outcome = recordingOutcomeCaptureFailure(error))
       }
     } finally {
+      if (!stopTimedOut) {
+        GLib.source_remove(timeoutId)
+      }
       this._captureEnabled = false
       this._process = null
       this._stream = null
+      this._readCancellable = null
       this._readPromise = null
+    }
+
+    if (stopTimedOut) {
+      this._discardFile()
+      return (this._outcome = recordingOutcomeCaptureFailure(
+        new Error('Audio capture did not stop within 3 seconds')
+      ))
     }
 
     if (this._cancelled) {
@@ -219,7 +250,7 @@ export class AudioRecorder {
       // Never admit that pre-gate chunk: otherwise the start cue can leak
       // into the first 100ms of an otherwise muted recording.
       const acceptAtRead = this._captureEnabled
-      const bytes = await this._stream.read_bytes_async(this._chunkBytes, GLib.PRIORITY_DEFAULT, null)
+      const bytes = await this._stream.read_bytes_async(this._chunkBytes, GLib.PRIORITY_DEFAULT, this._readCancellable)
 
       if (bytes.get_size() === 0) {
         break
@@ -270,13 +301,15 @@ export class AudioRecorder {
   }
 
   destroy() {
+    this._readCancellable?.cancel()
     try {
-      this._process?.send_signal(2)
+      this._process?.force_exit()
     } catch {
       // Process may already have exited.
     }
 
     this._process = null
+    this._readCancellable = null
     this._stream = null
     this._readPromise = null
     this._discardFile()
