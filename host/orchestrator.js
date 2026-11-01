@@ -224,6 +224,8 @@ export class ToasOrchestrator {
 
     if (delivery?.reason === 'focus-mismatch') {
       this._notifier.notify('Copied to clipboard', 'The original target window is unavailable, so your text was copied to the clipboard.')
+    } else if (delivery?.reason === 'paste-unavailable') {
+      this._notifier.notify('Copied to clipboard', 'Automatic paste could not be confirmed. Paste manually if needed.')
     }
 
     if (result.warning?.type === 'refine-failed') {
