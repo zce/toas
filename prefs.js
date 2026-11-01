@@ -129,7 +129,11 @@ export default class ToasPreferences extends ExtensionPreferences {
   fillPreferencesWindow(window) {
     const settings = this.getSettings()
 
-    loadPrefsCss(this.path)
+    const cssProvider = loadPrefsCss(this.path)
+    window.connect('close-request', () => {
+      Gtk.StyleContext.remove_provider_for_display(Gdk.Display.get_default(), cssProvider)
+      return false
+    })
     window.search_enabled = false
 
     const page = new Adw.PreferencesPage({
@@ -643,6 +647,7 @@ function loadPrefsCss(path) {
   const provider = new Gtk.CssProvider()
   provider.load_from_path(`${path}/prefs.css`)
   Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+  return provider
 }
 
 function spinRow(settings, key, title, lower, upper, subtitle) {

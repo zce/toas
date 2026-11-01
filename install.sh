@@ -21,21 +21,31 @@ PARENT_DIR="$(dirname "$TARGET_DIR")"
 mkdir -p "$PARENT_DIR"
 STAGING_DIR="$(mktemp -d "$PARENT_DIR/.toas-staging.XXXXXX")"
 BACKUP_DIR=""
+INSTALL_STARTED=false
+REPLACEMENT_STARTED=false
 
 cleanup() {
-  if [[ -n "$STAGING_DIR" ]]; then
-    rm -rf -- "$STAGING_DIR"
-  fi
-  if [[ -n "$BACKUP_DIR" && -e "$BACKUP_DIR" ]]; then
-    if [[ ! -e "$TARGET_DIR" && ! -L "$TARGET_DIR" ]]; then
-      mv -- "$BACKUP_DIR" "$TARGET_DIR"
-      gnome-extensions enable "$UUID" >/dev/null 2>&1 || true
-    else
-      rm -rf -- "$BACKUP_DIR"
+  local status=$?
+  trap - EXIT
+  if (( status != 0 )); then
+    if [[ -n "$BACKUP_DIR" && ( -e "$BACKUP_DIR" || -L "$BACKUP_DIR" ) ]]; then
+      rm -rf -- "$TARGET_DIR"
+      mv -- "$BACKUP_DIR" "$TARGET_DIR" || echo "Could not restore previous installation: $BACKUP_DIR" >&2
+    elif [[ "$REPLACEMENT_STARTED" == true ]]; then
+      rm -rf -- "$TARGET_DIR"
     fi
+    if [[ "$INSTALL_STARTED" == true ]]; then
+      gnome-extensions enable "$UUID" >/dev/null 2>&1 || true
+    fi
+  elif [[ -n "$BACKUP_DIR" ]]; then
+    rm -rf -- "$BACKUP_DIR"
   fi
+  rm -rf -- "$STAGING_DIR"
+  exit "$status"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 cp "$SOURCE_DIR"/*.js "$STAGING_DIR/"
 cp "$SOURCE_DIR"/metadata.json "$STAGING_DIR/"
@@ -49,15 +59,14 @@ cp -R "$SOURCE_DIR"/schemas "$STAGING_DIR/"
 glib-compile-schemas --strict "$STAGING_DIR/schemas"
 
 gnome-extensions disable "$UUID" >/dev/null 2>&1 || true
+INSTALL_STARTED=true
 if [[ -e "$TARGET_DIR" || -L "$TARGET_DIR" ]]; then
   BACKUP_DIR="$(mktemp -d "$PARENT_DIR/.toas-backup.XXXXXX")"
   rmdir "$BACKUP_DIR"
   mv -- "$TARGET_DIR" "$BACKUP_DIR"
 fi
+REPLACEMENT_STARTED=true
 mv -- "$STAGING_DIR" "$TARGET_DIR"
-STAGING_DIR=""
-cleanup
-trap - EXIT
 
 if gnome-extensions enable "$UUID" 2>/dev/null; then
   echo "Installed and enabled: $UUID"

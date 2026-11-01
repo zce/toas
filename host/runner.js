@@ -30,7 +30,7 @@ export class KernelRunner {
     const config = snapshotProcessingConfig(this._settings, this._providers)
     const secrets = snapshotProviderSecrets(this._settings, this._providers)
     const context = snapshotContext(this._settings)
-    const audio = await this._loadAudio(recording)
+    const audio = await this._loadAudio(recording, signal)
 
     return await runKernel({
       config,
@@ -47,19 +47,30 @@ export class KernelRunner {
     })
   }
 
-  async _loadAudio(recording) {
-    const file = Gio.File.new_for_path(recording.path)
-    const size = file.query_info(Gio.FILE_ATTRIBUTE_STANDARD_SIZE, Gio.FileQueryInfoFlags.NONE, null).get_size()
-    if (size > MAX_AUDIO_BYTES) {
-      throw new Error(`Recording exceeds the ${MAX_AUDIO_BYTES / 1024 / 1024} MB upload limit`)
-    }
+  async _loadAudio(recording, signal) {
+    const cancellable = new Gio.Cancellable()
+    const onAbort = () => cancellable.cancel()
+    signal?.addEventListener?.('abort', onAbort)
 
-    const [contents] = await file.load_bytes_async(null)
-    return {
-      kind: 'audio',
-      base64: GLib.base64_encode(contents.get_data()),
-      mimeType: recording.mimeType,
-      durationMs: recording.durationMs
+    try {
+      const file = Gio.File.new_for_path(recording.path)
+      const size = file.query_info(Gio.FILE_ATTRIBUTE_STANDARD_SIZE, Gio.FileQueryInfoFlags.NONE, cancellable).get_size()
+      if (size > MAX_AUDIO_BYTES) {
+        throw new Error(`Recording exceeds the ${MAX_AUDIO_BYTES / 1024 / 1024} MB upload limit`)
+      }
+
+      const [contents] = await file.load_bytes_async(cancellable)
+      if (signal?.aborted) {
+        throw new Error('Processing cancelled')
+      }
+      return {
+        kind: 'audio',
+        base64: GLib.base64_encode(contents.get_data()),
+        mimeType: recording.mimeType,
+        durationMs: recording.durationMs
+      }
+    } finally {
+      signal?.removeEventListener?.('abort', onAbort)
     }
   }
 
