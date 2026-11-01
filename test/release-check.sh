@@ -30,7 +30,13 @@ step "Metadata"
 gjs -m test/metadata.test.js >/dev/null 2>&1 && echo "ok" || { echo "FAILED"; rc=1; }
 
 step "Headless test suite"
-./test/run-all.sh >/dev/null 2>&1 && echo "ok" || { echo "FAILED"; rc=1; }
+if test_output=$(./test/run-all.sh 2>&1); then
+  echo "ok"
+else
+  echo "FAILED"
+  printf '%s\n' "$test_output"
+  rc=1
+fi
 
 echo
 if [ "$rc" -eq 0 ]; then
