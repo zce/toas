@@ -124,7 +124,7 @@ export class SoupHttpTransport {
       if (timedOut) {
         throw transportError('timeout', 'Request timed out')
       }
-      if (err?.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.TIMED_OUT)) {
+      if (err?.matches?.(Gio.io_error_quark(), Gio.IOErrorEnum.TIMED_OUT)) {
         throw transportError('timeout', 'Request timed out')
       }
       if (err.category) {
