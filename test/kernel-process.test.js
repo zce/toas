@@ -20,8 +20,8 @@ class FakeTransport {
     this._responses = [...responses]
   }
 
-  async send(request, signal) {
-    this.requests.push({ ...request, body: decodeBody(request.body) })
+  async send(request, signal, timeoutMs) {
+    this.requests.push({ ...request, body: decodeBody(request.body), timeoutMs })
     if (signal?.aborted) {
       throw Object.assign(new Error('cancelled'), { category: 'cancelled' })
     }
@@ -295,6 +295,37 @@ test('empty context is valid', async () => {
 
   expectEqual(result.trace[0].context, [])
   expectEqual(transport.requests[0].body.input.messages.length, 1)
+})
+
+test('role-specific deadlines preserve Refine timeout fallback', async () => {
+  const transport = new FakeTransport({
+    responses: [
+      dashscopeResponse('primary text'),
+      { throw: Object.assign(new Error('Request timed out'), { category: 'timeout' }) }
+    ]
+  })
+  const result = await runKernel({
+    config: {
+      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+      refine: {
+        enabled: true,
+        provider: 'mimo',
+        values: { model: 'mimo-v2.6-flash' },
+        instructions: 'Polish.',
+        onError: 'fallback'
+      }
+    },
+    audio: AUDIO,
+    context: CONTEXT,
+    secrets: SECRETS,
+    runtime: { ...runtimeFor(transport), timeoutMsByRole: { primary: 30000, refine: 15000 } },
+    signal: null
+  })
+
+  expectEqual(transport.requests.map(request => request.timeoutMs), [30000, 15000])
+  expectEqual(result.text, 'primary text')
+  expectEqual(result.warning.type, 'refine-failed')
+  expectEqual(result.trace[1].errorCategory, 'timeout')
 })
 
 test('refine fallback returns primary text with warning and failed trace', async () => {
