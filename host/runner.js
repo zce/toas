@@ -18,7 +18,7 @@ export class KernelRunner {
   constructor({ settings, providers = registry }) {
     this._settings = settings
     this._providers = providers
-    this._transport = new SoupHttpTransport({ timeoutMs: 120000 })
+    this._transport = new SoupHttpTransport()
     this._clock = { now: () => GLib.get_monotonic_time() / 1000 }
   }
 
@@ -39,7 +39,8 @@ export class KernelRunner {
       secrets,
       runtime: {
         transport: this._transport,
-        clock: this._clock
+        clock: this._clock,
+        timeoutMsByRole: { primary: 30000, refine: 15000 }
       },
       signal,
       providers: this._providers,

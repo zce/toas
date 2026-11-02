@@ -66,9 +66,10 @@ export class SoupHttpTransport {
    *
    * @param {{method: string, url: string, headers: Object, body: Uint8Array}} request
    * @param {AbortSignal} signal
+   * @param {number} timeoutMs
    * @returns {Promise<{status: number, headers: Object, body: Uint8Array}>}
    */
-  async send(request, signal) {
+  async send(request, signal, timeoutMs = this._timeoutMs) {
     const message = Soup.Message.new(request.method, request.url)
     if (!message) {
       throw transportError('network', `Invalid request URL: ${request.url}`)
@@ -86,7 +87,7 @@ export class SoupHttpTransport {
 
     const cancellable = new Gio.Cancellable()
     let timedOut = false
-    let timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._timeoutMs, () => {
+    let timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeoutMs, () => {
       timeoutId = 0
       timedOut = true
       cancellable.cancel()
@@ -121,6 +122,9 @@ export class SoupHttpTransport {
         throw transportError('cancelled', 'Request was cancelled')
       }
       if (timedOut) {
+        throw transportError('timeout', 'Request timed out')
+      }
+      if (err?.matches?.(Gio.io_error_quark(), Gio.IOErrorEnum.TIMED_OUT)) {
         throw transportError('timeout', 'Request timed out')
       }
       if (err.category) {

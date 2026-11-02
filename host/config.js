@@ -232,7 +232,7 @@ export async function runConnectionTest({ settings, providers, role }) {
     secrets
   })
 
-  const transport = new SoupHttpTransport({ timeoutMs: 20000 })
+  const transport = new SoupHttpTransport({ timeoutMs: 10000 })
   try {
     const processor = createProcessor({
       resolved,

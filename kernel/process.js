@@ -146,7 +146,16 @@ async function runRefine({ primary, primaryTrace, refineConfig, audio, context, 
 
 function createStep({ providers, selection, providerValues, role, secrets, runtime }) {
   const resolved = resolveSelection({ providers, selection, providerValues, role, secrets })
-  return { ...resolved, processor: createProcessor({ resolved, secrets, runtime }) }
+  const timeoutMs = runtime.timeoutMsByRole?.[role]
+  const stepRuntime = timeoutMs == null
+    ? runtime
+    : {
+        ...runtime,
+        transport: {
+          send: (request, signal) => runtime.transport.send(request, signal, timeoutMs)
+        }
+      }
+  return { ...resolved, processor: createProcessor({ resolved, secrets, runtime: stepRuntime }) }
 }
 
 // Inspect is the single pure Provider resolution path. Preferences can show

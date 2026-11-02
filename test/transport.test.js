@@ -96,6 +96,42 @@ async function run() {
     transport.destroy()
   }
 
+  // A per-request deadline overrides the transport default.
+  {
+    const transport = new SoupHttpTransport({ timeoutMs: 5000 })
+    const startedAt = GLib.get_monotonic_time()
+    try {
+      await transport.send(
+        { method: 'POST', url: `${base}/hang`, headers: {}, body: encoder.encode('{}') },
+        null,
+        300
+      )
+      check('per-request deadline overrides the default', false, 'unexpected success')
+    } catch (e) {
+      const elapsedMs = (GLib.get_monotonic_time() - startedAt) / 1000
+      check('per-request deadline overrides the default', e.category === 'timeout' && elapsedMs < 3000, `category=${e.category} elapsed=${Math.round(elapsedMs)}ms`)
+    }
+    transport.destroy()
+  }
+
+  // libsoup's own socket I/O timeout must use the same error category.
+  {
+    const transport = new SoupHttpTransport({ timeoutMs: 10000 })
+    transport._session.set_timeout(1)
+    const startedAt = GLib.get_monotonic_time()
+    try {
+      await transport.send(
+        { method: 'POST', url: `${base}/hang`, headers: {}, body: encoder.encode('{}') },
+        null
+      )
+      check('socket I/O timeout is classified as timeout', false, 'unexpected success')
+    } catch (e) {
+      const elapsedMs = (GLib.get_monotonic_time() - startedAt) / 1000
+      check('socket I/O timeout is classified as timeout', e.category === 'timeout' && elapsedMs < 5000, `category=${e.category} elapsed=${Math.round(elapsedMs)}ms`)
+    }
+    transport.destroy()
+  }
+
   // 3. AttemptSignal abort mid-request cancels the HTTP request promptly.
   {
     const transport = new SoupHttpTransport({ timeoutMs: 10000 })
