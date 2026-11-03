@@ -203,7 +203,7 @@ export class TextPaster {
   }
 
   _pasteShortcut() {
-    this._keyboard ??= Clutter.get_default_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE)
+    this._keyboard ??= global.stage.context.get_backend().get_default_seat().create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE)
     const keys = isTerminalWindow(this._targetWindow)
       ? [KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_V]
       : [KEY_LEFTSHIFT, KEY_INSERT]
