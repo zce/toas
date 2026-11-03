@@ -219,7 +219,7 @@ export class ToasIndicator extends PanelMenu.Button {
     for (const entry of entries) {
       const item = new PopupMenu.PopupBaseMenuItem({ reactive: false })
       item.name = 'toas-history-row'
-      const textColumn = new St.BoxLayout({ vertical: true, x_expand: true })
+      const textColumn = new St.BoxLayout({ orientation: Clutter.Orientation.VERTICAL, x_expand: true })
       const preview = new St.Label({
         text: previewText(entry),
         style_class: 'toas-history-preview',
