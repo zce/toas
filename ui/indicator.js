@@ -20,6 +20,7 @@ export class ToasIndicator extends PanelMenu.Button {
     super(0.5, 'toas')
     this.name = 'toas-indicator'
     this.menu.actor.name = 'toas-menu'
+    this.menu.actor.add_style_class_name('toas-history-menu')
 
     this._onToggle = onToggle
     this._onClearHistory = onClearHistory
