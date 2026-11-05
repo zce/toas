@@ -268,11 +268,11 @@ export async function runConnectionTest({ settings, providers, role }) {
   }
 }
 
-// Reuse the same WAV header as the recorder. A separately assembled header
-// once omitted the required "fmt " chunk and broke every ASR connection test.
+// Valid PCM WAV; use the same header builder as normal recordings.
 function silenceWavBase64(sampleRate) {
-  const pcmBytes = Math.floor(sampleRate * 0.25) * 2
-  const wav = new Uint8Array(44 + pcmBytes)
-  wav.set(wavHeader(pcmBytes, sampleRate))
+  const dataBytes = Math.floor(sampleRate * 0.25) * 2
+  const header = wavHeader(dataBytes, sampleRate)
+  const wav = new Uint8Array(header.length + dataBytes)
+  wav.set(header)
   return GLib.base64_encode(wav)
 }
