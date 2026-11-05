@@ -72,7 +72,7 @@ function dashscopeResponse(text, extra = {}) {
     body: encodeBody({
       request_id: 'req-1',
       output: {
-        choices: [{ message: { content: [{ text }] }, finish_reason: 'stop' }]
+        text
       },
       usage: { input_tokens: 10, output_tokens: 5 },
       ...extra
@@ -99,7 +99,7 @@ function runtimeFor(transport) {
 
 function baseConfig({ provider = 'qwen', refine = { enabled: false } } = {}) {
   return {
-    primary: { provider, values: { model: 'qwen3-asr-flash' } },
+    primary: { provider, values: { model: 'qwen-audio-3.1-asr-flash' } },
     refine
   }
 }
@@ -138,7 +138,7 @@ test('qwen to mimo: refine runs the configured provider in order', async () => {
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
       refine: {
         enabled: true,
         provider: 'mimo',
@@ -175,7 +175,7 @@ test('mimo refine endpoint that already carries the path is never double-appende
   await runKernel({
     config: {
       providers: { mimo: { endpoint: 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions' } },
-      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
       refine: {
         enabled: true,
         provider: 'mimo',
@@ -201,7 +201,7 @@ test('mimo refine endpoint with trailing slashes gets a single path appended', a
   await runKernel({
     config: {
       providers: { mimo: { endpoint: 'https://token-plan-cn.xiaomimimo.com/v1/' } },
-      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
       refine: {
         enabled: true,
         provider: 'mimo',
@@ -306,7 +306,7 @@ test('role-specific deadlines preserve Refine timeout fallback', async () => {
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
       refine: {
         enabled: true,
         provider: 'mimo',
@@ -334,7 +334,7 @@ test('refine fallback returns primary text with warning and failed trace', async
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
       refine: {
         enabled: true,
         provider: 'mimo',
@@ -366,7 +366,7 @@ test('refine abort fails the whole attempt', async () => {
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
         refine: {
           enabled: true,
           provider: 'mimo',
@@ -397,7 +397,7 @@ test('primary failure fails the attempt with zero refine calls', async () => {
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
         refine: {
           enabled: true,
           provider: 'mimo',
@@ -618,7 +618,7 @@ test('cancel during refine never converts into a fallback warning', async () => 
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+        primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
         refine: {
           enabled: true,
           provider: 'mimo',
@@ -706,7 +706,7 @@ test('trace and warnings never carry credentials or context contents', async () 
   })
   const result = await runKernel({
     config: {
-      primary: { provider: 'qwen', values: { model: 'qwen3-asr-flash' } },
+      primary: { provider: 'qwen', values: { model: 'qwen-audio-3.1-asr-flash' } },
       refine: {
         enabled: true,
         provider: 'mimo',
@@ -754,8 +754,8 @@ test('provider behavior is identical through an interchangeable transport', asyn
   expectEqual(transport.requests.length, 1)
 })
 
-test('qwen audio-3.0 and fun-asr route to the asr3 endpoint and context part', async () => {
-  for (const model of ['qwen-audio-3.0-asr-flash', 'fun-asr-flash-2026-06-15']) {
+test('Qwen Audio 3.1, 3.0 and Fun-ASR share the same endpoint and envelope', async () => {
+  for (const model of ['qwen-audio-3.1-asr-flash', 'qwen-audio-3.0-asr-flash', 'fun-asr-flash-2026-06-15']) {
     const transport = new FakeTransport({ responses: [asr3Response('asr3 text')] })
     const result = await runKernel({
       config: {
@@ -781,25 +781,11 @@ test('qwen audio-3.0 and fun-asr route to the asr3 endpoint and context part', a
   }
 })
 
-test('qwen3 versioned model routes to the compatible-mode endpoint', async () => {
-  const transport = new FakeTransport({
-    responses: [
-      {
-        status: 200,
-        headers: {},
-        body: encodeBody({
-          choices: [{ message: { content: 'compat text' }, finish_reason: 'stop' }],
-          usage: { prompt_tokens: 10, completion_tokens: 5 }
-        })
-      }
-    ]
-  })
+test('free-text Qwen model IDs use the same Audio-ASR request, never an alternative endpoint', async () => {
+  const transport = new FakeTransport({ responses: [asr3Response('custom model')] })
   const result = await runKernel({
     config: {
-      primary: {
-        provider: 'qwen',
-        values: { model: 'qwen3-asr-flash-2026-02-10' }
-      },
+      primary: { provider: 'qwen', values: { model: 'next-audio-asr' } },
       refine: { enabled: false }
     },
     audio: AUDIO,
@@ -808,24 +794,25 @@ test('qwen3 versioned model routes to the compatible-mode endpoint', async () =>
     runtime: runtimeFor(transport),
     signal: null
   })
-
-  expectEqual(transport.requests.length, 1)
-  expectEqual(transport.requests[0].url, 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions')
-  const body = transport.requests[0].body
-  expectEqual(body.messages[0].role, 'system')
-  expectEqual(body.messages[0].content, CONTEXT.text)
-  expectEqual(body.messages[1].content[0].type, 'input_audio')
-  expectEqual(body.asr_options.enable_itn, true)
-  expectEqual(result.text, 'compat text')
+  expectEqual(transport.requests[0].url, 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
+  expectEqual(transport.requests[0].body.model, 'next-audio-asr')
+  expectEqual(transport.requests[0].body.input.messages[1].content[0].type, 'input_audio')
+  expectEqual(result.text, 'custom model')
 })
 
-test('unknown qwen models are rejected without guessing an invocation protocol', async () => {
-  const transport = new FakeTransport()
+test('an unsupported Qwen model is rejected by the upstream API, not guessed locally', async () => {
+  const transport = new FakeTransport({
+    responses: [{
+      status: 404,
+      headers: {},
+      body: encodeBody({ code: 'model_not_found', message: 'Model not exist.' })
+    }]
+  })
   let threw = null
   try {
     await runKernel({
       config: {
-        primary: { provider: 'qwen', values: { model: 'qwen-unknown-model' } },
+        primary: { provider: 'qwen', values: { model: 'not-an-asr-model' } },
         refine: { enabled: false }
       },
       audio: AUDIO,
@@ -837,8 +824,9 @@ test('unknown qwen models are rejected without guessing an invocation protocol',
   } catch (error) {
     threw = error
   }
-  expectEqual(threw.category, 'configuration')
-  expectEqual(transport.requests.length, 0)
+  expectEqual(threw?.category, 'not-found')
+  expectTruthy(threw?.message.includes('model_not_found'))
+  expectEqual(transport.requests.length, 1)
 })
 
 test('resolved input capabilities, not Provider identity, decide product suitability', async () => {
