@@ -129,12 +129,19 @@ export function snapshotProcessingConfig(settings, providers) {
   for (const [providerId, provider] of providers) {
     const values = (config.providers[providerId] ??= {})
     for (const field of provider.manifest.fields || []) {
-      if (field.type === 'secret' || values[field.key] != null) {
+      if (field.type === 'secret') {
+        continue
+      }
+      // Empty URLs reset to an environment override or the manifest default.
+      const value = values[field.key]
+      if (value != null && !(field.type === 'url' && !String(value).trim())) {
         continue
       }
       const envValue = firstEnvValue(field.env)
       if (envValue) {
         values[field.key] = envValue
+      } else if (field.type === 'url' && value != null) {
+        delete values[field.key]
       }
     }
   }

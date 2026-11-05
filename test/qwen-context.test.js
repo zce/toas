@@ -38,6 +38,7 @@ test('Qwen has one Audio-ASR endpoint and input_audio envelope', async () => {
   const { request, result } = await send({})
   expectEqual(request.url, 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
   expectEqual(request.body.model, 'qwen-audio-3.1-asr-flash')
+  expectEqual(request.headers['X-DashScope-SSE'], 'disable')
   expectEqual(request.body.parameters, { format: 'wav' })
   expectEqual(request.body.input.messages, [
     { role: 'user', content: [{ type: 'input_text', text: CONTEXT }] },
@@ -58,6 +59,8 @@ test('Qwen accepts unlisted model IDs without guessing another protocol', async 
 test('Qwen native output.sentence and output.text are both accepted', async () => {
   expectEqual((await send({ response: { output: { sentence: { text: 'sentence' } } } })).result.text, 'sentence')
   expectEqual((await send({ response: { output: { text: 'full text' } } })).result.text, 'full text')
+  expectEqual((await send({ response: { output: { sentences: [{ text: 'one' }, { text: 'two' }] } } })).result.text, 'onetwo')
+  expectEqual((await send({ response: { output: { output: { sentences: [{ text: 'nested' }] } } } })).result.text, 'nested')
 })
 
 test('Qwen treats documented silence as no-text but preserves other service errors', async () => {
@@ -71,7 +74,10 @@ test('Qwen treats documented silence as no-text but preserves other service erro
     response: { code: 'AllocationQuota.FreeTierOnly', message: 'Free quota exhausted' }
   })
   expectEqual(quota.error?.status, 403)
-  expectEqual(quota.error?.message.includes('FreeTierOnly'), true)
+  expectEqual(quota.error?.category, 'quota')
+  expectEqual(quota.error?.message.includes('Free Quota Only'), true)
+  const forbidden = await send({ status: 403, response: { code: 'PermissionDenied', message: 'Access denied' } })
+  expectEqual(forbidden.error?.category, 'authentication')
 })
 
 await run()

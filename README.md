@@ -332,6 +332,12 @@ DashScope Audio-ASR HTTP protocol. The Model field is editable; compatible
 models such as `qwen-audio-3.0-asr-flash` and `fun-asr-flash-2026-06-15`
 can be entered without a TOAS release.
 
+The default Endpoint is the Beijing DashScope URL:
+`https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation`.
+Workspace-specific domains can be entered in Advanced settings when a Workspace
+ID is available. A saved blank Endpoint resets to the environment override
+or Provider default; non-empty custom endpoints are preserved.
+
 The request uses `input.messages` with an `input_audio` part. When configured,
 Context is sent as an `input_text` message preceding the recording. Model IDs
 do not change the endpoint, request envelope, or response decoder. In particular,

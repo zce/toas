@@ -16,7 +16,7 @@ class QwenProvider extends Provider {
         label: 'Qwen',
         fields: [
           {
-            key: 'endpoint', type: 'url', label: 'Endpoint', default: '',
+            key: 'endpoint', type: 'url', label: 'Endpoint', default: DEFAULT_ENDPOINT,
             env: ['TOAS_QWEN_ENDPOINT', 'DASHSCOPE_ENDPOINT']
           },
           {
@@ -84,7 +84,8 @@ class QwenProcessor {
         url: this._config.endpoint,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this._apiKey}`
+          Authorization: `Bearer ${this._apiKey}`,
+          'X-DashScope-SSE': 'disable'
         },
         body: encoder.encode(JSON.stringify({
           model: this._config.model,
@@ -101,6 +102,9 @@ class QwenProcessor {
       if (detail.includes('ASR_RESPONSE_HAVE_NO_WORDS')) {
         throw processingError('no-text', 'No speech was recognized')
       }
+      if (response.status === 403 && detail.includes('AllocationQuota.FreeTierOnly')) {
+        throw processingError('quota', 'Qwen free-tier-only limit reached. Disable Free Quota Only in Model Studio to use paid calls.', 403)
+      }
       throw serviceErrorFromHttpStatus(response.status, 'Qwen', detail)
     }
 
@@ -108,7 +112,9 @@ class QwenProcessor {
     const output = data?.output
     const text = output?.text ?? output?.output?.sentence?.text ??
       output?.sentence?.text ??
-      (Array.isArray(output?.sentences) ? output.sentences.map(sentence => sentence?.text).filter(Boolean).join('') : '')
+      (Array.isArray(output?.sentences ?? output?.output?.sentences)
+        ? (output?.sentences ?? output?.output?.sentences).map(sentence => sentence?.text).filter(Boolean).join('')
+        : '')
     if (typeof text !== 'string' || !text.trim()) {
       throw processingError('no-text', 'No speech was recognized')
     }

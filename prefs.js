@@ -500,6 +500,11 @@ function buildProviderRows({ settings, providerId, input, config, selection, inc
   const selectionRows = []
   const providerRows = []
   const advancedRows = []
+  // Display the same effective endpoint used for processing, including env
+  // overrides and old saved blank values that resolve to manifest defaults.
+  const effectiveValues = includeProviderFields
+    ? snapshotProcessingConfig(settings, providerRegistry).providers[providerId] ?? {}
+    : {}
 
   if (includeProviderFields) {
     for (const field of provider?.manifest?.fields || []) {
@@ -515,7 +520,7 @@ function buildProviderRows({ settings, providerId, input, config, selection, inc
       const advanced = field.type === 'url' && Object.hasOwn(field, 'default')
       const row = new Adw.EntryRow({
         title: advanced ? `${provider.manifest.label} ${field.label}` : field.label,
-        text: String(config.providers[providerId]?.[field.key] ?? field.default ?? ''),
+        text: String(effectiveValues[field.key] ?? field.default ?? ''),
         use_markup: false
       })
       row.connect('changed', () => {

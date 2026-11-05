@@ -31,6 +31,10 @@ const PRESENTATIONS = {
     summary: 'Provider rate limit reached',
     guidance: 'Give the provider a moment, then try again.'
   },
+  quota: {
+    summary: 'Provider quota restriction',
+    guidance: 'Check your provider billing and free-tier-only settings before retrying.'
+  },
   service: {
     summary: 'Provider error',
     guidance: 'The provider is having trouble right now. Try again in a moment.'

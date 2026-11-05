@@ -55,6 +55,8 @@ test('Doubao presents Model while forwarding it as the Speech API resource ID', 
 test('manifest support is discovery only and resolved capabilities are explicit', () => {
   const qwen = providers.get('qwen')
   expectEqual(qwen.manifest.support.inputs, ['audio'])
+  expectEqual(qwen.manifest.fields.find(field => field.key === 'endpoint').default,
+    'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation')
   const resolved = qwen.resolve({
     providerValues: { endpoint: '' },
     values: { model: 'qwen-audio-3.1-asr-flash' },
