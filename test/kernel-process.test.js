@@ -156,7 +156,7 @@ test('qwen to mimo: refine runs the configured provider in order', async () => {
 
   expectEqual(transport.requests.length, 2)
   expectTruthy(transport.requests[0].url.includes('dashscope.aliyuncs.com'))
-  expectTruthy(transport.requests[1].url.includes('token-plan-cn.xiaomimimo.com'))
+  expectTruthy(transport.requests[1].url.includes('api.xiaomimimo.com'))
   expectEqual(result.text, 'refined text')
   expectEqual(result.trace.length, 2)
   expectEqual(result.trace[0].provider, 'qwen')
@@ -243,7 +243,7 @@ test('mimo to openai: cross-provider composition has no special casing', async (
   })
 
   expectEqual(transport.requests.length, 2)
-  expectEqual(transport.requests[0].url, 'https://token-plan-cn.xiaomimimo.com/v1/chat/completions')
+  expectEqual(transport.requests[0].url, 'https://api.xiaomimimo.com/v1/chat/completions')
   expectEqual(transport.requests[1].url, 'https://api.openai.com/v1/chat/completions')
   expectEqual(
     result.trace.map(t => t.provider),
