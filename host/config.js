@@ -6,6 +6,7 @@ import GLib from 'gi://GLib'
 
 import { createProcessor, processingError, resolveSelection } from '../kernel/process.js'
 import { SoupHttpTransport } from './transport.js'
+import { wavHeader } from './wav.js'
 
 export const DEFAULT_REFINE_INSTRUCTIONS = `Refine the speech transcript into concise, natural written text.
 
@@ -267,34 +268,11 @@ export async function runConnectionTest({ settings, providers, role }) {
   }
 }
 
-// A quarter-second of silent 16 kHz mono PCM wrapped in a WAV container.
+// Reuse the same WAV header as the recorder. A separately assembled header
+// once omitted the required "fmt " chunk and broke every ASR connection test.
 function silenceWavBase64(sampleRate) {
-  const durationSeconds = 0.25
-  const sampleCount = Math.floor(sampleRate * durationSeconds)
-  const dataBytes = sampleCount * 2
-
-  const header = new ArrayBuffer(44)
-  const view = new DataView(header)
-  const writeAscii = (offset, text) => {
-    for (let i = 0; i < text.length; i++) {
-      view.setUint8(offset + i, text.charCodeAt(i))
-    }
-  }
-
-  writeAscii(0, 'RIFF')
-  view.setUint32(4, 36 + dataBytes, true)
-  writeAscii(8, 'WAVE')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * 2, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
-  writeAscii(36, 'data')
-  view.setUint32(40, dataBytes, true)
-
-  const wav = new Uint8Array(44 + dataBytes)
-  wav.set(new Uint8Array(header), 0)
+  const pcmBytes = Math.floor(sampleRate * 0.25) * 2
+  const wav = new Uint8Array(44 + pcmBytes)
+  wav.set(wavHeader(pcmBytes, sampleRate))
   return GLib.base64_encode(wav)
 }
