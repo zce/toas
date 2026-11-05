@@ -177,11 +177,13 @@ The default transcription configuration is the speed-first recommendation:
 
 ```text
 provider = qwen
-model    = fun-asr-flash-2026-06-15
+model    = qwen-audio-3.1-asr-flash
 ```
 
-Qwen routes supported models through their verified protocol automatically. An endpoint
-override is available for advanced configurations.
+The Model field accepts any model ID, while each Provider uses one fixed API contract.
+For Qwen, that contract is synchronous DashScope Audio-ASR HTTP (the `input_audio`
+envelope). Models using other protocols are not supported by that Provider.
+An endpoint override is available for advanced configurations.
 
 Doubao with `volc.bigasr.auc_turbo` (BigASR Flash) and MiMo with
 `mimo-v2.5-asr` are also supported for transcription.
@@ -325,81 +327,43 @@ usage, and request/response IDs — never raw HTTP bodies or credentials.
 
 ### Qwen transcription
 
-Qwen exposes an explicit set of verified audio model/protocol mappings.
+The default model is `qwen-audio-3.1-asr-flash`, using the synchronous
+DashScope Audio-ASR HTTP protocol. The Model field is editable; compatible
+models such as `qwen-audio-3.0-asr-flash` and `fun-asr-flash-2026-06-15`
+can be entered without a TOAS release.
 
-The default model is:
-
-```text
-fun-asr-flash-2026-06-15
-```
-
-It uses the DashScope native multimodal-generation API.
-
-`qwen-audio-3.0-asr-flash` uses the same native protocol.
-
-For these models, Context is sent as an `input_text` part before the audio:
-
-```json
-{
-  "model": "fun-asr-flash-2026-06-15",
-  "input": {
-    "messages": [
-      {
-        "role": "user",
-        "content": [
-          {
-            "type": "input_text",
-            "text": "<your Context text, verbatim>"
-          }
-        ]
-      },
-      {
-        "role": "user",
-        "content": [
-          {
-            "type": "input_audio",
-            "input_audio": {
-              "data": "data:audio/wav;base64,..."
-            }
-          }
-        ]
-      }
-    ]
-  },
-  "parameters": {
-    "format": "wav"
-  }
-}
-```
-
-The Context part is present only when Context text is configured.
-
-`qwen3-asr-flash-2026-02-10` instead uses DashScope's OpenAI-compatible Chat Completions
-endpoint with Context as a system message.
-
-The legacy `qwen3-asr-flash` alias is retained for configurations saved before the
-versioned model ID was introduced.
+The request uses `input.messages` with an `input_audio` part. When configured,
+Context is sent as an `input_text` message preceding the recording. Model IDs
+do not change the endpoint, request envelope, or response decoder. In particular,
+the older `qwen3-asr-flash` protocol is no longer supported by this Provider.
+For an existing configuration using it, select an Audio-ASR-compatible model.
 
 ### Doubao transcription
 
-Doubao uses BigASR Flash through the Speech API with the
-`volc.bigasr.auc_turbo` resource ID. It supports Context via the provider's
-native corpus field and is available for transcription only.
+Doubao uses the recording-file Flash HTTP API with the default Resource ID
+`volc.bigasr.auc_turbo`. This is the latest applicable synchronous Flash
+resource; the newer standard 2.0 recording-file service requires submit/query
+and is not compatible with the Flash protocol. The Resource ID is editable,
+but the request body's `model_name` remains `bigmodel`.
+Doubao supports Context through the native corpus field and is available for
+transcription only. Its normal silence business code (`20000003`) counts as
+no recognized speech in the Connection Test.
 
 ### MiMo transcription and Refine
 
-MiMo uses one provider family with separate verified model selections for each role:
+MiMo uses the same Chat Completions API for both roles, with independent
+editable model fields and defaults:
 
 ```text
 Transcription: mimo-v2.5-asr
 Refine:        mimo-v2.6-flash
-               mimo-v2.6-pro
 ```
 
-The ASR model accepts audio input.
+The primary role supplies audio; the Refine role supplies text. The selected
+model ID does not determine the request shape. Choose a compatible model for
+each role, as the service may reject an unsupported ID or modality.
 
-The text models are used by the optional Refine stage and support configurable instructions
-and Context. Toas disables thinking by default for MiMo and supported native OpenAI models.
+The Refine stage supports configurable Instructions and Context. Toas disables thinking by default for MiMo and supported native OpenAI models.
 Generic OpenAI-compatible endpoints keep **Provider default** because their reasoning
 extensions vary; choose **Off** under **Advanced** when the endpoint supports
 `reasoning_effort: "none"`.

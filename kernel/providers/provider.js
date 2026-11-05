@@ -7,7 +7,7 @@ Use context only as reference.
 Return only the result, without commentary or placeholders.`
 
 // Provider base template: manifest-driven required-field validation,
-// manifest-level discovery, model-shape lookup, secret validation before
+// manifest-level discovery, secret validation before
 // Processor creation, and the shared Refine prompt composition. Subclasses
 // supply selection-specific resolution and Processor construction.
 export class Provider {
@@ -19,8 +19,8 @@ export class Provider {
   // Pure resolution: merges required-field issues with selection issues.
   // Returns capabilities even when issues exist so Preferences can inspect
   // an incomplete selection.
-  resolve({ providerValues = {}, values = {}, secretPresence = {} } = {}) {
-    const resolved = this.resolveSelection({ providerValues, values })
+  resolve({ providerValues = {}, values = {}, secretPresence = {}, role = 'primary' } = {}) {
+    const resolved = this.resolveSelection({ providerValues, values, role })
     const issues = [
       ...this.requiredIssues({
         providerValues,
@@ -84,27 +84,6 @@ export class Provider {
   supports(input, { instructions = false } = {}) {
     const support = this.manifest.support
     return Boolean(support?.inputs?.includes(input) && (!instructions || support.instructions))
-  }
-
-  // Shared model-shape lookup: trims the value and rejects unknown models
-  // instead of guessing a protocol.
-  resolveModelShape(values, shapes) {
-    const model = values.model?.trim()
-    const shape = model ? (shapes[model] ?? null) : null
-    return {
-      model,
-      shape,
-      issues:
-        model && !shape
-          ? [
-              {
-                path: 'values.model',
-                code: 'unsupported',
-                message: `Unsupported ${this.manifest.label} model: ${model}`
-              }
-            ]
-          : []
-    }
   }
 
   create(config, secrets = {}, runtime) {

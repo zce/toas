@@ -33,7 +33,7 @@ test('manifest support is discovery only and resolved capabilities are explicit'
   expectEqual(qwen.manifest.support.inputs, ['audio'])
   const resolved = qwen.resolve({
     providerValues: { endpoint: '' },
-    values: { model: 'fun-asr-flash-2026-06-15' },
+    values: { model: 'qwen-audio-3.1-asr-flash' },
     secretPresence: PRESENT
   })
   expectEqual(resolved.capabilities, {
@@ -43,18 +43,16 @@ test('manifest support is discovery only and resolved capabilities are explicit'
   })
 })
 
-test('MiMo selection determines audio or text behavior without a product role', () => {
-  const mimo = providers.get('mimo')
-  const resolve = model =>
-    mimo.resolve({
-      providerValues: { endpoint: 'https://example.test/v1' },
-      values: { model },
-      secretPresence: PRESENT
-    })
-  expectEqual(resolve('mimo-v2.5-asr').capabilities.inputs, ['audio'])
-  expectEqual(resolve('mimo-v2.6-flash').capabilities.inputs, ['text'])
-  expectEqual(resolve('mimo-v2.6-pro').capabilities.inputs, ['text'])
-  expectTruthy(resolve('mimo-unknown').issues.length > 0)
+test('MiMo role decides audio or Refine regardless of the model ID', () => {
+  const provider = providers.get('mimo')
+  const resolve = (model, role) => provider.resolve({
+    providerValues: { endpoint: 'https://example.test/v1' },
+    values: { model }, secretPresence: PRESENT, role
+  })
+  expectEqual(resolve('future-asr', 'primary').capabilities.inputs, ['audio'])
+  expectEqual(resolve('future-text', 'refine').capabilities.inputs, ['text'])
+  expectEqual(resolve('future-text', 'refine').issues, [])
+  expectEqual(resolve('', 'primary').issues[0].path, 'values.model')
 })
 
 test('OpenAI-compatible accepts arbitrary models under its fixed text contract', () => {

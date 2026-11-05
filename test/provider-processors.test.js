@@ -19,11 +19,12 @@ function encodeBody(value) {
   return encoder.encode(JSON.stringify(value))
 }
 
-function createProcessor({ provider, providerValues, values, transport }) {
+function createProcessor({ provider, providerValues, values, transport, role = 'primary' }) {
   const resolved = provider.resolve({
     providerValues,
     values,
-    secretPresence: { key: true }
+    secretPresence: { key: true },
+    role
   })
   expectEqual(resolved.issues, [])
   return provider.create(resolved.config, { key: 'secret' }, { transport })
@@ -36,7 +37,7 @@ function processorCases(transport) {
       processor: createProcessor({
         provider: qwenProvider,
         providerValues: {},
-        values: { model: 'qwen3-asr-flash' },
+        values: { model: 'qwen-audio-3.1-asr-flash' },
         transport
       }),
       input: AUDIO
@@ -57,6 +58,7 @@ function processorCases(transport) {
         provider: mimoProvider,
         providerValues: { endpoint: 'https://example.test/v1' },
         values: { model: 'mimo-v2.6-flash' },
+        role: 'refine',
         transport
       }),
       input: { kind: 'text', text: 'hello' }
@@ -166,6 +168,7 @@ test('MiMo Refine disables thinking by default and exposes provider overrides', 
       provider: mimoProvider,
       providerValues: { endpoint: 'https://example.test/v1' },
       values: { model: 'mimo-v2.6-flash', ...values },
+      role: 'refine',
       transport
     })
     await processor.process({

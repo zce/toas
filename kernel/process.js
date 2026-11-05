@@ -180,7 +180,8 @@ export function inspectSelection({ providers, selection, providerValues = {}, ro
   const resolution = provider.resolve({
     providerValues: effectiveProviderValues,
     values: selection.values || {},
-    secretPresence
+    secretPresence,
+    role
   })
   const issues = [...(resolution.issues || [])]
 

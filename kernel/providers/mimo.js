@@ -1,26 +1,13 @@
-// MiMo Provider: explicit selection mappings over one shared service.
+// MiMo Provider: one Chat Completions protocol for ASR and Refine.
 // This module must not import GNOME/GI libraries.
 
 import { processingError } from '../error.js'
 import { ChatCompletionsProcessor, extractContent, normalizeUsage } from './chat-completions.js'
 import { Provider } from './provider.js'
 
-// One service, one credential: the ASR model handles audio, the other two
-// are text models for Refine.
-const MODEL_SHAPES = {
-  'mimo-v2.5-asr': {
-    input: 'audio',
-    capabilities: { inputs: ['audio'], instructions: false, context: false }
-  },
-  'mimo-v2.6-flash': {
-    input: 'text',
-    capabilities: { inputs: ['text'], instructions: true, context: true }
-  },
-  'mimo-v2.6-pro': {
-    input: 'text',
-    capabilities: { inputs: ['text'], instructions: true, context: true }
-  }
-}
+// Input contract follows the selected processing role, not model naming.
+const AUDIO_CAPABILITIES = { inputs: ['audio'], instructions: false, context: false }
+const TEXT_CAPABILITIES = { inputs: ['text'], instructions: true, context: true }
 
 class MimoProvider extends Provider {
   constructor() {
@@ -51,19 +38,14 @@ class MimoProvider extends Provider {
             type: 'string',
             label: 'Model',
             required: true,
-            inputs: ['audio'],
-            choices: [{ value: 'mimo-v2.5-asr', label: 'mimo-v2.5-asr' }]
+            inputs: ['audio']
           },
           {
             key: 'model',
             type: 'string',
             label: 'Model',
             required: true,
-            inputs: ['text'],
-            choices: [
-              { value: 'mimo-v2.6-flash', label: 'mimo-v2.6-flash' },
-              { value: 'mimo-v2.6-pro', label: 'mimo-v2.6-pro' }
-            ]
+            inputs: ['text']
           },
           {
             key: 'thinking',
@@ -87,38 +69,33 @@ class MimoProvider extends Provider {
     })
   }
 
-  resolveSelection({ providerValues, values }) {
-    const endpoint = providerValues.endpoint?.trim()
-    const { model, shape, issues } = this.resolveModelShape(values, MODEL_SHAPES)
-    const language = values.language?.trim() || null
-    const thinking = values.thinking === 'default' ? 'default' : 'off'
-
+  resolveSelection({ providerValues, values, role = 'primary' }) {
+    const input = role === 'refine' ? 'text' : 'audio'
     return {
-      input: shape?.input ?? null,
-      config: shape
-        ? {
-            endpoint,
-            model,
-            ...(language ? { language } : {}),
-            ...(shape.input === 'text' ? { thinking } : {})
-          }
-        : null,
-      capabilities: shape?.capabilities ?? null,
-      issues
+      input,
+      config: {
+        endpoint: providerValues.endpoint?.trim(),
+        model: values.model?.trim() || '',
+        input,
+        ...(input === 'audio'
+          ? { language: values.language?.trim() || 'auto' }
+          : { thinking: values.thinking === 'default' ? 'default' : 'off' })
+      },
+      capabilities: input === 'audio' ? AUDIO_CAPABILITIES : TEXT_CAPABILITIES,
+      issues: []
     }
   }
 
   createProcessor(config, secrets, runtime) {
-    return new MimoProcessor(this, config, secrets.key, runtime, MODEL_SHAPES[config.model])
+    return new MimoProcessor(this, config, secrets.key, runtime)
   }
 }
 
 export const mimoProvider = new MimoProvider()
 
 class MimoProcessor extends ChatCompletionsProcessor {
-  constructor(provider, config, apiKey, runtime, shape) {
+  constructor(provider, config, apiKey, runtime) {
     super(provider, config, apiKey, runtime)
-    this._shape = shape
   }
 
   // One wire protocol, two message shapes: audio selections inline the
@@ -127,7 +104,7 @@ class MimoProcessor extends ChatCompletionsProcessor {
   async process({ input, context, instructions, signal }) {
     let messages
 
-    if (this._shape.input === 'audio') {
+    if (this._config.input === 'audio') {
       if (input.kind !== 'audio') {
         throw processingError('configuration', 'This MiMo selection requires audio input')
       }
@@ -156,17 +133,17 @@ class MimoProcessor extends ChatCompletionsProcessor {
     const requestBody = {
       model: this._config.model,
       messages,
-      ...(this._shape.input === 'text' && this._config.thinking === 'off'
+      ...(this._config.input === 'text' && this._config.thinking === 'off'
         ? { thinking: { type: 'disabled' } }
         : {}),
-      ...(this._shape.input === 'audio' ? { asr_options: { language: this._config.language ?? 'auto' } } : {}),
+      ...(this._config.input === 'audio' ? { asr_options: { language: this._config.language ?? 'auto' } } : {}),
       stream: false
     }
 
     const data = await this._send(requestBody, signal)
     const text = extractContent(data)
     if (!text.trim()) {
-      throw processingError('no-text', this._shape.input === 'audio' ? 'No speech was recognized' : 'MiMo text processing returned no text')
+      throw processingError('no-text', this._config.input === 'audio' ? 'No speech was recognized' : 'MiMo text processing returned no text')
     }
 
     return {

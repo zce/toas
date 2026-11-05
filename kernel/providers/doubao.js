@@ -1,7 +1,7 @@
 // Doubao Provider: BigASR recording-file Flash over the Speech API.
 //
-// The selectable value below is the Speech Resource ID. It is deliberately
-// kept distinct from the request body's model_name ("bigmodel").
+// The model selection is an X-Api-Resource-Id, not the body model_name.
+// This Provider always uses the recording-file Flash protocol.
 //
 // This module must not import GNOME/GI libraries.
 
@@ -12,14 +12,6 @@ const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
 const FLASH_ENDPOINT = 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash'
-
-const MODEL_SHAPES = {
-  'volc.bigasr.auc_turbo': {
-    resourceId: 'volc.bigasr.auc_turbo',
-    modelName: 'bigmodel',
-    capabilities: audioCapabilities()
-  }
-}
 
 class DoubaoProvider extends Provider {
   constructor() {
@@ -48,9 +40,8 @@ class DoubaoProvider extends Provider {
           {
             key: 'model',
             type: 'string',
-            label: 'Model',
-            required: true,
-            choices: [{ value: 'volc.bigasr.auc_turbo', label: 'BigASR Flash' }]
+            label: 'Resource ID',
+            required: true
           }
         ],
         support: { inputs: ['audio'], instructions: false },
@@ -70,20 +61,11 @@ class DoubaoProvider extends Provider {
       })
     }
 
-    const { model, shape, issues: modelIssues } = this.resolveModelShape(values, MODEL_SHAPES)
-    issues.push(...modelIssues)
-
+    const model = values.model?.trim() || ''
     return {
       input: 'audio',
-      config: shape
-        ? {
-            endpoint,
-            model,
-            resourceId: shape.resourceId,
-            modelName: shape.modelName
-          }
-        : null,
-      capabilities: shape?.capabilities ?? null,
+      config: { endpoint, model, resourceId: model },
+      capabilities: { inputs: ['audio'], instructions: false, context: true },
       issues
     }
   }
@@ -94,10 +76,6 @@ class DoubaoProvider extends Provider {
 }
 
 export const doubaoProvider = new DoubaoProvider()
-
-function audioCapabilities() {
-  return { inputs: ['audio'], instructions: false, context: true }
-}
 
 class DoubaoProcessor {
   constructor(provider, config, apiKey, runtime) {
@@ -117,7 +95,7 @@ class DoubaoProcessor {
 
     const contextText = this._provider.contextText(context)
     const request = {
-      model_name: this._config.modelName,
+      model_name: 'bigmodel',
       enable_itn: true,
       enable_punc: true,
       enable_ddc: false,
@@ -167,6 +145,10 @@ class DoubaoProcessor {
     const statusCode = responseHeader(response.headers, 'x-api-status-code')
     if (!statusCode) {
       throw processingError('invalid-response', 'Doubao response is missing X-Api-Status-Code')
+    }
+    // The Flash API uses business code 20000003 for valid silent audio.
+    if (statusCode === '20000003') {
+      throw processingError('no-text', 'No speech was recognized')
     }
     if (statusCode !== '20000000') {
       const message = safeHeader(responseHeader(response.headers, 'x-api-message'))

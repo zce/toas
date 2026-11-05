@@ -32,7 +32,7 @@ class FakeSettings {
 test('empty persistence gets product defaults from Provider selection defaults', () => {
   const config = normalizeProcessingConfig({}, providers)
   expectEqual(config.primary.provider, 'qwen')
-  expectEqual(config.primary.values.model, 'fun-asr-flash-2026-06-15')
+  expectEqual(config.primary.values.model, 'qwen-audio-3.1-asr-flash')
   expectEqual(config.refine.provider, 'mimo')
   expectEqual(config.refine.values.model, 'mimo-v2.6-flash')
   expectEqual(config.refine.values.thinking, 'off')
