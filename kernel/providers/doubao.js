@@ -40,7 +40,7 @@ class DoubaoProvider extends Provider {
           {
             key: 'model',
             type: 'string',
-            label: 'Resource ID',
+            label: 'Model',
             required: true
           }
         ],

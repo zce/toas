@@ -21,7 +21,7 @@ class MimoProvider extends Provider {
             type: 'url',
             label: 'Service base URL',
             required: true,
-            default: 'https://token-plan-cn.xiaomimimo.com/v1',
+            default: 'https://api.xiaomimimo.com/v1',
             env: ['TOAS_MIMO_ENDPOINT', 'MIMO_ENDPOINT']
           },
           {

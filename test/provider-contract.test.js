@@ -28,6 +28,30 @@ test('manifest required fields are validated once by the Provider template', () 
   )
 })
 
+test('MiMo defaults to the API endpoint and preserves explicit overrides', () => {
+  const mimo = providers.get('mimo')
+  expectEqual(mimo.manifest.fields.find(field => field.key === 'endpoint').default, 'https://api.xiaomimimo.com/v1')
+
+  const resolved = mimo.resolve({
+    providerValues: { endpoint: 'https://token-plan-cn.xiaomimimo.com/v1' },
+    values: { model: 'mimo-v2.5-asr' },
+    secretPresence: PRESENT
+  })
+  expectEqual(resolved.issues, [])
+  expectEqual(resolved.config.endpoint, 'https://token-plan-cn.xiaomimimo.com/v1')
+})
+
+test('Doubao presents Model while forwarding it as the Speech API resource ID', () => {
+  const doubao = providers.get('doubao')
+  expectEqual(doubao.manifest.selectionFields.find(field => field.key === 'model').label, 'Model')
+  const resolved = doubao.resolve({
+    providerValues: { endpoint: 'https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash' },
+    values: { model: 'volc.bigasr.auc_turbo' },
+    secretPresence: PRESENT
+  })
+  expectEqual(resolved.config.resourceId, 'volc.bigasr.auc_turbo')
+})
+
 test('manifest support is discovery only and resolved capabilities are explicit', () => {
   const qwen = providers.get('qwen')
   expectEqual(qwen.manifest.support.inputs, ['audio'])

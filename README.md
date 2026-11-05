@@ -340,11 +340,11 @@ For an existing configuration using it, select an Audio-ASR-compatible model.
 
 ### Doubao transcription
 
-Doubao uses the recording-file Flash HTTP API with the default Resource ID
-`volc.bigasr.auc_turbo`. This is the latest applicable synchronous Flash
-resource; the newer standard 2.0 recording-file service requires submit/query
-and is not compatible with the Flash protocol. The Resource ID is editable,
-but the request body's `model_name` remains `bigmodel`.
+Doubao uses the recording-file Flash HTTP API with the default Model
+`volc.bigasr.auc_turbo`. The editable Model value is transmitted as the
+provider's `X-Api-Resource-Id` header; the request body's `model_name` remains
+`bigmodel`. The newer standard 2.0 recording-file service requires submit/query
+and is not compatible with the Flash protocol.
 Doubao supports Context through the native corpus field and is available for
 transcription only. Its normal silence business code (`20000003`) counts as
 no recognized speech in the Connection Test.
@@ -362,6 +362,11 @@ Refine:        mimo-v2.6-flash
 The primary role supplies audio; the Refine role supplies text. The selected
 model ID does not determine the request shape. Choose a compatible model for
 each role, as the service may reject an unsupported ID or modality.
+
+MiMo defaults to the pay-as-you-go API base URL
+`https://api.xiaomimimo.com/v1`. If using Token Plan, set the advanced Endpoint
+to `https://token-plan-cn.xiaomimimo.com/v1` explicitly. Existing saved
+Endpoint overrides are preserved.
 
 The Refine stage supports configurable Instructions and Context. Toas disables thinking by default for MiMo and supported native OpenAI models.
 Generic OpenAI-compatible endpoints keep **Provider default** because their reasoning
