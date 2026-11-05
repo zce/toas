@@ -44,6 +44,10 @@ test('provider-specific categories stay safe, concise, and actionable', () => {
     summary: 'Provider rate limit reached',
     guidance: 'Give the provider a moment, then try again.'
   })
+  expectEqual(presentFailure(error('quota', 'FreeTierOnly')), {
+    summary: 'Provider quota restriction',
+    guidance: 'Check your provider billing and free-tier-only settings before retrying.'
+  })
   expectEqual(presentFailure(error('invalid-response', '{raw provider payload}')), {
     summary: 'Unexpected provider response',
     guidance: 'Try again; if it keeps happening, check the provider setup.'

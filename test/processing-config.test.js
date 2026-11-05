@@ -5,6 +5,7 @@ import {
   DEFAULT_REFINE_INSTRUCTIONS,
   normalizeProcessingConfig,
   readProcessingConfig,
+  snapshotProcessingConfig,
   switchProcessingProvider,
   writeProcessingConfig
 } from '../host/config.js'
@@ -32,7 +33,7 @@ class FakeSettings {
 test('empty persistence gets product defaults from Provider selection defaults', () => {
   const config = normalizeProcessingConfig({}, providers)
   expectEqual(config.primary.provider, 'qwen')
-  expectEqual(config.primary.values.model, 'fun-asr-flash-2026-06-15')
+  expectEqual(config.primary.values.model, 'qwen-audio-3.1-asr-flash')
   expectEqual(config.refine.provider, 'mimo')
   expectEqual(config.refine.values.model, 'mimo-v2.6-flash')
   expectEqual(config.refine.values.thinking, 'off')
@@ -41,6 +42,27 @@ test('empty persistence gets product defaults from Provider selection defaults',
   expectTruthy(DEFAULT_REFINE_INSTRUCTIONS.includes('Preserve standalone interjections or acknowledgements'))
   expectTruthy(DEFAULT_REFINE_INSTRUCTIONS.includes('Use paragraph breaks when the speaker clearly moves to a new thought or topic'))
   expectTruthy(DEFAULT_REFINE_INSTRUCTIONS.includes('keep short, continuous speech in a single paragraph'))
+})
+
+test('empty saved endpoints resolve through manifest defaults instead of hiding them', () => {
+  const fake = {
+    manifest: {
+      fields: [{ key: 'endpoint', type: 'url', default: 'https://default.example/v1', env: [] }],
+      defaults: { audio: { model: 'audio-model' }, text: { model: 'text-model' } }
+    },
+    supports: () => true
+  }
+  const registry = new Map([['fake', fake]])
+  const configFor = endpoint => new FakeSettings(JSON.stringify({
+    providers: { fake: { endpoint } },
+    primary: { provider: 'fake', values: { model: 'audio-model' } },
+    refine: { provider: 'fake', values: { model: 'text-model' } }
+  }))
+  const blank = snapshotProcessingConfig(configFor(''), registry)
+  expectEqual(blank.providers.fake.endpoint, undefined)
+  expectEqual(fake.manifest.fields[0].default, 'https://default.example/v1')
+  const custom = snapshotProcessingConfig(configFor('https://custom.example/v1'), registry)
+  expectEqual(custom.providers.fake.endpoint, 'https://custom.example/v1')
 })
 
 test('stored Refine instructions remain verbatim user-owned data', () => {

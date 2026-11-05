@@ -36,12 +36,50 @@ test('Doubao manifest exposes BigASR Flash with Context support', () => {
   expectEqual(resolved.issues, [])
   expectEqual(resolved.config.model, 'volc.bigasr.auc_turbo')
   expectEqual(resolved.config.resourceId, 'volc.bigasr.auc_turbo')
-  expectEqual(resolved.config.modelName, 'bigmodel')
   expectEqual(resolved.capabilities, {
     inputs: ['audio'],
     instructions: false,
     context: true
   })
+})
+
+test('Doubao free-text Resource ID is forwarded while body model_name stays fixed', async () => {
+  const resolved = doubaoProvider.resolve({
+    providerValues: { endpoint: 'https://example.test/flash' },
+    values: { model: 'future-flash' },
+    secretPresence: { key: true }
+  })
+  expectEqual(resolved.issues, [])
+  let request
+  const processor = doubaoProvider.create(resolved.config, { key: 'secret' }, {
+    transport: {
+      async send(value) {
+        request = value
+        return { status: 200, headers: { 'x-api-status-code': '20000000' }, body: encodeBody({ result: { text: 'ok' } }) }
+      }
+    }
+  })
+  await processor.process({ input: AUDIO, context: { text: '' }, signal: null })
+  expectEqual(request.headers['X-Api-Resource-Id'], 'future-flash')
+  expectEqual(decodeBody(request.body).request.model_name, 'bigmodel')
+})
+
+test('Doubao valid silence is a no-text outcome, not a service failure', async () => {
+  const processor = doubaoProvider.create(resolveDoubao().config, { key: 'secret' }, {
+    transport: {
+      async send() {
+        return {
+          status: 200,
+          headers: { 'x-api-status-code': '20000003', 'x-api-message': 'Normal silence audio' },
+          body: encodeBody({})
+        }
+      }
+    }
+  })
+  let caught
+  try { await processor.process({ input: AUDIO, context: { text: '' }, signal: null }) }
+  catch (error) { caught = error }
+  expectEqual(caught?.category, 'no-text')
 })
 
 test('Doubao requires its Speech API key before processor creation', () => {

@@ -53,7 +53,7 @@ Context has one product meaning: user-provided reference text that helps the sel
 
 Provider wire roles do not redefine this product meaning. For example, an ASR API may document a `system` message specifically as recognition context; that remains Context, not a toas system instruction.
 
-The `Provider` base class owns behavior shared by the Provider family: required-field validation, manifest-level discovery checks, known-model lookup, required-secret validation before Processor creation, and the small product-level helpers for Context and Refine composition. Subclasses supply selection-specific configuration and Processor construction; Provider/Processor implementations own protocol-specific wire encoding.
+The `Provider` base class owns behavior shared by the Provider family: required-field validation, manifest-level discovery checks, required-secret validation before Processor creation, and the small product-level helpers for Context and Refine composition. Subclasses supply selection-specific configuration and Processor construction; Provider/Processor implementations own protocol-specific wire encoding.
 
 ## Refine semantics
 

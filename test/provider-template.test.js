@@ -91,24 +91,16 @@ test('Provider discovery support stays behind the shared template', () => {
   expectEqual(provider.supports('image'), false)
 })
 
-test('known model-shape lookup trims values and reports unsupported models consistently', () => {
-  const shapes = { known: { input: 'text' } }
-  expectEqual(provider.resolveModelShape({ model: ' known ' }, shapes), {
-    model: 'known',
-    shape: shapes.known,
-    issues: []
-  })
-
-  const unknown = provider.resolveModelShape({ model: 'other' }, shapes)
-  expectEqual(unknown.model, 'other')
-  expectEqual(unknown.shape, null)
-  expectEqual(unknown.issues, [
-    {
-      path: 'values.model',
-      code: 'unsupported',
-      message: 'Unsupported Scoped model: other'
-    }
-  ])
+test('Provider forwards the role to selection resolution', () => {
+  const scoped = new ScopedProvider()
+  let seen
+  scoped.resolveSelection = ({ role }) => {
+    seen = role
+    return { input: 'text', config: { model: 'custom' },
+      capabilities: { inputs: ['text'], instructions: true, context: false }, issues: [] }
+  }
+  scoped.resolve({ providerValues: {}, values: { model: 'custom', style: 'short' }, secretPresence, role: 'refine' })
+  expectEqual(seen, 'refine')
 })
 
 test('Provider create template validates required secrets before delegating', () => {

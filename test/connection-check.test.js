@@ -1,6 +1,8 @@
 // Connection test behavior: provider-level diagnostics resolve the same
 // configuration as a real attempt but call only the selected Processor.
 
+import GLib from 'gi://GLib'
+
 import { runConnectionTest } from '../host/config.js'
 import { expectEqual, expectTruthy, run, test } from './harness.js'
 
@@ -121,6 +123,38 @@ test('primary test sends silent audio to the primary processor only', async () =
   expectEqual(providers.get('primary-audio').calls.length, 1)
   expectEqual(providers.get('refine-text').calls.length, 0)
   expectEqual(providers.get('primary-audio').calls[0].input.kind, 'audio')
+})
+
+test('primary connection test sends a decodable PCM WAV header', async () => {
+  const providers = freshProviders()
+  await runConnectionTest({
+    settings: new FakeSettings(baseConfig()),
+    providers,
+    role: 'primary'
+  })
+
+  const input = providers.get('primary-audio').calls[0].input
+  const wav = GLib.base64_decode(input.base64)
+  const ascii = (offset, length) => String.fromCharCode(...wav.slice(offset, offset + length))
+  const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength)
+
+  expectEqual(input.mimeType, 'audio/wav')
+  expectEqual(input.durationMs, 250)
+  expectEqual(ascii(0, 4), 'RIFF')
+  expectEqual(ascii(8, 4), 'WAVE')
+  expectEqual(ascii(12, 4), 'fmt ')
+  expectEqual(ascii(36, 4), 'data')
+  expectEqual(view.getUint32(4, true), wav.length - 8)
+  expectEqual(view.getUint32(16, true), 16)
+  expectEqual(view.getUint16(20, true), 1)
+  expectEqual(view.getUint16(22, true), 1)
+  expectEqual(view.getUint32(24, true), 16000)
+  expectEqual(view.getUint32(28, true), 32000)
+  expectEqual(view.getUint16(32, true), 2)
+  expectEqual(view.getUint16(34, true), 16)
+  expectEqual(view.getUint32(40, true), wav.length - 44)
+  expectEqual(wav.length, 8044)
+  expectTruthy(wav.slice(44).every(byte => byte === 0))
 })
 
 test('refine test sends fixed text to the refine processor only', async () => {
