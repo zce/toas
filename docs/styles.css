@@ -465,8 +465,8 @@ h3 {
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: #111114;
-  box-shadow: 0 7px 22px rgba(0, 0, 0, .54), inset 0 0 0 1px rgba(188, 220, 255, .14);
+  background: #1f2228;
+  box-shadow: 0 7px 22px rgba(0, 0, 0, .54), inset 0 0 0 1px #30343b;
   overflow: hidden;
   transform: translate(-50%, -50%);
   cursor: pointer;

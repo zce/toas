@@ -271,7 +271,7 @@
     const { xy, edge, taper, glyph, path, strength } = grid
     const rec = 1 - processMix, work = processMix
     const t = reduced.matches ? 1.7 : time
-    const amp = .30 + .15 * (.5 + .5 * Math.sin(t * TAU / 5.5)) + 1.95 * Math.pow(voice, .72)
+    const amp = .30 + .15 * (.5 + .5 * Math.sin(t * TAU / 5.5)) + 2.15 * Math.pow(voice, .72)
     const carrier = t * TAU * .17, mid = (ROWS - 1) / 2
     for (let col = 0; col < grid.cols; col++) {
       const u = col / (grid.cols - 1), ends = taper[col]

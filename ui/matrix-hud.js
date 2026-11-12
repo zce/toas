@@ -227,10 +227,9 @@ export class MatrixRenderer {
     const work = model.processMix
     const t = model.time
 
-    // The fixed-size HUD only has 11 rows: keep the main wave within
-    // about 2.4 rows per side, leaving the bright trace room to breathe.
+    // Emphasize speech slightly while keeping peaks inside the 11-row field.
     const amp = .30 + .15 * (.5 + .5 * Math.sin(t * TAU / 5.5)) +
-      1.95 * Math.pow(model.voice, .72)
+      2.15 * Math.pow(model.voice, .72)
     const carrier = t * TAU * .17
     const mid = (ROWS - 1) / 2
 
