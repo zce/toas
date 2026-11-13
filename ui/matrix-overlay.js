@@ -140,7 +140,7 @@ export class MatrixOverlayView {
       return Clutter.EVENT_PROPAGATE
     })
 
-    Main.layoutManager.addTopChrome(this._glow, { affectsInputRegion: false })
+    Main.layoutManager.addTopChrome(this._glow)
     Main.layoutManager.addTopChrome(this._overlay)
     this._overlay.connect('notify::width', () => this._syncTranslation())
     this._overlay.connect('notify::height', () => this._syncTranslation())
