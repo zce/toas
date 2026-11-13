@@ -75,6 +75,7 @@ export class MatrixOverlayView {
       height: GLOW_HEIGHT,
       visible: false,
       reactive: false,
+      can_focus: false,
       opacity: 0
     })
     this._glow.connect('repaint', area => this._repaintGlow(area))
