@@ -1,3 +1,4 @@
+import Cairo from 'cairo'
 import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
 import Pango from 'gi://Pango'
@@ -21,6 +22,34 @@ const ENTER_MS = 370
 const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
+const GLOW_WIDTH = 480
+const GLOW_HEIGHT = 280
+const GLOW_OPACITY = 215
+
+// Three compact, offset sources blend into a soft, uneven light field.
+// The larger drawing area leaves room for every gradient to fade out.
+const GLOW_SOURCES = [
+  // x, y, radius (logical px), peak alpha.
+  [.50, .50, 112, .14],
+  [.34, .43, 92, .07],
+  [.69, .57, 98, .075]
+]
+
+function paintGlow(cr, width, height) {
+  for (const [x, y, radius, alpha] of GLOW_SOURCES) {
+    const cx = width * x
+    const cy = height * y
+    const gradient = new Cairo.RadialGradient(cx, cy, 0, cx, cy, radius)
+    gradient.addColorStopRGBA(0, .20, .38, .98, alpha)
+    gradient.addColorStopRGBA(.42, .23, .35, .95, alpha * .40)
+    gradient.addColorStopRGBA(.82, .29, .30, .86, alpha * .06)
+    gradient.addColorStopRGBA(1, .29, .30, .86, 0)
+
+    cr.setSource(gradient)
+    cr.arc(cx, cy, radius, 0, Math.PI * 2)
+    cr.fill()
+  }
+}
 
 export class MatrixOverlayView {
   constructor() {
@@ -38,6 +67,17 @@ export class MatrixOverlayView {
     this._compositingHeld = false
     this._hiding = false
     this._destroyed = false
+
+    // Separate, non-interactive ambient light behind the unchanged HUD.
+    this._glow = new St.DrawingArea({
+      width: GLOW_WIDTH,
+      height: GLOW_HEIGHT,
+      visible: false,
+      reactive: false,
+      can_focus: false,
+      opacity: 0
+    })
+    this._glow.connect('repaint', area => this._repaintGlow(area))
 
     this._matrix = new St.DrawingArea({
       name: 'toas-matrix-canvas',
@@ -100,6 +140,7 @@ export class MatrixOverlayView {
       return Clutter.EVENT_PROPAGATE
     })
 
+    Main.layoutManager.addTopChrome(this._glow)
     Main.layoutManager.addTopChrome(this._overlay)
     this._overlay.connect('notify::width', () => this._syncTranslation())
     this._overlay.connect('notify::height', () => this._syncTranslation())
@@ -140,6 +181,7 @@ export class MatrixOverlayView {
         this._matrix.width = targetWidth
       }
     } else {
+      this._fadeGlowOut(180)
       this._stopAnimation()
     }
     this._matrix.queue_repaint()
@@ -188,6 +230,23 @@ export class MatrixOverlayView {
     this._overlay.remove_all_transitions()
     this._acquireCompositing()
     this._reposition()
+    if (this._mode === 'recording' || this._mode === 'busy') {
+      const alreadyVisible = this._glow.visible
+      this._glow.remove_all_transitions()
+      this._glow.show()
+      if (St.Settings.get().enable_animations) {
+        if (!alreadyVisible) {
+          this._glow.opacity = 0
+        }
+        this._glow.ease({
+          opacity: GLOW_OPACITY,
+          duration: 300,
+          mode: Clutter.AnimationMode.EASE_OUT_CUBIC
+        })
+      } else {
+        this._glow.opacity = GLOW_OPACITY
+      }
+    }
     this._overlay.reactive = this._mode === 'recording' || this._mode === 'busy'
     if (!this._overlay.visible) {
       const enteringMatrix = this._mode === 'recording' || this._mode === 'busy'
@@ -238,6 +297,7 @@ export class MatrixOverlayView {
     this._exitDuration = this._cancelRequested ? CANCEL_MS :
       this._mode === 'busy' ? COMPLETE_MS : ERROR_EXIT_MS
     this._exitStarted = GLib.get_monotonic_time()
+    this._fadeGlowOut(this._exitDuration)
 
     if (this._matrix.visible) {
       this._matrix.ease({
@@ -260,6 +320,9 @@ export class MatrixOverlayView {
 
   _finishHide() {
     this._stopAnimation()
+    this._glow.remove_all_transitions()
+    this._glow.opacity = 0
+    this._glow.hide()
     this._overlay.hide()
     this._mode = 'hidden'
     this._hover = 0
@@ -268,6 +331,28 @@ export class MatrixOverlayView {
     this._exitProgress = 0
     this._hiding = false
     this._releaseCompositing()
+  }
+
+  _fadeGlowOut(duration) {
+    if (!this._glow.visible) {
+      return
+    }
+    this._glow.remove_all_transitions()
+    if (!St.Settings.get().enable_animations) {
+      this._glow.opacity = 0
+      this._glow.hide()
+      return
+    }
+    this._glow.ease({
+      opacity: 0,
+      duration,
+      mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+      onStopped: () => {
+        if (!this._destroyed && this._glow?.opacity === 0) {
+          this._glow.hide()
+        }
+      }
+    })
   }
 
   _startAnimation() {
@@ -303,6 +388,16 @@ export class MatrixOverlayView {
     }
   }
 
+  _repaintGlow(area) {
+    const cr = area.get_context()
+    try {
+      const [width, height] = area.get_surface_size()
+      paintGlow(cr, width, height)
+    } finally {
+      cr.$dispose()
+    }
+  }
+
   _repaint(area) {
     if (this._mode !== 'recording' && this._mode !== 'busy') {
       return
@@ -334,6 +429,9 @@ export class MatrixOverlayView {
     const [, h] = this._overlay.get_preferred_height(w)
     const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
     this._overlay.set_position(x, y)
+    const glowMargin = BOTTOM_MARGIN + (HUD_HEIGHT - GLOW_HEIGHT) / 2 - 6
+    const glow = calculateOverlayPosition(monitor, GLOW_WIDTH, GLOW_HEIGHT, glowMargin)
+    this._glow.set_position(glow.x, glow.y)
     this._overlay.translation_x = 0
     this._overlay.translation_y = 0
   }
@@ -375,16 +473,22 @@ export class MatrixOverlayView {
     this._stopAnimation()
     this._renderer?.clear()
     this._matrix?.remove_all_transitions()
+    this._glow?.remove_all_transitions()
     this._overlay?.remove_all_transitions()
     this._releaseCompositing()
     if (this._monitorsChangedId) {
       Main.layoutManager.disconnect(this._monitorsChangedId)
+    }
+    if (this._glow) {
+      Main.layoutManager.removeChrome(this._glow)
+      this._glow.destroy()
     }
     if (this._overlay) {
       Main.layoutManager.removeChrome(this._overlay)
       this._overlay.destroy()
     }
     this._overlay = null
+    this._glow = null
     this._matrix = null
     this._error = null
     this._signal = null
