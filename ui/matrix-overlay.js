@@ -26,29 +26,31 @@ const GLOW_WIDTH = 480
 const GLOW_HEIGHT = 220
 const GLOW_OPACITY = 215
 
-// Offset translucent fields, not a single halo with a visible outline.
-// Cairo paints this only when the drawing area is created or resized.
-const GLOW_LAYERS = [
-  // cx, cy, rx, ry, alpha (fractions of the drawing area).
-  [.49, .49, .45, .43, .13],
-  [.42, .60, .41, .39, .10],
-  [.64, .44, .33, .35, .055]
+// Compact near-field bloom with weaker, offset ambient sources.
+// All sources are circular; their overlap creates the irregular light field.
+const GLOW_SOURCES = [
+  // x, y, radius (logical px), peak alpha.
+  [.50, .49, 108, .15],
+  [.54, .62, 96, .075],
+  [.36, .45, 148, .025],
+  [.67, .52, 142, .022],
+  [.52, .68, 164, .016]
 ]
 
+// Cairo paints this once when the drawing area is created or resized.
 function paintGlow(cr, width, height) {
-  for (const [cx, cy, rx, ry, alpha] of GLOW_LAYERS) {
-    cr.save()
-    cr.translate(width * cx, height * cy)
-    cr.scale(width * rx, height * ry)
+  for (const [x, y, radius, alpha] of GLOW_SOURCES) {
+    const cx = width * x
+    const cy = height * y
+    const gradient = new Cairo.RadialGradient(cx, cy, 0, cx, cy, radius)
+    gradient.addColorStopRGBA(0, .20, .38, .98, alpha)
+    gradient.addColorStopRGBA(.36, .23, .35, .95, alpha * .48)
+    gradient.addColorStopRGBA(.76, .29, .30, .86, alpha * .10)
+    gradient.addColorStopRGBA(1, .29, .30, .86, 0)
 
-    const gradient = new Cairo.RadialGradient(0, 0, 0, 0, 0, 1)
-    gradient.addColorStopRGBA(0, .22, .40, .96, alpha)
-    gradient.addColorStopRGBA(.45, .14, .32, .88, alpha * .38)
-    gradient.addColorStopRGBA(1, .12, .24, .80, 0)
     cr.setSource(gradient)
-    cr.rectangle(-1, -1, 2, 2)
+    cr.arc(cx, cy, radius, 0, Math.PI * 2)
     cr.fill()
-    cr.restore()
   }
 }
 
