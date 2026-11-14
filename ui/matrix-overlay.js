@@ -21,6 +21,7 @@ const ENTER_MS = 370
 const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
+
 export class MatrixOverlayView {
   constructor() {
     this._signal = new MatrixSignal()
