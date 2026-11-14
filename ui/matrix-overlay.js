@@ -30,11 +30,11 @@ const GLOW_OPACITY = 215
 // All sources are circular; their overlap creates the irregular light field.
 const GLOW_SOURCES = [
   // x, y, radius (logical px), peak alpha.
-  [.50, .49, 108, .15],
-  [.54, .62, 96, .075],
-  [.36, .45, 148, .025],
-  [.67, .52, 142, .022],
-  [.52, .68, 164, .016]
+  [.50, .49, 145, .17],
+  [.36, .43, 118, .095],
+  [.67, .54, 126, .082],
+  [.53, .66, 125, .075],
+  [.50, .52, 205, .014]
 ]
 
 // Cairo paints this once when the drawing area is created or resized.
