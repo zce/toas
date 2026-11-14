@@ -429,7 +429,7 @@ export class MatrixOverlayView {
     const [, h] = this._overlay.get_preferred_height(w)
     const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
     this._overlay.set_position(x, y)
-    const glowMargin = BOTTOM_MARGIN + (HUD_HEIGHT - GLOW_HEIGHT) / 2 - 6
+    const glowMargin = Math.max(0, BOTTOM_MARGIN + (HUD_HEIGHT - GLOW_HEIGHT) / 2)
     const glow = calculateOverlayPosition(monitor, GLOW_WIDTH, GLOW_HEIGHT, glowMargin)
     this._glow.set_position(glow.x, glow.y)
     this._overlay.translation_x = 0
