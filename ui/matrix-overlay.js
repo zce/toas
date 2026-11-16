@@ -22,8 +22,8 @@ const ENTER_MS = 370
 const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
-const GLOW_WIDTH = 320
-const GLOW_HEIGHT = 170
+const GLOW_WIDTH = 520
+const GLOW_HEIGHT = 275
 const GLOW_OPACITY = 255
 
 const MODULE_PATH = GLib.filename_from_uri(import.meta.url)[0]
