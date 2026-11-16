@@ -54,6 +54,7 @@ cp "$SOURCE_DIR"/stylesheet.css "$STAGING_DIR/"
 cp -R "$SOURCE_DIR"/host "$STAGING_DIR/"
 cp -R "$SOURCE_DIR"/kernel "$STAGING_DIR/"
 cp -R "$SOURCE_DIR"/ui "$STAGING_DIR/"
+cp -R "$SOURCE_DIR"/assets "$STAGING_DIR/"
 cp -R "$SOURCE_DIR"/schemas "$STAGING_DIR/"
 
 glib-compile-schemas --strict "$STAGING_DIR/schemas"
