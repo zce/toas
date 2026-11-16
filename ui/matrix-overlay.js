@@ -22,8 +22,8 @@ const ENTER_MS = 370
 const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
-const GLOW_WIDTH = 820
-const GLOW_HEIGHT = 436
+const GLOW_WIDTH = 520
+const GLOW_HEIGHT = 275
 const GLOW_OPACITY = 255
 
 const MODULE_PATH = GLib.filename_from_uri(import.meta.url)[0]
@@ -369,7 +369,7 @@ export class MatrixOverlayView {
     }
   }
 
-remove painter callback  _repaint(area) {
+  _repaint(area) {
     if (this._mode !== 'recording' && this._mode !== 'busy') {
       return
     }
@@ -400,10 +400,9 @@ remove painter callback  _repaint(area) {
     const [, h] = this._overlay.get_preferred_height(w)
     const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
     this._overlay.set_position(x, y)
-    this._glow.set_position(
-      x + (w - GLOW_WIDTH) / 2,
-      y + (h - GLOW_HEIGHT) / 2
-    )
+    const glowMargin = Math.max(0, BOTTOM_MARGIN + (HUD_HEIGHT - GLOW_HEIGHT) / 2)
+    const glow = calculateOverlayPosition(monitor, GLOW_WIDTH, GLOW_HEIGHT, glowMargin)
+    this._glow.set_position(glow.x, glow.y)
     this._overlay.translation_x = 0
     this._overlay.translation_y = 0
   }
