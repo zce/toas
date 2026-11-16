@@ -1,4 +1,4 @@
-import Cairo from 'cairo'
+import Gio from 'gi://Gio'
 import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
 import Pango from 'gi://Pango'
@@ -22,34 +22,15 @@ const ENTER_MS = 370
 const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
-const GLOW_WIDTH = 480
-const GLOW_HEIGHT = 280
-const GLOW_OPACITY = 215
+const GLOW_WIDTH = 820
+const GLOW_HEIGHT = 436
+const GLOW_OPACITY = 255
 
-// Three compact, offset sources blend into a soft, uneven light field.
-// The larger drawing area leaves room for every gradient to fade out.
-const GLOW_SOURCES = [
-  // x, y, radius (logical px), peak alpha.
-  [.50, .50, 112, .14],
-  [.34, .43, 92, .07],
-  [.69, .57, 98, .075]
-]
-
-function paintGlow(cr, width, height) {
-  for (const [x, y, radius, alpha] of GLOW_SOURCES) {
-    const cx = width * x
-    const cy = height * y
-    const gradient = new Cairo.RadialGradient(cx, cy, 0, cx, cy, radius)
-    gradient.addColorStopRGBA(0, .20, .38, .98, alpha)
-    gradient.addColorStopRGBA(.42, .23, .35, .95, alpha * .40)
-    gradient.addColorStopRGBA(.82, .29, .30, .86, alpha * .06)
-    gradient.addColorStopRGBA(1, .29, .30, .86, 0)
-
-    cr.setSource(gradient)
-    cr.arc(cx, cy, radius, 0, Math.PI * 2)
-    cr.fill()
-  }
-}
+const MODULE_PATH = GLib.filename_from_uri(import.meta.url)[0]
+const EXTENSION_DIR = GLib.path_get_dirname(GLib.path_get_dirname(MODULE_PATH))
+const GLOW_IMAGE_URI = Gio.File.new_for_path(
+  GLib.build_filenamev([EXTENSION_DIR, 'assets', 'matrix-ambient-glow.png'])
+).get_uri()
 
 export class MatrixOverlayView {
   constructor() {
@@ -69,15 +50,15 @@ export class MatrixOverlayView {
     this._destroyed = false
 
     // Separate, non-interactive ambient light behind the unchanged HUD.
-    this._glow = new St.DrawingArea({
+    this._glow = new St.Widget({
       width: GLOW_WIDTH,
       height: GLOW_HEIGHT,
+      style: `background-image: url("${GLOW_IMAGE_URI}"); background-size: 100% 100%; background-repeat: no-repeat;`,
       visible: false,
       reactive: false,
       can_focus: false,
       opacity: 0
     })
-    this._glow.connect('repaint', area => this._repaintGlow(area))
 
     this._matrix = new St.DrawingArea({
       name: 'toas-matrix-canvas',
@@ -388,17 +369,7 @@ export class MatrixOverlayView {
     }
   }
 
-  _repaintGlow(area) {
-    const cr = area.get_context()
-    try {
-      const [width, height] = area.get_surface_size()
-      paintGlow(cr, width, height)
-    } finally {
-      cr.$dispose()
-    }
-  }
-
-  _repaint(area) {
+remove painter callback  _repaint(area) {
     if (this._mode !== 'recording' && this._mode !== 'busy') {
       return
     }
@@ -429,9 +400,10 @@ export class MatrixOverlayView {
     const [, h] = this._overlay.get_preferred_height(w)
     const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
     this._overlay.set_position(x, y)
-    const glowMargin = Math.max(0, BOTTOM_MARGIN + (HUD_HEIGHT - GLOW_HEIGHT) / 2)
-    const glow = calculateOverlayPosition(monitor, GLOW_WIDTH, GLOW_HEIGHT, glowMargin)
-    this._glow.set_position(glow.x, glow.y)
+    this._glow.set_position(
+      x + (w - GLOW_WIDTH) / 2,
+      y + (h - GLOW_HEIGHT) / 2
+    )
     this._overlay.translation_x = 0
     this._overlay.translation_y = 0
   }
