@@ -84,4 +84,9 @@ test('runtime-agnostic kernel does not import Host or UI modules', () => {
   }
 })
 
+test('Matrix HUD ambient glow texture is bundled', () => {
+  const texture = Gio.File.new_for_path(`${root}/assets/matrix-ambient-glow.png`)
+  expectTruthy(texture.query_exists(null), 'Matrix HUD ambient glow texture must be present')
+})
+
 await run()
