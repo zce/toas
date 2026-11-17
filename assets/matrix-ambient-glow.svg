@@ -21,7 +21,10 @@
       <stop offset="1" stop-color="#465fdf" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <ellipse cx="260" cy="140" rx="211" ry="108" fill="url(#ambient)"/>
-  <ellipse cx="192" cy="151" rx="142" ry="80" fill="url(#left)"/>
-  <ellipse cx="333" cy="126" rx="147" ry="89" fill="url(#right)"/>
+  <!-- Keep the actor bounds unchanged; shrink only the visible light field. -->
+  <g transform="translate(260 140) scale(0.88) translate(-260 -140)">
+    <ellipse cx="260" cy="140" rx="211" ry="108" fill="url(#ambient)"/>
+    <ellipse cx="192" cy="151" rx="142" ry="80" fill="url(#left)"/>
+    <ellipse cx="333" cy="126" rx="147" ry="89" fill="url(#right)"/>
+  </g>
 </svg>
