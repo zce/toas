@@ -29,7 +29,7 @@ const GLOW_OPACITY = 255
 const MODULE_PATH = GLib.filename_from_uri(import.meta.url)[0]
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.path_get_dirname(MODULE_PATH))
 const GLOW_IMAGE_URI = Gio.File.new_for_path(
-  GLib.build_filenamev([EXTENSION_DIR, 'assets', 'matrix-ambient-glow.png'])
+  GLib.build_filenamev([EXTENSION_DIR, 'assets', 'matrix-ambient-glow.svg'])
 ).get_uri()
 
 export class MatrixOverlayView {
