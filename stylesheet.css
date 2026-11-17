@@ -195,10 +195,11 @@
 
 .toas-matrix-overlay {
   font-family: 'Maple Mono', sans-serif;
-  border: 1px solid #384963;
+  /* A quiet rim and compact contact shadow separate the hub from its glow. */
+  border: 1px solid #263244;
   border-radius: 99px;
   background-color: rgba(23, 30, 45, 0.98);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.39);
+  box-shadow: 0 4px 14px rgba(3, 7, 17, 0.68);
 }
 
 .toas-matrix-error-label {
