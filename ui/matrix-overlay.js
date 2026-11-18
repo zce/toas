@@ -21,8 +21,6 @@ const ENTER_MS = 370
 const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
-const GLOW_WIDTH = 280
-const GLOW_HEIGHT = 52
 const GLOW_OPACITY = 255
 
 export class MatrixOverlayView {
@@ -43,9 +41,8 @@ export class MatrixOverlayView {
     this._destroyed = false
 
     // Separate, non-interactive ambient light behind the unchanged HUD.
+    // Glow geometry is visual styling; keep its dimensions in CSS.
     this._glow = new St.Widget({
-      width: GLOW_WIDTH,
-      height: GLOW_HEIGHT,
       style_class: 'toas-matrix-glow',
       visible: false,
       reactive: false,
@@ -394,8 +391,8 @@ export class MatrixOverlayView {
     const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
     this._overlay.set_position(x, y)
     this._glow.set_position(
-      Math.round(x + (w - GLOW_WIDTH) / 2),
-      Math.round(y + (h - GLOW_HEIGHT) / 2)
+      Math.round(x + (w - this._glow.width) / 2),
+      Math.round(y + (h - this._glow.height) / 2)
     )
     this._overlay.translation_x = 0
     this._overlay.translation_y = 0
@@ -416,8 +413,8 @@ export class MatrixOverlayView {
     this._overlay.translation_x = x - this._overlay.x
     this._overlay.translation_y = y - this._overlay.y
     this._glow.set_position(
-      Math.round(x + (this._overlay.width - GLOW_WIDTH) / 2),
-      Math.round(y + (this._overlay.height - GLOW_HEIGHT) / 2)
+      Math.round(x + (this._overlay.width - this._glow.width) / 2),
+      Math.round(y + (this._overlay.height - this._glow.height) / 2)
     )
   }
 
