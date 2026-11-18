@@ -193,13 +193,20 @@
 
 /* --- Matrix HUD (ui/matrix-overlay.js) --------------------------------------- */
 
+.toas-matrix-glow {
+  border-radius: 99px;
+  /* Keep the actor itself effectively invisible; St uses the background shape for the shadow. */
+  background-color: rgba(67, 101, 224, 0.01);
+  box-shadow: 0 0 52px 18px rgba(67, 101, 224, 0.20);
+}
+
 .toas-matrix-overlay {
   font-family: 'Maple Mono', sans-serif;
-  /* A quiet rim and compact contact shadow separate the hub from its glow. */
-  border: 1px solid #263244;
+  /* Blend the rim into the surface; depth comes from the contact shadow instead. */
+  border: 1px solid rgba(23, 30, 45, 0.96);
   border-radius: 99px;
   background-color: rgba(23, 30, 45, 0.98);
-  box-shadow: 0 4px 14px rgba(3, 7, 17, 0.68);
+  box-shadow: 0 3px 14px rgba(3, 7, 17, 0.74);
 }
 
 .toas-matrix-error-label {

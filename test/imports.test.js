@@ -84,9 +84,9 @@ test('runtime-agnostic kernel does not import Host or UI modules', () => {
   }
 })
 
-test('Matrix HUD ambient SVG glow is bundled', () => {
-  const texture = Gio.File.new_for_path(`${root}/assets/matrix-ambient-glow.svg`)
-  expectTruthy(texture.query_exists(null), 'Matrix HUD ambient glow texture must be present')
+test('Matrix HUD uses the CSS ambient glow layer', () => {
+  const source = decoder.decode(Gio.File.new_for_path(`${root}/ui/matrix-overlay.js`).load_contents(null)[1])
+  expectTruthy(source.includes("style_class: 'toas-matrix-glow'"), 'Matrix HUD must use the CSS ambient glow layer')
 })
 
 await run()

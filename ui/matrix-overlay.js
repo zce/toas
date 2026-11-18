@@ -1,4 +1,3 @@
-import Gio from 'gi://Gio'
 import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
 import Pango from 'gi://Pango'
@@ -22,15 +21,9 @@ const ENTER_MS = 370
 const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
-const GLOW_WIDTH = 520
-const GLOW_HEIGHT = 275
+const GLOW_WIDTH = 320
+const GLOW_HEIGHT = 52
 const GLOW_OPACITY = 255
-
-const MODULE_PATH = GLib.filename_from_uri(import.meta.url)[0]
-const EXTENSION_DIR = GLib.path_get_dirname(GLib.path_get_dirname(MODULE_PATH))
-const GLOW_IMAGE_URI = Gio.File.new_for_path(
-  GLib.build_filenamev([EXTENSION_DIR, 'assets', 'matrix-ambient-glow.svg'])
-).get_uri()
 
 export class MatrixOverlayView {
   constructor() {
@@ -53,7 +46,7 @@ export class MatrixOverlayView {
     this._glow = new St.Widget({
       width: GLOW_WIDTH,
       height: GLOW_HEIGHT,
-      style: `background-image: url("${GLOW_IMAGE_URI}"); background-size: 100% 100%; background-repeat: no-repeat;`,
+      style_class: 'toas-matrix-glow',
       visible: false,
       reactive: false,
       can_focus: false,
@@ -400,9 +393,10 @@ export class MatrixOverlayView {
     const [, h] = this._overlay.get_preferred_height(w)
     const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
     this._overlay.set_position(x, y)
-    const glowMargin = Math.max(0, BOTTOM_MARGIN + (HUD_HEIGHT - GLOW_HEIGHT) / 2)
-    const glow = calculateOverlayPosition(monitor, GLOW_WIDTH, GLOW_HEIGHT, glowMargin)
-    this._glow.set_position(glow.x, glow.y)
+    this._glow.set_position(
+      Math.round(x + (w - GLOW_WIDTH) / 2),
+      Math.round(y + (h - GLOW_HEIGHT) / 2)
+    )
     this._overlay.translation_x = 0
     this._overlay.translation_y = 0
   }
@@ -421,6 +415,10 @@ export class MatrixOverlayView {
     // Size transitions need visual centering, not another allocation.
     this._overlay.translation_x = x - this._overlay.x
     this._overlay.translation_y = y - this._overlay.y
+    this._glow.set_position(
+      Math.round(x + (this._overlay.width - GLOW_WIDTH) / 2),
+      Math.round(y + (this._overlay.height - GLOW_HEIGHT) / 2)
+    )
   }
 
   _acquireCompositing() {
