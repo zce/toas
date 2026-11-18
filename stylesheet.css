@@ -197,7 +197,7 @@
   border-radius: 99px;
   /* Keep the actor itself effectively invisible; St uses the background shape for the shadow. */
   background-color: rgba(67, 101, 224, 0.01);
-  box-shadow: 0 0 52px 18px rgba(67, 101, 224, 0.20);
+  box-shadow: 0 0 40px 12px rgba(67, 101, 224, 0.20);
 }
 
 .toas-matrix-overlay {
