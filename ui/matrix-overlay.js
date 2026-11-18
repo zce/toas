@@ -21,6 +21,7 @@ const ENTER_MS = 370
 const COMPLETE_MS = 400
 const CANCEL_MS = 230
 const ERROR_EXIT_MS = 180
+const GLOW_OPACITY = 255
 
 export class MatrixOverlayView {
   constructor() {
@@ -38,6 +39,16 @@ export class MatrixOverlayView {
     this._compositingHeld = false
     this._hiding = false
     this._destroyed = false
+
+    // Separate, non-interactive ambient light behind the unchanged HUD.
+    // Glow geometry is visual styling; keep its dimensions in CSS.
+    this._glow = new St.Widget({
+      style_class: 'toas-matrix-glow',
+      visible: false,
+      reactive: false,
+      can_focus: false,
+      opacity: 0
+    })
 
     this._matrix = new St.DrawingArea({
       name: 'toas-matrix-canvas',
@@ -100,6 +111,7 @@ export class MatrixOverlayView {
       return Clutter.EVENT_PROPAGATE
     })
 
+    Main.layoutManager.addTopChrome(this._glow)
     Main.layoutManager.addTopChrome(this._overlay)
     this._overlay.connect('notify::width', () => this._syncTranslation())
     this._overlay.connect('notify::height', () => this._syncTranslation())
@@ -140,6 +152,7 @@ export class MatrixOverlayView {
         this._matrix.width = targetWidth
       }
     } else {
+      this._fadeGlowOut(180)
       this._stopAnimation()
     }
     this._matrix.queue_repaint()
@@ -188,6 +201,23 @@ export class MatrixOverlayView {
     this._overlay.remove_all_transitions()
     this._acquireCompositing()
     this._reposition()
+    if (this._mode === 'recording' || this._mode === 'busy') {
+      const alreadyVisible = this._glow.visible
+      this._glow.remove_all_transitions()
+      this._glow.show()
+      if (St.Settings.get().enable_animations) {
+        if (!alreadyVisible) {
+          this._glow.opacity = 0
+        }
+        this._glow.ease({
+          opacity: GLOW_OPACITY,
+          duration: 300,
+          mode: Clutter.AnimationMode.EASE_OUT_CUBIC
+        })
+      } else {
+        this._glow.opacity = GLOW_OPACITY
+      }
+    }
     this._overlay.reactive = this._mode === 'recording' || this._mode === 'busy'
     if (!this._overlay.visible) {
       const enteringMatrix = this._mode === 'recording' || this._mode === 'busy'
@@ -238,6 +268,7 @@ export class MatrixOverlayView {
     this._exitDuration = this._cancelRequested ? CANCEL_MS :
       this._mode === 'busy' ? COMPLETE_MS : ERROR_EXIT_MS
     this._exitStarted = GLib.get_monotonic_time()
+    this._fadeGlowOut(this._exitDuration)
 
     if (this._matrix.visible) {
       this._matrix.ease({
@@ -260,6 +291,9 @@ export class MatrixOverlayView {
 
   _finishHide() {
     this._stopAnimation()
+    this._glow.remove_all_transitions()
+    this._glow.opacity = 0
+    this._glow.hide()
     this._overlay.hide()
     this._mode = 'hidden'
     this._hover = 0
@@ -268,6 +302,28 @@ export class MatrixOverlayView {
     this._exitProgress = 0
     this._hiding = false
     this._releaseCompositing()
+  }
+
+  _fadeGlowOut(duration) {
+    if (!this._glow.visible) {
+      return
+    }
+    this._glow.remove_all_transitions()
+    if (!St.Settings.get().enable_animations) {
+      this._glow.opacity = 0
+      this._glow.hide()
+      return
+    }
+    this._glow.ease({
+      opacity: 0,
+      duration,
+      mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+      onStopped: () => {
+        if (!this._destroyed && this._glow?.opacity === 0) {
+          this._glow.hide()
+        }
+      }
+    })
   }
 
   _startAnimation() {
@@ -334,6 +390,10 @@ export class MatrixOverlayView {
     const [, h] = this._overlay.get_preferred_height(w)
     const { x, y } = calculateOverlayPosition(monitor, w, h, BOTTOM_MARGIN)
     this._overlay.set_position(x, y)
+    this._glow.set_position(
+      Math.round(x + (w - this._glow.width) / 2),
+      Math.round(y + (h - this._glow.height) / 2)
+    )
     this._overlay.translation_x = 0
     this._overlay.translation_y = 0
   }
@@ -352,6 +412,10 @@ export class MatrixOverlayView {
     // Size transitions need visual centering, not another allocation.
     this._overlay.translation_x = x - this._overlay.x
     this._overlay.translation_y = y - this._overlay.y
+    this._glow.set_position(
+      Math.round(x + (this._overlay.width - this._glow.width) / 2),
+      Math.round(y + (this._overlay.height - this._glow.height) / 2)
+    )
   }
 
   _acquireCompositing() {
@@ -375,16 +439,22 @@ export class MatrixOverlayView {
     this._stopAnimation()
     this._renderer?.clear()
     this._matrix?.remove_all_transitions()
+    this._glow?.remove_all_transitions()
     this._overlay?.remove_all_transitions()
     this._releaseCompositing()
     if (this._monitorsChangedId) {
       Main.layoutManager.disconnect(this._monitorsChangedId)
+    }
+    if (this._glow) {
+      Main.layoutManager.removeChrome(this._glow)
+      this._glow.destroy()
     }
     if (this._overlay) {
       Main.layoutManager.removeChrome(this._overlay)
       this._overlay.destroy()
     }
     this._overlay = null
+    this._glow = null
     this._matrix = null
     this._error = null
     this._signal = null

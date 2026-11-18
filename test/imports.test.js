@@ -84,4 +84,9 @@ test('runtime-agnostic kernel does not import Host or UI modules', () => {
   }
 })
 
+test('Matrix HUD uses the CSS ambient glow layer', () => {
+  const source = decoder.decode(Gio.File.new_for_path(`${root}/ui/matrix-overlay.js`).load_contents(null)[1])
+  expectTruthy(source.includes("style_class: 'toas-matrix-glow'"), 'Matrix HUD must use the CSS ambient glow layer')
+})
+
 await run()
